@@ -1,0 +1,73 @@
+import 'package:drift/drift.dart';
+
+import 'enums.dart';
+
+/// User-editable categories. Shipping a good default set (seeded on first run)
+/// fixes the "five ugly fixed categories" problem in the original.
+@DataClassName('Category')
+class Categories extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text().withLength(min: 1, max: 60)();
+  TextColumn get iconKey => text().withLength(min: 1, max: 40)();
+  IntColumn get colorValue => integer()(); // ARGB int
+  IntColumn get type => intEnum<TxnType>()();
+  BoolColumn get archived => boolean().withDefault(const Constant(false))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+}
+
+/// A recurrence RULE — not pre-created rows. The engine evaluates this lazily
+/// to materialise due transactions. One mechanism drives recurring income,
+/// weekly expenses, and monthly bills (التزامات شهرية).
+@DataClassName('RecurrenceRule')
+class RecurrenceRules extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get title => text().withLength(min: 1, max: 80)();
+  RealColumn get amount => real()();
+  IntColumn get categoryId => integer().references(Categories, #id)();
+  IntColumn get type => intEnum<TxnType>()();
+  IntColumn get frequency => intEnum<Frequency>()();
+  IntColumn get interval => integer().withDefault(const Constant(1))(); // every N units
+  DateTimeColumn get startDate => dateTime()();
+  DateTimeColumn get endDate => dateTime().nullable()();
+  // Through this date, transactions have already been generated. Advancing it
+  // is what makes catch-up idempotent.
+  DateTimeColumn get lastMaterialized => dateTime().nullable()();
+  BoolColumn get active => boolean().withDefault(const Constant(true))();
+  TextColumn get note => text().nullable()();
+}
+
+@DataClassName('Txn')
+class Transactions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  RealColumn get amount => real()();
+  IntColumn get categoryId => integer().references(Categories, #id)();
+  IntColumn get type => intEnum<TxnType>()();
+  DateTimeColumn get date => dateTime()();
+  TextColumn get note => text().nullable()();
+  // Non-null => this row was generated from a recurrence rule.
+  IntColumn get recurrenceId =>
+      integer().nullable().references(RecurrenceRules, #id)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Savings goal. The current balance is NOT stored here — it is summed from the
+/// contributions ledger below. A stored balance is what drifts out of sync and
+/// makes "savings" feel buggy.
+@DataClassName('SavingsGoal')
+class SavingsGoals extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text().withLength(min: 1, max: 80)();
+  RealColumn get targetAmount => real()();
+  DateTimeColumn get targetDate => dateTime().nullable()();
+  BoolColumn get archived => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+@DataClassName('SavingsContribution')
+class SavingsContributions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get goalId => integer().references(SavingsGoals, #id)();
+  RealColumn get amount => real()();
+  DateTimeColumn get date => dateTime()();
+  TextColumn get note => text().nullable()();
+}

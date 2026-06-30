@@ -1,0 +1,41 @@
+name: floos
+description: "تطبيق بسيط لتتبع المصاريف — a minimal expense tracker."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Reactive local database (source of truth, fully offline).
+  drift: ^2.16.0
+  sqlite3_flutter_libs: ^0.5.20
+  path_provider: ^2.1.2
+  path: ^1.9.0
+
+  # Number/date formatting.
+  intl: 0.20.2
+
+  # Lightweight DI for handing the database to the widget tree.
+  provider: ^6.1.2
+
+  # App font (IBM Plex Sans Arabic, fallback Tajawal).
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # drift code generation.
+  drift_dev: ^2.16.0
+  build_runner: ^2.4.9
+
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
