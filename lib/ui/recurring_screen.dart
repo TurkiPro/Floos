@@ -22,39 +22,43 @@ String frequencyLabelAr(Frequency f) {
   }
 }
 
-class RecurringScreen extends StatelessWidget {
-  const RecurringScreen({super.key});
+/// Monthly obligations = recurring EXPENSE rules (rent, subscriptions, bills…).
+/// Recurring income lives on the income page instead; this screen is reached
+/// from Settings.
+class ObligationsScreen extends StatelessWidget {
+  const ObligationsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final db = context.read<AppDatabase>();
     final dateFmt = DateFormat('yyyy-MM-dd');
     final money = NumberFormat('#,##0.00');
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('الحركات المتكررة')),
+      appBar: AppBar(title: const Text('الالتزامات الشهرية')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => showModalBottomSheet(
           context: context,
           isScrollControlled: true,
-          builder: (_) => AddRecurrenceSheet(db: db),
+          builder: (_) =>
+              AddRecurrenceSheet(db: db, lockedType: TxnType.expense),
         ),
         icon: const Icon(Icons.add),
-        label: const Text('قاعدة جديدة'),
+        label: const Text('التزام جديد'),
       ),
       body: StreamBuilder<List<RecurrenceRule>>(
-        stream: db.recurrenceDao.watchAll(),
+        stream: db.recurrenceDao.watchByType(TxnType.expense),
         builder: (context, snapshot) {
           final rules = snapshot.data ?? const <RecurrenceRule>[];
           if (rules.isEmpty) {
-            return const Center(child: Text('لا توجد قواعد متكررة'));
+            return const Center(child: Text('لا توجد التزامات شهرية'));
           }
           return ListView.builder(
             padding: const EdgeInsets.all(AppSpacing.lg),
             itemCount: rules.length,
             itemBuilder: (context, i) {
               final r = rules[i];
-              final isIncome = r.type == TxnType.income;
               final next = r.active
                   ? nextOccurrence(
                       startDate: r.startDate,
@@ -92,18 +96,10 @@ class RecurringScreen extends StatelessWidget {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: (isIncome
-                              ? AppColors.income
-                              : Theme.of(context).colorScheme.primary)
-                          .withValues(alpha: 0.12),
+                      color: scheme.primary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(AppRadii.tile),
                     ),
-                    child: Icon(
-                      isIncome ? Icons.south_west : Icons.north_east,
-                      color: isIncome
-                          ? AppColors.income
-                          : Theme.of(context).colorScheme.primary,
-                    ),
+                    child: Icon(Icons.north_east, color: scheme.primary),
                   ),
                   title: Text(
                     r.title,

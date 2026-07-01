@@ -11,6 +11,12 @@ class Categories extends Table {
   TextColumn get iconKey => text().withLength(min: 1, max: 40)();
   IntColumn get colorValue => integer()(); // ARGB int
   IntColumn get type => intEnum<TxnType>()();
+  // Null => a top-level category. Non-null => a sub-category of that parent.
+  // Only two levels are supported (a sub-category never has children).
+  IntColumn get parentId => integer().nullable().references(Categories, #id)();
+  // Necessity vs discretionary; a sub-category may override its parent's kind.
+  IntColumn get kind =>
+      intEnum<CategoryKind>().withDefault(const Constant(0))();
   BoolColumn get archived => boolean().withDefault(const Constant(false))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 }

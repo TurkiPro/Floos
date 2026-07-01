@@ -37,6 +37,8 @@ class CategoryDao extends DatabaseAccessor<AppDatabase> with _$CategoryDaoMixin 
     required String iconKey,
     required int colorValue,
     required TxnType type,
+    int? parentId,
+    CategoryKind kind = CategoryKind.essential,
     int sortOrder = 0,
   }) {
     return into(categories).insert(CategoriesCompanion.insert(
@@ -44,8 +46,30 @@ class CategoryDao extends DatabaseAccessor<AppDatabase> with _$CategoryDaoMixin 
       iconKey: iconKey,
       colorValue: colorValue,
       type: type,
+      parentId: Value(parentId),
+      kind: Value(kind),
       sortOrder: Value(sortOrder),
     ));
+  }
+
+  /// Edits an existing category's editable fields. Its [type] and [parentId]
+  /// are fixed after creation (they'd orphan sub-categories / mis-file
+  /// history), so only presentation + kind are updatable here.
+  Future<void> updateCategory({
+    required int id,
+    required String name,
+    required String iconKey,
+    required int colorValue,
+    required CategoryKind kind,
+  }) {
+    return (update(categories)..where((c) => c.id.equals(id))).write(
+      CategoriesCompanion(
+        name: Value(name),
+        iconKey: Value(iconKey),
+        colorValue: Value(colorValue),
+        kind: Value(kind),
+      ),
+    );
   }
 
   Future<void> archive(int id) {
@@ -386,13 +410,22 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
           await _seedDefaultCategories();
+        },
+        onUpgrade: (m, from, to) async {
+          // v2 introduced sub-categories (parentId) and the essentials/luxuries
+          // tag (kind). Existing rows become top-level essentials until the
+          // user re-tags them.
+          if (from < 2) {
+            await m.addColumn(categories, categories.parentId);
+            await m.addColumn(categories, categories.kind);
+          }
         },
       );
 
@@ -414,16 +447,16 @@ LazyDatabase _openConnection() {
 /// Seeded once on first launch. Categories are user-editable after that — this is
 /// just a sane starting set so the app isn't empty and isn't limited to five icons.
 const _defaultCategories = <CategoriesCompanion>[
-  // Expenses
-  CategoriesCompanion(name: Value('طعام'), iconKey: Value('food'), colorValue: Value(0xFFEF5350), type: Value(TxnType.expense), sortOrder: Value(0)),
-  CategoriesCompanion(name: Value('مواصلات'), iconKey: Value('transport'), colorValue: Value(0xFF42A5F5), type: Value(TxnType.expense), sortOrder: Value(1)),
-  CategoriesCompanion(name: Value('تسوق'), iconKey: Value('shopping'), colorValue: Value(0xFFAB47BC), type: Value(TxnType.expense), sortOrder: Value(2)),
-  CategoriesCompanion(name: Value('فواتير'), iconKey: Value('bills'), colorValue: Value(0xFFFFCA28), type: Value(TxnType.expense), sortOrder: Value(3)),
-  CategoriesCompanion(name: Value('صحة'), iconKey: Value('health'), colorValue: Value(0xFF26A69A), type: Value(TxnType.expense), sortOrder: Value(4)),
-  CategoriesCompanion(name: Value('ترفيه'), iconKey: Value('entertainment'), colorValue: Value(0xFFEC407A), type: Value(TxnType.expense), sortOrder: Value(5)),
-  CategoriesCompanion(name: Value('منزل'), iconKey: Value('home'), colorValue: Value(0xFF8D6E63), type: Value(TxnType.expense), sortOrder: Value(6)),
-  CategoriesCompanion(name: Value('أخرى'), iconKey: Value('other'), colorValue: Value(0xFF78909C), type: Value(TxnType.expense), sortOrder: Value(7)),
-  // Income
+  // Expenses (kind: necessities vs discretionary as a sensible starting guess)
+  CategoriesCompanion(name: Value('طعام'), iconKey: Value('food'), colorValue: Value(0xFFEF5350), type: Value(TxnType.expense), kind: Value(CategoryKind.essential), sortOrder: Value(0)),
+  CategoriesCompanion(name: Value('مواصلات'), iconKey: Value('transport'), colorValue: Value(0xFF42A5F5), type: Value(TxnType.expense), kind: Value(CategoryKind.essential), sortOrder: Value(1)),
+  CategoriesCompanion(name: Value('تسوق'), iconKey: Value('shopping'), colorValue: Value(0xFFAB47BC), type: Value(TxnType.expense), kind: Value(CategoryKind.luxury), sortOrder: Value(2)),
+  CategoriesCompanion(name: Value('فواتير'), iconKey: Value('bills'), colorValue: Value(0xFFFFCA28), type: Value(TxnType.expense), kind: Value(CategoryKind.essential), sortOrder: Value(3)),
+  CategoriesCompanion(name: Value('صحة'), iconKey: Value('health'), colorValue: Value(0xFF26A69A), type: Value(TxnType.expense), kind: Value(CategoryKind.essential), sortOrder: Value(4)),
+  CategoriesCompanion(name: Value('ترفيه'), iconKey: Value('entertainment'), colorValue: Value(0xFFEC407A), type: Value(TxnType.expense), kind: Value(CategoryKind.luxury), sortOrder: Value(5)),
+  CategoriesCompanion(name: Value('منزل'), iconKey: Value('home'), colorValue: Value(0xFF8D6E63), type: Value(TxnType.expense), kind: Value(CategoryKind.essential), sortOrder: Value(6)),
+  CategoriesCompanion(name: Value('أخرى'), iconKey: Value('other'), colorValue: Value(0xFF78909C), type: Value(TxnType.expense), kind: Value(CategoryKind.essential), sortOrder: Value(7)),
+  // Income (kind is irrelevant for income, defaults to essential)
   CategoriesCompanion(name: Value('راتب'), iconKey: Value('salary'), colorValue: Value(0xFF66BB6A), type: Value(TxnType.income), sortOrder: Value(8)),
   CategoriesCompanion(name: Value('دخل إضافي'), iconKey: Value('extra_income'), colorValue: Value(0xFF9CCC65), type: Value(TxnType.income), sortOrder: Value(9)),
   CategoriesCompanion(name: Value('استثمار'), iconKey: Value('investment'), colorValue: Value(0xFF26C6DA), type: Value(TxnType.income), sortOrder: Value(10)),

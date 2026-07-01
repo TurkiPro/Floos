@@ -4,14 +4,10 @@ import 'package:provider/provider.dart';
 
 import '../data/database.dart';
 import '../data/enums.dart';
-import '../data/export.dart';
 import '../domain/date_grouping.dart';
 import '../domain/recurrence_engine.dart';
 import 'add_transaction_sheet.dart';
-import 'category_editor_screen.dart';
 import 'income_screen.dart';
-import 'months_screen.dart';
-import 'recurring_screen.dart';
 import 'savings_screen.dart';
 import 'settings_screen.dart';
 import 'theme/tokens.dart';
@@ -68,47 +64,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               MaterialPageRoute(builder: (_) => const SettingsScreen()),
             ),
           ),
-          PopupMenuButton<_HomeMenuAction>(
-            tooltip: 'المزيد',
-            onSelected: (action) async {
-              switch (action) {
-                case _HomeMenuAction.recurring:
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const RecurringScreen()),
-                  );
-                  break;
-                case _HomeMenuAction.months:
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const MonthsScreen()),
-                  );
-                  break;
-                case _HomeMenuAction.exportCsv:
-                  final path = await exportTransactionsCsvToFile(db);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('تم التصدير: $path')),
-                    );
-                  }
-                  break;
-                case _HomeMenuAction.categories:
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (_) => const CategoryEditorScreen()),
-                  );
-                  break;
-              }
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                  value: _HomeMenuAction.recurring, child: Text('متكررة')),
-              PopupMenuItem(
-                  value: _HomeMenuAction.months, child: Text('الأشهر')),
-              PopupMenuItem(
-                  value: _HomeMenuAction.exportCsv, child: Text('تصدير CSV')),
-              PopupMenuItem(
-                  value: _HomeMenuAction.categories, child: Text('الفئات')),
-            ],
-          ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -141,8 +96,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 }
-
-enum _HomeMenuAction { recurring, months, exportCsv, categories }
 
 /// Everything the home dashboard shows, computed once from the two streams.
 /// [balance] is money neither spent nor set aside: all income − all expenses

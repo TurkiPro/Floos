@@ -4,10 +4,9 @@ import '../icon_registry.dart';
 import '../theme/tokens.dart';
 import 'category_icon_tile.dart';
 
-/// 4-column grid over the full set of available icon keys. Shows all keys
-/// regardless of the sheet's selected TxnType -- iconKey and type are
-/// independent Category columns, nothing enforces an icon-to-type pairing
-/// beyond the seed data's own convention.
+/// Scrollable, grouped icon picker: each themed group (طعام، مواصلات، …) is a
+/// labelled section of tinted icon tiles. Capped in height so it sits inside
+/// a bottom sheet without eating the whole screen.
 class IconKeyPicker extends StatelessWidget {
   final String selectedKey;
   final ValueChanged<String> onChanged;
@@ -20,23 +19,43 @@ class IconKeyPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 4,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: AppSpacing.md,
-      crossAxisSpacing: AppSpacing.md,
-      children: [
-        for (final key in availableIconKeys)
-          GestureDetector(
-            onTap: () => onChanged(key),
-            child: CategoryIconTile(
-              iconKey: key,
-              size: 48,
-              selected: key == selectedKey,
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 260,
+      child: ListView(
+        children: [
+          for (final group in iconGroups) ...[
+            Padding(
+              padding: const EdgeInsets.only(
+                  top: AppSpacing.sm, bottom: AppSpacing.sm),
+              child: Text(
+                group.label,
+                style: TextStyle(
+                  fontSize: AppTextSizes.label,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
             ),
-          ),
-      ],
+            Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.md,
+              children: [
+                for (final key in group.keys)
+                  GestureDetector(
+                    onTap: () => onChanged(key),
+                    child: CategoryIconTile(
+                      iconKey: key,
+                      size: 46,
+                      selected: key == selectedKey,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ],
+      ),
     );
   }
 }

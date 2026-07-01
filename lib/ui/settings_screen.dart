@@ -2,32 +2,91 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../app_settings.dart';
+import '../data/database.dart';
+import '../data/export.dart';
+import 'category_editor_screen.dart';
+import 'months_screen.dart';
+import 'recurring_screen.dart';
+import 'statistics_screen.dart';
 import 'theme/tokens.dart';
 
-/// Appearance settings: light/dark/system theme mode and the accent color.
-/// Both are persisted by [AppSettings] and applied to the whole app instantly.
+/// Appearance settings (theme mode + accent) plus the app's secondary
+/// destinations (obligations, months, statistics, categories, export), all
+/// gathered here now that the home screen keeps only the settings entry point.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
+
+  Widget _sectionLabel(BuildContext context, String text) => Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: AppTextSizes.label,
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
+
+  Widget _navTile(BuildContext context,
+      {required IconData icon,
+      required String label,
+      required VoidCallback onTap}) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: ListTile(
+        leading: Icon(icon),
+        title: Text(label),
+        trailing: const Icon(Icons.chevron_left),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  void _push(BuildContext context, Widget screen) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+  }
 
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<AppSettings>();
-    final scheme = Theme.of(context).colorScheme;
+    final db = context.read<AppDatabase>();
 
     return Scaffold(
       appBar: AppBar(title: const Text('الإعدادات')),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
-          Text(
-            'المظهر',
-            style: TextStyle(
-              fontSize: AppTextSizes.label,
-              fontWeight: FontWeight.w600,
-              color: scheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
+          _sectionLabel(context, 'الإدارة'),
+          _navTile(context,
+              icon: Icons.insights_outlined,
+              label: 'الإحصائيات',
+              onTap: () => _push(context, const StatisticsScreen())),
+          _navTile(context,
+              icon: Icons.event_repeat_outlined,
+              label: 'الالتزامات الشهرية',
+              onTap: () => _push(context, const ObligationsScreen())),
+          _navTile(context,
+              icon: Icons.calendar_month_outlined,
+              label: 'الأشهر',
+              onTap: () => _push(context, const MonthsScreen())),
+          _navTile(context,
+              icon: Icons.category_outlined,
+              label: 'الفئات',
+              onTap: () => _push(context, const CategoryEditorScreen())),
+          _navTile(context,
+              icon: Icons.file_download_outlined,
+              label: 'تصدير CSV',
+              onTap: () async {
+                final path = await exportTransactionsCsvToFile(db);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('تم التصدير: $path')),
+                  );
+                }
+              }),
+          const SizedBox(height: AppSpacing.lg),
+          _sectionLabel(context, 'المظهر'),
           SegmentedButton<ThemeMode>(
             segments: const [
               ButtonSegment(
@@ -50,15 +109,8 @@ class SettingsScreen extends StatelessWidget {
             onSelectionChanged: (s) => settings.setThemeMode(s.first),
           ),
           const SizedBox(height: AppSpacing.xl),
-          Text(
-            'لون التمييز',
-            style: TextStyle(
-              fontSize: AppTextSizes.label,
-              fontWeight: FontWeight.w600,
-              color: scheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
+          _sectionLabel(context, 'لون التمييز'),
+          const SizedBox(height: AppSpacing.sm),
           Wrap(
             spacing: AppSpacing.lg,
             runSpacing: AppSpacing.lg,

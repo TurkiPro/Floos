@@ -7,9 +7,23 @@ import 'theme/tokens.dart';
 import 'widgets/color_swatch_picker.dart';
 import 'widgets/icon_key_picker.dart';
 
+/// Create/edit a category or sub-category.
+/// - [existingCategory] set => edit mode (name/icon/color/kind only).
+/// - [parentId]/[fixedType] set => creating a sub-category under that parent
+///   (type is inherited, no expense/income toggle).
 class AddCategorySheet extends StatefulWidget {
   final AppDatabase db;
-  const AddCategorySheet({super.key, required this.db});
+  final Category? existingCategory;
+  final int? parentId;
+  final TxnType? fixedType;
+
+  const AddCategorySheet({
+    super.key,
+    required this.db,
+    this.existingCategory,
+    this.parentId,
+    this.fixedType,
+  });
 
   @override
   State<AddCategorySheet> createState() => _AddCategorySheetState();
@@ -20,6 +34,25 @@ class _AddCategorySheetState extends State<AddCategorySheet> {
   TxnType _type = TxnType.expense;
   String _iconKey = availableIconKeys.first;
   Color _color = categorySwatches.first;
+  CategoryKind _kind = CategoryKind.essential;
+
+  bool get _isEditing => widget.existingCategory != null;
+  bool get _isSub => widget.parentId != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final c = widget.existingCategory;
+    if (c != null) {
+      _nameCtrl.text = c.name;
+      _type = c.type;
+      _iconKey = c.iconKey;
+      _color = Color(c.colorValue);
+      _kind = c.kind;
+    } else if (widget.fixedType != null) {
+      _type = widget.fixedType!;
+    }
+  }
 
   @override
   void dispose() {
@@ -35,22 +68,37 @@ class _AddCategorySheetState extends State<AddCategorySheet> {
       );
       return;
     }
-    // Computed fresh at save time (not a literal 0) so the new category
-    // appends after every existing one under ORDER BY sortOrder ASC,
-    // instead of jumping to the front.
-    final existing = await widget.db.categoryDao.getAll();
-    await widget.db.categoryDao.add(
-      name: name,
-      iconKey: _iconKey,
-      colorValue: _color.toARGB32(),
-      type: _type,
-      sortOrder: existing.length,
-    );
+    if (_isEditing) {
+      await widget.db.categoryDao.updateCategory(
+        id: widget.existingCategory!.id,
+        name: name,
+        iconKey: _iconKey,
+        colorValue: _color.toARGB32(),
+        kind: _kind,
+      );
+    } else {
+      // Computed fresh at save time (not a literal 0) so the new category
+      // appends after every existing one under ORDER BY sortOrder ASC.
+      final existing = await widget.db.categoryDao.getAll();
+      await widget.db.categoryDao.add(
+        name: name,
+        iconKey: _iconKey,
+        colorValue: _color.toARGB32(),
+        type: _type,
+        parentId: widget.parentId,
+        kind: _kind,
+        sortOrder: existing.length,
+      );
+    }
     if (mounted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
+    final title = _isEditing
+        ? 'تعديل الفئة'
+        : (_isSub ? 'تصنيف فرعي جديد' : 'فئة جديدة');
+
     return Padding(
       padding: EdgeInsets.only(
         left: AppSpacing.lg,
@@ -63,7 +111,7 @@ class _AddCategorySheetState extends State<AddCategorySheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('فئة جديدة', style: Theme.of(context).textTheme.titleMedium),
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: AppSpacing.lg),
             TextField(
               controller: _nameCtrl,
@@ -74,15 +122,32 @@ class _AddCategorySheetState extends State<AddCategorySheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            SegmentedButton<TxnType>(
-              segments: const [
-                ButtonSegment(value: TxnType.expense, label: Text('مصروف')),
-                ButtonSegment(value: TxnType.income, label: Text('دخل')),
-              ],
-              selected: {_type},
-              onSelectionChanged: (s) => setState(() => _type = s.first),
-            ),
-            const SizedBox(height: AppSpacing.lg),
+            // Type is fixed for sub-categories (inherited) and when editing.
+            if (!_isEditing && !_isSub) ...[
+              SegmentedButton<TxnType>(
+                segments: const [
+                  ButtonSegment(value: TxnType.expense, label: Text('مصروف')),
+                  ButtonSegment(value: TxnType.income, label: Text('دخل')),
+                ],
+                selected: {_type},
+                onSelectionChanged: (s) => setState(() => _type = s.first),
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+            // Essentials/luxuries only applies to spending.
+            if (_type == TxnType.expense) ...[
+              SegmentedButton<CategoryKind>(
+                segments: const [
+                  ButtonSegment(
+                      value: CategoryKind.essential, label: Text('أساسيات')),
+                  ButtonSegment(
+                      value: CategoryKind.luxury, label: Text('كماليات')),
+                ],
+                selected: {_kind},
+                onSelectionChanged: (s) => setState(() => _kind = s.first),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+            ],
             Text('الأيقونة', style: Theme.of(context).textTheme.labelMedium),
             const SizedBox(height: AppSpacing.sm),
             IconKeyPicker(
@@ -97,7 +162,10 @@ class _AddCategorySheetState extends State<AddCategorySheet> {
               onChanged: (color) => setState(() => _color = color),
             ),
             const SizedBox(height: AppSpacing.lg),
-            FilledButton(onPressed: _save, child: const Text('حفظ')),
+            FilledButton(
+              onPressed: _save,
+              child: Text(_isEditing ? 'حفظ التعديلات' : 'حفظ'),
+            ),
           ],
         ),
       ),

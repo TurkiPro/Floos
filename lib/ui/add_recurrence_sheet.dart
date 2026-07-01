@@ -7,13 +7,21 @@ import '../domain/recurrence_engine.dart';
 import '../domain/recurrence_math.dart' show dateOnly;
 import 'recurring_screen.dart' show frequencyLabelAr;
 import 'theme/tokens.dart';
-import 'widgets/category_icon_tile.dart';
+import 'widgets/category_picker.dart';
 
 class AddRecurrenceSheet extends StatefulWidget {
   final AppDatabase db;
   // null => create mode. Non-null => pre-fill and edit this rule instead.
   final RecurrenceRule? existingRule;
-  const AddRecurrenceSheet({super.key, required this.db, this.existingRule});
+  // When set (create mode only), forces the type and hides the toggle -- used
+  // by the monthly-obligations page to create expense-only rules.
+  final TxnType? lockedType;
+  const AddRecurrenceSheet({
+    super.key,
+    required this.db,
+    this.existingRule,
+    this.lockedType,
+  });
 
   @override
   State<AddRecurrenceSheet> createState() => _AddRecurrenceSheetState();
@@ -30,6 +38,9 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
   int? _categoryId;
 
   bool get _isEditing => widget.existingRule != null;
+  // Hide the expense/income toggle when editing (type is fixed) or when the
+  // caller locked it.
+  bool get _typeLocked => _isEditing || widget.lockedType != null;
 
   @override
   void initState() {
@@ -44,6 +55,8 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
       _startDate = rule.startDate;
       _endDate = rule.endDate;
       _categoryId = rule.categoryId;
+    } else if (widget.lockedType != null) {
+      _type = widget.lockedType!;
     }
   }
 
@@ -147,9 +160,9 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Type is fixed after creation (changing it would misrepresent
-            // transactions already generated under the old type), so the
-            // expense/income toggle only appears in create mode.
-            if (!_isEditing) ...[
+            // transactions already generated under the old type) and when the
+            // caller locked it, so the toggle only appears for free creation.
+            if (!_typeLocked) ...[
               SegmentedButton<TxnType>(
                 segments: const [
                   ButtonSegment(value: TxnType.expense, label: Text('مصروف')),
@@ -182,54 +195,11 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            // Reactive, not a one-shot fetch: a category added while this
-            // sheet is open shows up immediately instead of only on next open.
-            StreamBuilder<List<Category>>(
-              stream: widget.db.categoryDao.watchActive(),
-              builder: (context, snapshot) {
-                final cats = (snapshot.data ?? const <Category>[])
-                    .where((c) => c.type == _type)
-                    .toList();
-                if (cats.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-                    child: Text('لا توجد فئات بعد'),
-                  );
-                }
-                return GridView.count(
-                  crossAxisCount: 4,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: AppSpacing.md,
-                  crossAxisSpacing: AppSpacing.sm,
-                  childAspectRatio: 0.8,
-                  children: [
-                    for (final c in cats)
-                      GestureDetector(
-                        onTap: () => setState(() => _categoryId = c.id),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CategoryIconTile(
-                              iconKey: c.iconKey,
-                              size: 48,
-                              selected: c.id == _categoryId,
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            Text(
-                              c.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style:
-                                  const TextStyle(fontSize: AppTextSizes.label),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                );
-              },
+            CategoryPicker(
+              db: widget.db,
+              type: _type,
+              selectedId: _categoryId,
+              onChanged: (id) => setState(() => _categoryId = id),
             ),
             const SizedBox(height: AppSpacing.md),
             Row(

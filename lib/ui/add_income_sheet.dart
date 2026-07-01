@@ -5,7 +5,7 @@ import '../data/database.dart';
 import '../data/enums.dart';
 import '../domain/recurrence_engine.dart';
 import 'theme/tokens.dart';
-import 'widgets/category_icon_tile.dart';
+import 'widgets/category_picker.dart';
 
 /// Dedicated income-only add sheet. Every income added here is independently
 /// named (so a user can have several distinct incomes -- "راتب", "عمل حر",
@@ -112,54 +112,11 @@ class _AddIncomeSheetState extends State<AddIncomeSheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            // Reactive, not a one-shot fetch: a category added while this
-            // sheet is open shows up immediately instead of only on next open.
-            StreamBuilder<List<Category>>(
-              stream: widget.db.categoryDao.watchActive(),
-              builder: (context, snapshot) {
-                final cats = (snapshot.data ?? const <Category>[])
-                    .where((c) => c.type == TxnType.income)
-                    .toList();
-                if (cats.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-                    child: Text('لا توجد فئات دخل بعد'),
-                  );
-                }
-                return GridView.count(
-                  crossAxisCount: 4,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: AppSpacing.md,
-                  crossAxisSpacing: AppSpacing.sm,
-                  childAspectRatio: 0.8,
-                  children: [
-                    for (final c in cats)
-                      GestureDetector(
-                        onTap: () => setState(() => _categoryId = c.id),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CategoryIconTile(
-                              iconKey: c.iconKey,
-                              size: 48,
-                              selected: c.id == _categoryId,
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            Text(
-                              c.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style:
-                                  const TextStyle(fontSize: AppTextSizes.label),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                );
-              },
+            CategoryPicker(
+              db: widget.db,
+              type: TxnType.income,
+              selectedId: _categoryId,
+              onChanged: (id) => setState(() => _categoryId = id),
             ),
             const SizedBox(height: AppSpacing.md),
             Row(
