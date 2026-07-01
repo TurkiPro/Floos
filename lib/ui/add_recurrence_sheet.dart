@@ -56,10 +56,11 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
   }
 
   Future<void> _delete() async {
+    final isIncome = _type == TxnType.income;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('حذف القاعدة المتكررة؟'),
+        title: Text(isIncome ? 'حذف الدخل المتكرر؟' : 'حذف القاعدة المتكررة؟'),
         content: const Text(
             'لن يتم حذف الحركات التي تم إنشاؤها سابقًا، لكن لن يتم إنشاء المزيد منها.'),
         actions: [
@@ -145,22 +146,23 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SegmentedButton<TxnType>(
-              segments: const [
-                ButtonSegment(value: TxnType.expense, label: Text('مصروف')),
-                ButtonSegment(value: TxnType.income, label: Text('دخل')),
-              ],
-              selected: {_type},
-              // Type can't be changed after creation -- it would misrepresent
-              // transactions already generated under the old type.
-              onSelectionChanged: _isEditing
-                  ? null
-                  : (s) => setState(() {
-                        _type = s.first;
-                        _categoryId = null;
-                      }),
-            ),
-            const SizedBox(height: AppSpacing.md),
+            // Type is fixed after creation (changing it would misrepresent
+            // transactions already generated under the old type), so the
+            // expense/income toggle only appears in create mode.
+            if (!_isEditing) ...[
+              SegmentedButton<TxnType>(
+                segments: const [
+                  ButtonSegment(value: TxnType.expense, label: Text('مصروف')),
+                  ButtonSegment(value: TxnType.income, label: Text('دخل')),
+                ],
+                selected: {_type},
+                onSelectionChanged: (s) => setState(() {
+                  _type = s.first;
+                  _categoryId = null;
+                }),
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
             TextField(
               controller: _titleCtrl,
               decoration: const InputDecoration(
@@ -317,7 +319,8 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
               TextButton(
                 onPressed: _delete,
                 style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('حذف القاعدة'),
+                child: Text(
+                    _type == TxnType.income ? 'حذف الدخل' : 'حذف القاعدة'),
               ),
             ],
           ],

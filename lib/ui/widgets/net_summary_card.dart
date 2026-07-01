@@ -59,8 +59,8 @@ class NetSummaryCard extends StatelessWidget {
               value: spentRatio.toDouble(),
               minHeight: 6,
               backgroundColor: scheme.onSurfaceVariant.withValues(alpha: 0.15),
-              valueColor:
-                  const AlwaysStoppedAnimation(AppColors.brandProgress),
+              valueColor: AlwaysStoppedAnimation(
+                  Theme.of(context).extension<AccentPalette>()!.progress),
             ),
           ),
           const SizedBox(height: AppSpacing.md),

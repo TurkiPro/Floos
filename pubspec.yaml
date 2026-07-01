@@ -27,6 +27,9 @@ dependencies:
   # App font (IBM Plex Sans Arabic, fallback Tajawal).
   google_fonts: ^6.2.1
 
+  # Persists UI preferences (theme mode + accent color) across launches.
+  shared_preferences: ^2.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

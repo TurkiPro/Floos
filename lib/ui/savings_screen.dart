@@ -99,8 +99,8 @@ class _GoalCard extends StatelessWidget {
                           ),
                           IconButton(
                             tooltip: 'إضافة إيداع',
-                            icon: const Icon(Icons.add_circle_outline,
-                                color: AppColors.brand),
+                            icon: Icon(Icons.add_circle_outline,
+                                color: scheme.primary),
                             onPressed: () => showModalBottomSheet(
                               context: context,
                               isScrollControlled: true,
@@ -137,8 +137,10 @@ class _GoalCard extends StatelessWidget {
                           minHeight: 6,
                           backgroundColor:
                               scheme.onSurfaceVariant.withValues(alpha: 0.15),
-                          valueColor: const AlwaysStoppedAnimation(
-                              AppColors.brandProgress),
+                          valueColor: AlwaysStoppedAnimation(
+                              Theme.of(context)
+                                  .extension<AccentPalette>()!
+                                  .progress),
                         ),
                       ),
                     ],

@@ -29,7 +29,10 @@ class CategoryIconTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: pair.$1,
         borderRadius: BorderRadius.circular(AppRadii.tile),
-        border: selected ? Border.all(color: AppColors.brand, width: 2) : null,
+        border: selected
+            ? Border.all(
+                color: Theme.of(context).colorScheme.primary, width: 2)
+            : null,
       ),
       child: Icon(iconForKey(iconKey), color: pair.$2, size: size * 0.5),
     );

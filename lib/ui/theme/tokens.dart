@@ -66,21 +66,61 @@ class AppShadows {
   );
 }
 
+/// User-selectable accent colors, chosen on a color-wheel spread (green →
+/// teal → blue → purple → pink → warm) so they read as a deliberate,
+/// harmonious set rather than random hues. Each carries its own [onPrimary]
+/// so a light accent (baby pink) still gets legible text on filled surfaces,
+/// and a brighter [progress] shade for progress bars. [green] is the default.
+enum AppAccent {
+  green('أخضر', Color(0xFF0F6E56), Colors.white, Color(0xFF1D9E75)),
+  teal('فيروزي', Color(0xFF0E7C6E), Colors.white, Color(0xFF17A594)),
+  blue('أزرق', Color(0xFF2F6DB5), Colors.white, Color(0xFF4A90D9)),
+  purple('بنفسجي', Color(0xFF6B4EA8), Colors.white, Color(0xFF8B6DD1)),
+  pink('وردي', Color(0xFFE68CAF), Color(0xFF3E1528), Color(0xFFF2AECB)),
+  amber('كهرماني', Color(0xFFC77D2E), Colors.white, Color(0xFFE8A13A));
+
+  const AppAccent(this.label, this.primary, this.onPrimary, this.progress);
+
+  final String label;
+  final Color primary;
+  final Color onPrimary;
+  final Color progress;
+}
+
+/// Carries the accent's brighter progress shade through the theme so progress
+/// bars follow the selected accent without every call site hardcoding a hex.
+/// (Buttons/FAB already follow the accent via ColorScheme.primary.)
+class AccentPalette extends ThemeExtension<AccentPalette> {
+  final Color progress;
+  const AccentPalette({required this.progress});
+
+  @override
+  AccentPalette copyWith({Color? progress}) =>
+      AccentPalette(progress: progress ?? this.progress);
+
+  @override
+  AccentPalette lerp(ThemeExtension<AccentPalette>? other, double t) {
+    if (other is! AccentPalette) return this;
+    return AccentPalette(progress: Color.lerp(progress, other.progress, t)!);
+  }
+}
+
 /// Light/dark ColorScheme pairs, built explicitly (not .fromSeed) since the
 /// design brief gives exact hex values for text/surface roles that
-/// fromSeed's derivation algorithm wouldn't reliably reproduce.
+/// fromSeed's derivation algorithm wouldn't reliably reproduce. Only the
+/// accent-driven [primary]/[onPrimary] slots vary with the chosen accent.
 class AppColorSchemes {
-  static ColorScheme light() => const ColorScheme.light(
-        primary: AppColors.brand,
-        onPrimary: Colors.white,
+  static ColorScheme light(AppAccent accent) => ColorScheme.light(
+        primary: accent.primary,
+        onPrimary: accent.onPrimary,
         surface: AppColors.cardLight,
         onSurface: AppColors.textPrimaryLight,
         onSurfaceVariant: AppColors.textSecondaryLight,
       );
 
-  static ColorScheme dark() => const ColorScheme.dark(
-        primary: AppColors.brand,
-        onPrimary: Colors.white,
+  static ColorScheme dark(AppAccent accent) => ColorScheme.dark(
+        primary: accent.primary,
+        onPrimary: accent.onPrimary,
         surface: AppColors.cardDark,
         onSurface: AppColors.textPrimaryDark,
         onSurfaceVariant: AppColors.textSecondaryDark,

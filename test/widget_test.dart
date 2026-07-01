@@ -8,8 +8,10 @@
 import 'package:drift/native.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:floos/app.dart';
+import 'package:floos/app_settings.dart';
 import 'package:floos/data/database.dart';
 
 void main() {
@@ -18,11 +20,14 @@ void main() {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);
 
-    await tester.pumpWidget(FloosApp(db: db));
+    SharedPreferences.setMockInitialValues({});
+    final settings = AppSettings(await SharedPreferences.getInstance());
+
+    await tester.pumpWidget(FloosApp(db: db, settings: settings));
     await tester.pumpAndSettle();
 
     expect(find.text('فلوس'), findsOneWidget);
-    expect(find.text('لا توجد حركات بعد'), findsOneWidget);
+    expect(find.text('لا توجد مصاريف هذا الشهر'), findsOneWidget);
 
     // Unmount explicitly so the HomeScreen's StreamBuilder cancels its drift
     // .watch() subscription now, then pump with an explicit (zero) duration:

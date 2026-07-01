@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
+import 'app_settings.dart';
 import 'data/database.dart';
 import 'domain/recurrence_engine.dart';
 
@@ -8,6 +10,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final db = AppDatabase();
+  final settings = AppSettings(await SharedPreferences.getInstance());
 
   // Materialize any recurring transactions that came due while the app was
   // closed. This is the deterministic "catch-up" that replaces fragile
@@ -15,5 +18,5 @@ Future<void> main() async {
   // again on resume. Idempotent, so running it repeatedly is safe.
   await RecurrenceEngine(db).catchUp();
 
-  runApp(FloosApp(db: db));
+  runApp(FloosApp(db: db, settings: settings));
 }

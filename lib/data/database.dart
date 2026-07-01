@@ -137,6 +137,27 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
+  /// Every transaction joined with its category, newest first, uncapped.
+  /// Backs the home dashboard, which needs both all-time totals (for the
+  /// running balance) and the current month's expense list from one stream.
+  Stream<List<TxnRow>> watchAllWithCategory() {
+    final query = select(transactions).join([
+      innerJoin(categories, categories.id.equalsExp(transactions.categoryId)),
+    ])
+      ..orderBy([
+        OrderingTerm.desc(transactions.date),
+        OrderingTerm.desc(transactions.id),
+      ]);
+    return query.watch().map((rows) {
+      return rows
+          .map((r) => TxnRow(
+                txn: r.readTable(transactions),
+                category: r.readTable(categories),
+              ))
+          .toList();
+    });
+  }
+
   /// Transactions within a single month, joined with their category. Backs
   /// month-detail browsing -- a ranged query rather than filtering
   /// [watchRecent], since that stream is capped and would silently show an
@@ -325,6 +346,16 @@ class SavingsDao extends DatabaseAccessor<AppDatabase> with _$SavingsDaoMixin {
   Stream<List<SavingsContribution>> watchContributions(int goalId) {
     return (select(savingsContributions)
           ..where((c) => c.goalId.equals(goalId))
+          ..orderBy([(c) => OrderingTerm.desc(c.date)]))
+        .watch();
+  }
+
+  /// Every contribution across all goals, newest first. The home dashboard
+  /// derives both the total saved (running balance) and this month's saved
+  /// amount from this one stream, in Dart -- consistent with how the app
+  /// treats dates elsewhere.
+  Stream<List<SavingsContribution>> watchAllContributions() {
+    return (select(savingsContributions)
           ..orderBy([(c) => OrderingTerm.desc(c.date)]))
         .watch();
   }

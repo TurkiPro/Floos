@@ -92,13 +92,17 @@ class RecurringScreen extends StatelessWidget {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: (isIncome ? AppColors.income : AppColors.brand)
+                      color: (isIncome
+                              ? AppColors.income
+                              : Theme.of(context).colorScheme.primary)
                           .withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(AppRadii.tile),
                     ),
                     child: Icon(
                       isIncome ? Icons.south_west : Icons.north_east,
-                      color: isIncome ? AppColors.income : AppColors.brand,
+                      color: isIncome
+                          ? AppColors.income
+                          : Theme.of(context).colorScheme.primary,
                     ),
                   ),
                   title: Text(
