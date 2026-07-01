@@ -83,6 +83,11 @@ class RecurringScreen extends StatelessWidget {
                   contentPadding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
                   isThreeLine: true,
+                  onTap: () => showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    builder: (_) => AddRecurrenceSheet(db: db, existingRule: r),
+                  ),
                   leading: Container(
                     width: 40,
                     height: 40,

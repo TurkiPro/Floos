@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'enums.dart';
 import 'tables.dart';
+import '../domain/date_grouping.dart';
 import '../domain/recurrence_math.dart';
 
 part 'database.g.dart';
@@ -122,6 +123,45 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
   Future<void> deleteById(int id) {
     return (delete(transactions)..where((t) => t.id.equals(id))).go();
   }
+
+  /// Every distinct month that has at least one transaction, most recent
+  /// first. Only pulls the `date` column (not full rows) and does the
+  /// distinct/sort in Dart -- consistent with how the rest of the app treats
+  /// dates (recurrence math, day grouping) as plain Dart `DateTime` values
+  /// rather than relying on SQLite date functions.
+  Stream<List<MonthKey>> watchActiveMonths() {
+    final query = selectOnly(transactions)..addColumns([transactions.date]);
+    return query.watch().map((rows) {
+      final dates = rows.map((r) => r.read(transactions.date)!).toList();
+      return distinctMonthsDesc(dates);
+    });
+  }
+
+  /// Transactions within a single month, joined with their category. Backs
+  /// month-detail browsing -- a ranged query rather than filtering
+  /// [watchRecent], since that stream is capped and would silently show an
+  /// incomplete picture for a month older than the cap.
+  Stream<List<TxnRow>> watchForMonth(MonthKey month) {
+    final start = DateTime(month.year, month.month, 1);
+    final end = DateTime(month.year, month.month + 1, 1);
+    final query = select(transactions).join([
+      innerJoin(categories, categories.id.equalsExp(transactions.categoryId)),
+    ])
+      ..where(transactions.date.isBiggerOrEqualValue(start) &
+          transactions.date.isSmallerThanValue(end))
+      ..orderBy([
+        OrderingTerm.desc(transactions.date),
+        OrderingTerm.desc(transactions.id),
+      ]);
+    return query.watch().map((rows) {
+      return rows
+          .map((r) => TxnRow(
+                txn: r.readTable(transactions),
+                category: r.readTable(categories),
+              ))
+          .toList();
+    });
+  }
 }
 
 @DriftAccessor(tables: [RecurrenceRules])
@@ -131,6 +171,16 @@ class RecurrenceDao extends DatabaseAccessor<AppDatabase>
 
   Stream<List<RecurrenceRule>> watchAll() {
     return (select(recurrenceRules)
+          ..orderBy([
+            (r) => OrderingTerm.desc(r.active),
+            (r) => OrderingTerm.asc(r.title),
+          ]))
+        .watch();
+  }
+
+  Stream<List<RecurrenceRule>> watchByType(TxnType type) {
+    return (select(recurrenceRules)
+          ..where((r) => r.type.equalsValue(type))
           ..orderBy([
             (r) => OrderingTerm.desc(r.active),
             (r) => OrderingTerm.asc(r.title),
@@ -186,6 +236,53 @@ class RecurrenceDao extends DatabaseAccessor<AppDatabase>
         lastMaterialized: Value(marker),
       ),
     );
+  }
+
+  /// Edits an existing rule. `type` is deliberately not editable here -- it
+  /// would misrepresent transactions already generated under the old type, so
+  /// switching type means pausing this rule and creating a new one.
+  ///
+  /// Pass [resetMarkerToToday] when the caller determines the schedule itself
+  /// changed (frequency/interval/startDate): this mirrors [reactivate]'s
+  /// philosophy of never backfilling under a shape the rule didn't have yet.
+  /// Leave it false when only cosmetic/amount fields changed, so existing
+  /// catch-up progress is preserved.
+  Future<void> editRule({
+    required int id,
+    String? title,
+    double? amount,
+    int? categoryId,
+    Frequency? frequency,
+    int? interval,
+    DateTime? startDate,
+    DateTime? endDate,
+    bool clearEndDate = false,
+    String? note,
+    bool resetMarkerToToday = false,
+  }) {
+    return (update(recurrenceRules)..where((r) => r.id.equals(id))).write(
+      RecurrenceRulesCompanion(
+        title: title != null ? Value(title) : const Value.absent(),
+        amount: amount != null ? Value(amount) : const Value.absent(),
+        categoryId:
+            categoryId != null ? Value(categoryId) : const Value.absent(),
+        frequency: frequency != null ? Value(frequency) : const Value.absent(),
+        interval: interval != null ? Value(interval) : const Value.absent(),
+        startDate:
+            startDate != null ? Value(startDate) : const Value.absent(),
+        endDate: clearEndDate
+            ? const Value(null)
+            : (endDate != null ? Value(endDate) : const Value.absent()),
+        note: note != null ? Value(note) : const Value.absent(),
+        lastMaterialized: resetMarkerToToday
+            ? Value(dateOnly(DateTime.now()))
+            : const Value.absent(),
+      ),
+    );
+  }
+
+  Future<void> deleteById(int id) {
+    return (delete(recurrenceRules)..where((r) => r.id.equals(id))).go();
   }
 }
 

@@ -4,13 +4,16 @@ import 'package:intl/intl.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
 import '../domain/recurrence_engine.dart';
+import '../domain/recurrence_math.dart' show dateOnly;
 import 'recurring_screen.dart' show frequencyLabelAr;
 import 'theme/tokens.dart';
 import 'widgets/category_icon_tile.dart';
 
 class AddRecurrenceSheet extends StatefulWidget {
   final AppDatabase db;
-  const AddRecurrenceSheet({super.key, required this.db});
+  // null => create mode. Non-null => pre-fill and edit this rule instead.
+  final RecurrenceRule? existingRule;
+  const AddRecurrenceSheet({super.key, required this.db, this.existingRule});
 
   @override
   State<AddRecurrenceSheet> createState() => _AddRecurrenceSheetState();
@@ -26,12 +29,55 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
   DateTime? _endDate;
   int? _categoryId;
 
+  bool get _isEditing => widget.existingRule != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final rule = widget.existingRule;
+    if (rule != null) {
+      _type = rule.type;
+      _frequency = rule.frequency;
+      _titleCtrl.text = rule.title;
+      _amountCtrl.text = rule.amount.toString();
+      _intervalCtrl.text = rule.interval.toString();
+      _startDate = rule.startDate;
+      _endDate = rule.endDate;
+      _categoryId = rule.categoryId;
+    }
+  }
+
   @override
   void dispose() {
     _titleCtrl.dispose();
     _amountCtrl.dispose();
     _intervalCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('حذف القاعدة المتكررة؟'),
+        content: const Text(
+            'لن يتم حذف الحركات التي تم إنشاؤها سابقًا، لكن لن يتم إنشاء المزيد منها.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('إلغاء'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await widget.db.recurrenceDao.deleteById(widget.existingRule!.id);
+      if (mounted) Navigator.of(context).pop();
+    }
   }
 
   Future<void> _save() async {
@@ -44,16 +90,40 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
       );
       return;
     }
-    await widget.db.recurrenceDao.add(
-      title: title,
-      amount: amount,
-      categoryId: _categoryId!,
-      type: _type,
-      frequency: _frequency,
-      interval: interval < 1 ? 1 : interval,
-      startDate: _startDate,
-      endDate: _endDate,
-    );
+    final normalizedInterval = interval < 1 ? 1 : interval;
+    if (!_isEditing) {
+      await widget.db.recurrenceDao.add(
+        title: title,
+        amount: amount,
+        categoryId: _categoryId!,
+        type: _type,
+        frequency: _frequency,
+        interval: normalizedInterval,
+        startDate: _startDate,
+        endDate: _endDate,
+      );
+    } else {
+      final old = widget.existingRule!;
+      // Never backfill under a schedule the rule didn't have yet: only reset
+      // the catch-up marker to today when the schedule itself changed
+      // (mirrors reactivate()'s existing philosophy). Cosmetic-only edits
+      // (amount/category/end date/etc) leave prior catch-up progress intact.
+      final scheduleChanged = old.frequency != _frequency ||
+          old.interval != normalizedInterval ||
+          dateOnly(old.startDate) != dateOnly(_startDate);
+      await widget.db.recurrenceDao.editRule(
+        id: old.id,
+        title: title,
+        amount: amount,
+        categoryId: _categoryId!,
+        frequency: _frequency,
+        interval: normalizedInterval,
+        startDate: _startDate,
+        endDate: _endDate,
+        clearEndDate: _endDate == null && old.endDate != null,
+        resetMarkerToToday: scheduleChanged,
+      );
+    }
     // Catch up immediately so a rule whose start date is already in the past
     // materializes its due occurrences now, instead of waiting for a relaunch.
     await RecurrenceEngine(widget.db).catchUp();
@@ -81,10 +151,14 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
                 ButtonSegment(value: TxnType.income, label: Text('دخل')),
               ],
               selected: {_type},
-              onSelectionChanged: (s) => setState(() {
-                _type = s.first;
-                _categoryId = null;
-              }),
+              // Type can't be changed after creation -- it would misrepresent
+              // transactions already generated under the old type.
+              onSelectionChanged: _isEditing
+                  ? null
+                  : (s) => setState(() {
+                        _type = s.first;
+                        _categoryId = null;
+                      }),
             ),
             const SizedBox(height: AppSpacing.md),
             TextField(
@@ -234,7 +308,18 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
               ],
             ),
             const SizedBox(height: AppSpacing.lg),
-            FilledButton(onPressed: _save, child: const Text('حفظ')),
+            FilledButton(
+              onPressed: _save,
+              child: Text(_isEditing ? 'حفظ التعديلات' : 'حفظ'),
+            ),
+            if (_isEditing) ...[
+              const SizedBox(height: AppSpacing.sm),
+              TextButton(
+                onPressed: _delete,
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('حذف القاعدة'),
+              ),
+            ],
           ],
         ),
       ),

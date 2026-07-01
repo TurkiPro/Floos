@@ -36,3 +36,52 @@ List<MapEntry<DateTime, List<T>>> groupByDay<T>(
   }
   return out.entries.toList();
 }
+
+/// A (year, month) pair identifying a calendar month, independent of day.
+/// Backs the "browse every month" feature.
+class MonthKey {
+  final int year;
+  final int month;
+  const MonthKey({required this.year, required this.month});
+
+  @override
+  bool operator ==(Object other) =>
+      other is MonthKey && other.year == year && other.month == month;
+
+  @override
+  int get hashCode => Object.hash(year, month);
+}
+
+/// Every distinct (year, month) present in [dates], newest first.
+List<MonthKey> distinctMonthsDesc(List<DateTime> dates) {
+  final seen = <MonthKey>{};
+  for (final d in dates) {
+    seen.add(MonthKey(year: d.year, month: d.month));
+  }
+  final list = seen.toList()
+    ..sort((a, b) =>
+        a.year != b.year ? b.year - a.year : b.month - a.month);
+  return list;
+}
+
+const _arabicMonthNames = [
+  'يناير',
+  'فبراير',
+  'مارس',
+  'أبريل',
+  'مايو',
+  'يونيو',
+  'يوليو',
+  'أغسطس',
+  'سبتمبر',
+  'أكتوبر',
+  'نوفمبر',
+  'ديسمبر',
+];
+
+/// Arabic month name + year, e.g. "يوليو 2026". Hardcoded rather than a
+/// locale-tagged `DateFormat` for the same reason as [dayLabel] above: the app
+/// never calls `initializeDateFormatting('ar')`.
+String monthLabel(MonthKey key) {
+  return '${_arabicMonthNames[key.month - 1]} ${key.year}';
+}

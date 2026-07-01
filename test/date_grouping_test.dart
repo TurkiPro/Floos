@@ -85,4 +85,43 @@ void main() {
       ]);
     });
   });
+
+  group('distinctMonthsDesc', () {
+    test('empty list returns no months', () {
+      expect(distinctMonthsDesc(const []), isEmpty);
+    });
+
+    test('dedupes multiple dates within the same month', () {
+      final months = distinctMonthsDesc([
+        DateTime(2026, 6, 1),
+        DateTime(2026, 6, 15),
+        DateTime(2026, 6, 30),
+      ]);
+      expect(months, [const MonthKey(year: 2026, month: 6)]);
+    });
+
+    test('sorts newest month first, including across a year boundary', () {
+      final months = distinctMonthsDesc([
+        DateTime(2025, 12, 10),
+        DateTime(2026, 2, 1),
+        DateTime(2026, 1, 5),
+      ]);
+      expect(months, [
+        const MonthKey(year: 2026, month: 2),
+        const MonthKey(year: 2026, month: 1),
+        const MonthKey(year: 2025, month: 12),
+      ]);
+    });
+  });
+
+  group('monthLabel', () {
+    test('formats an Arabic month name with the year', () {
+      expect(monthLabel(const MonthKey(year: 2026, month: 7)), 'يوليو 2026');
+    });
+
+    test('handles the first and last month of the year', () {
+      expect(monthLabel(const MonthKey(year: 2026, month: 1)), 'يناير 2026');
+      expect(monthLabel(const MonthKey(year: 2026, month: 12)), 'ديسمبر 2026');
+    });
+  });
 }
