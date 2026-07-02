@@ -148,22 +148,17 @@ class _HomeHeader extends StatelessWidget {
               ),
             ),
           ),
-          // Soft "bokeh" pattern -- translucent circles for depth, kept on the
-          // left so they don't crowd the wordmark on the right.
-          Positioned(
-            top: -34,
-            left: -30,
-            child: _patternCircle(120, onAccent.withValues(alpha: 0.10)),
-          ),
-          Positioned(
-            bottom: -46,
-            left: 70,
-            child: _patternCircle(110, onAccent.withValues(alpha: 0.07)),
-          ),
-          Positioned(
-            top: 26,
-            left: 150,
-            child: _patternCircle(46, onAccent.withValues(alpha: 0.06)),
+          // Reeded/fluted-glass texture: thin vertical ribs that modulate the
+          // accent gradient with soft accent-tinted shadows and white
+          // highlights. Kept very translucent so it reads as a subtle sheen,
+          // and it re-tints itself whenever the accent changes.
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _FlutedGlassPainter(
+                highlight: Colors.white.withValues(alpha: 0.025),
+                groove: scheme.primary.withValues(alpha: 0.025),
+              ),
+            ),
           ),
           SafeArea(
             bottom: false,
@@ -222,11 +217,55 @@ class _HomeHeader extends StatelessWidget {
     );
   }
 
-  Widget _patternCircle(double size, Color color) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      );
+}
+
+/// Paints the fluted-glass ribs: a repeating vertical gradient (shadow →
+/// highlight → shadow) tiled every [fluteWidth] pixels, so each flute reads as
+/// a soft ridge of light. Colors come from the caller (accent-derived), so the
+/// texture recolors with the app's accent.
+class _FlutedGlassPainter extends CustomPainter {
+  final Color highlight;
+  final Color groove;
+  static const double fluteWidth = 7;
+  const _FlutedGlassPainter({
+    required this.highlight,
+    required this.groove,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    // Isolate the ribs so the horizontal fade mask below only affects them,
+    // not the gradient underneath.
+    canvas.saveLayer(rect, Paint());
+    final ribs = LinearGradient(
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+      tileMode: TileMode.repeated,
+      colors: [groove, highlight, groove],
+      stops: const [0.0, 0.5, 1.0],
+    ).createShader(
+        Rect.fromLTWH(0, 0, _FlutedGlassPainter.fluteWidth, size.height));
+    canvas.drawRect(rect, Paint()..shader = ribs);
+    // Dissolve the ribs into the solid gradient toward the left: opaque on the
+    // right (under the wordmark), transparent on the left.
+    final fade = const LinearGradient(
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+      colors: [Colors.transparent, Colors.white],
+      stops: [0.0, 0.6],
+    ).createShader(rect);
+    canvas.drawRect(
+        rect,
+        Paint()
+          ..blendMode = BlendMode.dstIn
+          ..shader = fade);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _FlutedGlassPainter old) =>
+      old.highlight != highlight || old.groove != groove;
 }
 
 class _CircleButton extends StatelessWidget {
