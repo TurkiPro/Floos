@@ -148,6 +148,9 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
     return (delete(transactions)..where((t) => t.id.equals(id))).go();
   }
 
+  /// Wipes all transactions -- used only by the dev data tools in Settings.
+  Future<void> clearAll() => delete(transactions).go();
+
   /// Every distinct month that has at least one transaction, most recent
   /// first. Only pulls the `date` column (not full rows) and does the
   /// distinct/sort in Dart -- consistent with how the rest of the app treats
@@ -329,6 +332,9 @@ class RecurrenceDao extends DatabaseAccessor<AppDatabase>
   Future<void> deleteById(int id) {
     return (delete(recurrenceRules)..where((r) => r.id.equals(id))).go();
   }
+
+  /// Wipes all recurrence rules -- used only by the dev data tools.
+  Future<void> clearAll() => delete(recurrenceRules).go();
 }
 
 @DriftAccessor(tables: [SavingsGoals, SavingsContributions])
@@ -338,6 +344,12 @@ class SavingsDao extends DatabaseAccessor<AppDatabase> with _$SavingsDaoMixin {
   Stream<List<SavingsGoal>> watchGoals() {
     return (select(savingsGoals)..where((g) => g.archived.equals(false)))
         .watch();
+  }
+
+  /// Wipes all goals and contributions -- used only by the dev data tools.
+  Future<void> clearAll() async {
+    await delete(savingsContributions).go();
+    await delete(savingsGoals).go();
   }
 
   Future<int> addGoal({

@@ -9,17 +9,35 @@ import 'ui/theme/tokens.dart';
 class AppSettings extends ChangeNotifier {
   static const _kThemeMode = 'themeMode';
   static const _kAccent = 'accent';
+  static const _kSkippedDeposits = 'skippedDeposits';
 
   final SharedPreferences _prefs;
   ThemeMode _themeMode;
   AppAccent _accent;
+  // Keys of the form "goalId:YYYY-MM" the user dismissed on the income-day
+  // savings prompt, so it doesn't nag again that month for that goal.
+  final Set<String> _skippedDeposits;
 
   AppSettings(this._prefs)
       : _themeMode = _readThemeMode(_prefs),
-        _accent = _readAccent(_prefs);
+        _accent = _readAccent(_prefs),
+        _skippedDeposits =
+            (_prefs.getStringList(_kSkippedDeposits) ?? const []).toSet();
 
   ThemeMode get themeMode => _themeMode;
   AppAccent get accent => _accent;
+
+  static String _depositKey(int goalId, DateTime month) =>
+      '$goalId:${month.year}-${month.month}';
+
+  bool isDepositSkipped(int goalId, DateTime month) =>
+      _skippedDeposits.contains(_depositKey(goalId, month));
+
+  void skipDeposit(int goalId, DateTime month) {
+    _skippedDeposits.add(_depositKey(goalId, month));
+    _prefs.setStringList(_kSkippedDeposits, _skippedDeposits.toList());
+    notifyListeners();
+  }
 
   void setThemeMode(ThemeMode mode) {
     if (mode == _themeMode) return;

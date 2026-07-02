@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../app_settings.dart';
 import '../data/database.dart';
+import '../data/dev_seed.dart';
 import '../data/export.dart';
 import 'category_editor_screen.dart';
 import 'months_screen.dart';
@@ -123,9 +124,59 @@ class SettingsScreen extends StatelessWidget {
                 ),
             ],
           ),
+          const SizedBox(height: AppSpacing.xl),
+          _sectionLabel(context, 'أدوات تجريبية'),
+          _navTile(context,
+              icon: Icons.auto_awesome_outlined,
+              label: 'تعبئة ببيانات تجريبية',
+              onTap: () async {
+                await seedDummyData(db);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('تمت تعبئة بيانات آخر ٦ أشهر')),
+                  );
+                }
+              }),
+          _navTile(context,
+              icon: Icons.delete_outline,
+              label: 'حذف كل البيانات',
+              onTap: () => _confirmClear(context, db)),
         ],
       ),
     );
+  }
+
+  Future<void> _confirmClear(BuildContext context, AppDatabase db) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('حذف كل البيانات؟'),
+        content: const Text(
+            'سيتم حذف كل الحركات والأهداف والقواعد المتكررة. لا يمكن التراجع.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await db.transactionDao.clearAll();
+      await db.savingsDao.clearAll();
+      await db.recurrenceDao.clearAll();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم حذف كل البيانات')),
+        );
+      }
+    }
   }
 }
 

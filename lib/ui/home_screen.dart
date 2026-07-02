@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
 import '../domain/date_grouping.dart';
 import '../domain/recurrence_engine.dart';
+import '../domain/savings_math.dart';
 import 'add_transaction_sheet.dart';
 import 'income_screen.dart';
 import 'savings_screen.dart';
@@ -54,18 +56,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final money = NumberFormat('#,##0.00');
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('فلوس'),
-        actions: [
-          IconButton(
-            tooltip: 'الإعدادات',
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
-          ),
-        ],
-      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => showModalBottomSheet(
           context: context,
@@ -75,23 +65,152 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         icon: const Icon(Icons.add),
         label: const Text('إضافة'),
       ),
-      // Two live streams feed the dashboard: all transactions (running balance
-      // + this month's income/spend + the expense list) and all savings
-      // contributions (running total saved + this month's saved).
-      body: StreamBuilder<List<TxnRow>>(
-        stream: db.transactionDao.watchAllWithCategory(),
-        builder: (context, txnSnapshot) {
-          final rows = txnSnapshot.data ?? const <TxnRow>[];
-          return StreamBuilder<List<SavingsContribution>>(
-            stream: db.savingsDao.watchAllContributions(),
-            builder: (context, savingsSnapshot) {
-              final contributions =
-                  savingsSnapshot.data ?? const <SavingsContribution>[];
-              final data = _Dashboard.from(rows, contributions);
-              return _DashboardBody(data: data, money: money);
-            },
-          );
-        },
+      body: Column(
+        children: [
+          _HomeHeader(
+            onSettings: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
+          ),
+          // Three live streams feed the dashboard: all transactions (balance +
+          // this month's income/spend + the expense list), all savings
+          // contributions (total + this month's saved), and the goals (the
+          // income-day deposit prompt).
+          Expanded(
+            child: StreamBuilder<List<TxnRow>>(
+              stream: db.transactionDao.watchAllWithCategory(),
+              builder: (context, txnSnapshot) {
+                final rows = txnSnapshot.data ?? const <TxnRow>[];
+                return StreamBuilder<List<SavingsContribution>>(
+                  stream: db.savingsDao.watchAllContributions(),
+                  builder: (context, savingsSnapshot) {
+                    final contributions = savingsSnapshot.data ??
+                        const <SavingsContribution>[];
+                    return StreamBuilder<List<SavingsGoal>>(
+                      stream: db.savingsDao.watchGoals(),
+                      builder: (context, goalsSnapshot) {
+                        final goals =
+                            goalsSnapshot.data ?? const <SavingsGoal>[];
+                        final data = _Dashboard.from(rows, contributions);
+                        return _DashboardBody(
+                          data: data,
+                          money: money,
+                          goals: goals,
+                          contributions: contributions,
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Stylised gradient header: accent gradient, the فلوس wordmark with a wallet
+/// glyph, the current month for context, and a circular settings button.
+class _HomeHeader extends StatelessWidget {
+  final VoidCallback onSettings;
+  const _HomeHeader({required this.onSettings});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final onAccent = scheme.onPrimary;
+    final progress = Theme.of(context).extension<AccentPalette>()!.progress;
+    final month = monthLabel(MonthKey(
+        year: DateTime.now().year, month: DateTime.now().month));
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [scheme.primary, progress],
+          begin: AlignmentDirectional.topStart,
+          end: AlignmentDirectional.bottomEnd,
+        ),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
+        boxShadow: const [AppShadows.card],
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
+          child: Row(
+            children: [
+              _CircleButton(
+                icon: Icons.settings_outlined,
+                color: onAccent,
+                onTap: onSettings,
+              ),
+              const Spacer(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'فلوس',
+                        style: TextStyle(
+                          color: onAccent,
+                          fontSize: 34,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.5,
+                          height: 1.1,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Icon(Icons.account_balance_wallet_rounded,
+                          color: onAccent, size: 28),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    month,
+                    style: TextStyle(
+                      color: onAccent.withValues(alpha: 0.8),
+                      fontSize: AppTextSizes.label,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CircleButton extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  const _CircleButton(
+      {required this.icon, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color.withValues(alpha: 0.16),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          child: Icon(icon, color: color, size: 22),
+        ),
       ),
     );
   }
@@ -108,6 +227,8 @@ class _Dashboard {
   final double monthSpent;
   final double monthSaved;
   final List<TxnRow> monthExpenses;
+  // Whether any income landed this month -- the trigger for the savings prompt.
+  final bool incomeReceivedThisMonth;
 
   const _Dashboard({
     required this.balance,
@@ -116,6 +237,7 @@ class _Dashboard {
     required this.monthSpent,
     required this.monthSaved,
     required this.monthExpenses,
+    required this.incomeReceivedThisMonth,
   });
 
   static _Dashboard from(
@@ -126,12 +248,16 @@ class _Dashboard {
     bool inMonth(DateTime d) => d.year == now.year && d.month == now.month;
 
     double allIncome = 0, allExpense = 0, monthIncome = 0, monthSpent = 0;
+    var incomeThisMonth = false;
     final monthExpenses = <TxnRow>[];
     for (final r in rows) {
       final amount = r.txn.amount;
       if (r.txn.type == TxnType.income) {
         allIncome += amount;
-        if (inMonth(r.txn.date)) monthIncome += amount;
+        if (inMonth(r.txn.date)) {
+          monthIncome += amount;
+          incomeThisMonth = true;
+        }
       } else {
         allExpense += amount;
         if (inMonth(r.txn.date)) {
@@ -154,20 +280,70 @@ class _Dashboard {
       monthSpent: monthSpent,
       monthSaved: monthSaved,
       monthExpenses: monthExpenses,
+      incomeReceivedThisMonth: incomeThisMonth,
     );
   }
+}
+
+/// A goal that still needs this month's deposit, with the recomputed amount.
+class _PendingDeposit {
+  final SavingsGoal goal;
+  final double monthly;
+  const _PendingDeposit(this.goal, this.monthly);
 }
 
 class _DashboardBody extends StatelessWidget {
   final _Dashboard data;
   final NumberFormat money;
-  const _DashboardBody({required this.data, required this.money});
+  final List<SavingsGoal> goals;
+  final List<SavingsContribution> contributions;
+  const _DashboardBody({
+    required this.data,
+    required this.money,
+    required this.goals,
+    required this.contributions,
+  });
+
+  /// Goals still owed this month's deposit: income has landed, the goal has a
+  /// deadline and isn't met, and the user hasn't already deposited or skipped
+  /// it this month. Amounts are recomputed live from the saved total.
+  List<_PendingDeposit> _pendingDeposits(
+      BuildContext context, DateTime now) {
+    if (!data.incomeReceivedThisMonth) return const [];
+    final settings = context.watch<AppSettings>();
+    bool inMonth(DateTime d) => d.year == now.year && d.month == now.month;
+
+    final savedByGoal = <int, double>{};
+    final contributedThisMonth = <int>{};
+    for (final c in contributions) {
+      savedByGoal[c.goalId] = (savedByGoal[c.goalId] ?? 0) + c.amount;
+      if (inMonth(c.date)) contributedThisMonth.add(c.goalId);
+    }
+
+    final pending = <_PendingDeposit>[];
+    for (final goal in goals) {
+      if (goal.targetDate == null) continue;
+      if (contributedThisMonth.contains(goal.id)) continue;
+      if (settings.isDepositSkipped(goal.id, now)) continue;
+      final monthly = suggestedMonthlyDeposit(
+        target: goal.targetAmount,
+        saved: savedByGoal[goal.id] ?? 0,
+        deadline: goal.targetDate,
+        now: now,
+      );
+      if (monthly != null && monthly > 0) {
+        pending.add(_PendingDeposit(goal, monthly));
+      }
+    }
+    return pending;
+  }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final now = DateTime.now();
     final groups = groupByDay(data.monthExpenses, (r) => r.txn.date);
+    final pending = _pendingDeposits(context, now);
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -210,6 +386,10 @@ class _DashboardBody extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         _MonthStatsCard(data: data, money: money),
+        if (pending.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.md),
+          _SavingsPromptCard(pending: pending, money: money),
+        ],
         const SizedBox(height: AppSpacing.lg),
         Padding(
           padding: const EdgeInsets.fromLTRB(
@@ -405,6 +585,137 @@ class _MonthStatsCard extends StatelessWidget {
                   color: color),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown once income has landed this month: for each goal still owed a
+/// deposit, offer to transfer the full month's installment, a custom amount,
+/// or skip (which recomputes next month's larger installment automatically).
+class _SavingsPromptCard extends StatelessWidget {
+  final List<_PendingDeposit> pending;
+  final NumberFormat money;
+  const _SavingsPromptCard({required this.pending, required this.money});
+
+  Future<void> _deposit(
+      BuildContext context, SavingsGoal goal, double amount) async {
+    await context.read<AppDatabase>().savingsDao.addContribution(
+          goalId: goal.id,
+          amount: amount,
+          date: DateTime.now(),
+          note: 'إيداع شهري',
+        );
+  }
+
+  Future<void> _depositCustom(
+      BuildContext context, _PendingDeposit p) async {
+    final ctrl = TextEditingController(text: p.monthly.toStringAsFixed(0));
+    final amount = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('إيداع في ${p.goal.name}'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'المبلغ',
+            suffixText: 'ر.س',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(
+                double.tryParse(ctrl.text.replaceAll(',', '.'))),
+            child: const Text('إيداع'),
+          ),
+        ],
+      ),
+    );
+    if (amount != null && amount > 0 && context.mounted) {
+      await _deposit(context, p.goal, amount);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(
+            scheme.primary.withValues(alpha: 0.08), scheme.surface),
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        boxShadow: const [AppShadows.card],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.savings_rounded, color: scheme.primary, size: 20),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                'استلمت دخلك — خصّص لأهدافك',
+                style: TextStyle(
+                    fontSize: AppTextSizes.row,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          for (final p in pending) ...[
+            const Divider(height: AppSpacing.lg),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(p.goal.name,
+                          style:
+                              const TextStyle(fontWeight: FontWeight.w600)),
+                      Text(
+                        'الإيداع الشهري: ${money.format(p.monthly)} ر.س',
+                        style: TextStyle(
+                            fontSize: AppTextSizes.label,
+                            color: scheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              children: [
+                FilledButton(
+                  onPressed: () => _deposit(context, p.goal, p.monthly),
+                  child: const Text('إيداع كامل'),
+                ),
+                OutlinedButton(
+                  onPressed: () => _depositCustom(context, p),
+                  child: const Text('مبلغ آخر'),
+                ),
+                TextButton(
+                  onPressed: () => context
+                      .read<AppSettings>()
+                      .skipDeposit(p.goal.id, DateTime.now()),
+                  child: const Text('تخطّي هذا الشهر'),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

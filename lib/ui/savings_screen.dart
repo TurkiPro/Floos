@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../data/database.dart';
+import '../domain/savings_math.dart';
 import 'add_contribution_sheet.dart';
 import 'add_goal_sheet.dart';
 import 'goal_detail_screen.dart';
@@ -129,6 +130,15 @@ class _GoalCard extends StatelessWidget {
                               fontSize: AppTextSizes.label,
                               color: scheme.onSurfaceVariant),
                         ),
+                      if (_monthlyLabel(goal, total, money) != null)
+                        Text(
+                          _monthlyLabel(goal, total, money)!,
+                          style: TextStyle(
+                            fontSize: AppTextSizes.label,
+                            fontWeight: FontWeight.w600,
+                            color: scheme.primary,
+                          ),
+                        ),
                       const SizedBox(height: AppSpacing.sm),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(AppRadii.chip),
@@ -152,5 +162,19 @@ class _GoalCard extends StatelessWidget {
         );
       },
     );
+  }
+
+  /// "الإيداع الشهري المقترح: X ر.س" -- the amount to deposit each month to
+  /// hit the target by its deadline, recomputed from the live saved total.
+  /// Null when the goal has no deadline or is already met.
+  String? _monthlyLabel(SavingsGoal goal, double saved, NumberFormat money) {
+    final monthly = suggestedMonthlyDeposit(
+      target: goal.targetAmount,
+      saved: saved,
+      deadline: goal.targetDate,
+      now: DateTime.now(),
+    );
+    if (monthly == null || monthly <= 0) return null;
+    return 'الإيداع الشهري المقترح: ${money.format(monthly)} ر.س';
   }
 }
