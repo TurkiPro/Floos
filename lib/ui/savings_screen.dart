@@ -16,8 +16,24 @@ class SavingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final db = context.read<AppDatabase>();
 
+    final money = NumberFormat('#,##0.00');
+    final dateFmt = DateFormat('yyyy-MM-dd');
+
     return Scaffold(
-      appBar: AppBar(title: const Text('الادخار')),
+      appBar: AppBar(
+        title: const Text('الادخار'),
+        actions: [
+          IconButton(
+            tooltip: 'إيداع',
+            icon: const Icon(Icons.add_card_outlined),
+            onPressed: () => showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              builder: (_) => AddContributionSheet(db: db),
+            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => showModalBottomSheet(
           context: context,
@@ -29,20 +45,113 @@ class SavingsScreen extends StatelessWidget {
       ),
       body: StreamBuilder<List<SavingsGoal>>(
         stream: db.savingsDao.watchGoals(),
-        builder: (context, snapshot) {
-          final goals = snapshot.data ?? const <SavingsGoal>[];
+        builder: (context, goalsSnapshot) {
+          final goals = goalsSnapshot.data ?? const <SavingsGoal>[];
           if (goals.isEmpty) {
             return const Center(child: Text('لا توجد أهداف ادخار بعد'));
           }
-          return ListView.builder(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            itemCount: goals.length,
-            itemBuilder: (context, i) => Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.md),
-              child: _GoalCard(db: db, goal: goals[i]),
-            ),
+          final byId = {for (final g in goals) g.id: g};
+          return StreamBuilder<List<SavingsContribution>>(
+            stream: db.savingsDao.watchAllContributions(),
+            builder: (context, contribSnapshot) {
+              final contributions =
+                  contribSnapshot.data ?? const <SavingsContribution>[];
+              final scheme = Theme.of(context).colorScheme;
+              return ListView(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                children: [
+                  for (final g in goals)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                      child: _GoalCard(db: db, goal: g),
+                    ),
+                  if (contributions.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'آخر الإيداعات',
+                      style: TextStyle(
+                        fontSize: AppTextSizes.label,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    for (final c in contributions.take(40))
+                      _DepositRow(
+                        contribution: c,
+                        goalName: byId[c.goalId]?.name ?? '—',
+                        money: money,
+                        dateFmt: dateFmt,
+                      ),
+                  ],
+                ],
+              );
+            },
           );
         },
+      ),
+    );
+  }
+}
+
+/// One entry in the savings ledger: which goal it went to, when, its source
+/// note, and the amount.
+class _DepositRow extends StatelessWidget {
+  final SavingsContribution contribution;
+  final String goalName;
+  final NumberFormat money;
+  final DateFormat dateFmt;
+  const _DepositRow({
+    required this.contribution,
+    required this.goalName,
+    required this.money,
+    required this.dateFmt,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final note = contribution.note ?? '';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: scheme.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppRadii.tile),
+            ),
+            child: Icon(Icons.savings_outlined, color: scheme.primary),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(goalName,
+                    style: const TextStyle(
+                        fontSize: AppTextSizes.row,
+                        fontWeight: FontWeight.w500)),
+                Text(
+                  [dateFmt.format(contribution.date), if (note.isNotEmpty) note]
+                      .join('  •  '),
+                  style: TextStyle(
+                      fontSize: AppTextSizes.label,
+                      color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '+${money.format(contribution.amount)} ر.س',
+            style: const TextStyle(
+                color: AppColors.income,
+                fontWeight: FontWeight.w600,
+                fontSize: AppTextSizes.row),
+          ),
+        ],
       ),
     );
   }

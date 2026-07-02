@@ -125,71 +125,108 @@ class _HomeHeader extends StatelessWidget {
     final month = monthLabel(MonthKey(
         year: DateTime.now().year, month: DateTime.now().month));
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [scheme.primary, progress],
-          begin: AlignmentDirectional.topStart,
-          end: AlignmentDirectional.bottomEnd,
-        ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(28),
-          bottomRight: Radius.circular(28),
-        ),
-        boxShadow: const [AppShadows.card],
+    return ClipRRect(
+      borderRadius: const BorderRadius.only(
+        bottomLeft: Radius.circular(28),
+        bottomRight: Radius.circular(28),
       ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
-          child: Row(
-            children: [
-              _CircleButton(
-                icon: Icons.settings_outlined,
-                color: onAccent,
-                onTap: onSettings,
+      child: Stack(
+        children: [
+          // Base diagonal gradient.
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    scheme.primary,
+                    Color.lerp(scheme.primary, progress, 0.5)!,
+                    progress,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
-              const Spacer(),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
+            ),
+          ),
+          // Soft "bokeh" pattern -- translucent circles for depth, kept on the
+          // left so they don't crowd the wordmark on the right.
+          Positioned(
+            top: -34,
+            left: -30,
+            child: _patternCircle(120, onAccent.withValues(alpha: 0.10)),
+          ),
+          Positioned(
+            bottom: -46,
+            left: 70,
+            child: _patternCircle(110, onAccent.withValues(alpha: 0.07)),
+          ),
+          Positioned(
+            top: 26,
+            left: 150,
+            child: _patternCircle(46, onAccent.withValues(alpha: 0.06)),
+          ),
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
+              child: Row(
                 children: [
-                  Row(
+                  // Wordmark first => right side in RTL.
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.account_balance_wallet_rounded,
+                              color: onAccent, size: 28),
+                          const SizedBox(width: AppSpacing.sm),
+                          Text(
+                            'فلوس',
+                            style: TextStyle(
+                              color: onAccent,
+                              fontSize: 34,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.5,
+                              height: 1.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
                       Text(
-                        'فلوس',
+                        month,
                         style: TextStyle(
-                          color: onAccent,
-                          fontSize: 34,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.5,
-                          height: 1.1,
+                          color: onAccent.withValues(alpha: 0.85),
+                          fontSize: AppTextSizes.label,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Icon(Icons.account_balance_wallet_rounded,
-                          color: onAccent, size: 28),
                     ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    month,
-                    style: TextStyle(
-                      color: onAccent.withValues(alpha: 0.8),
-                      fontSize: AppTextSizes.label,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  const Spacer(),
+                  // Settings last => left side in RTL.
+                  _CircleButton(
+                    icon: Icons.settings_outlined,
+                    color: onAccent,
+                    onTap: onSettings,
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
+
+  Widget _patternCircle(double size, Color color) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      );
 }
 
 class _CircleButton extends StatelessWidget {

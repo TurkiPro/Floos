@@ -4,13 +4,17 @@ import 'package:intl/intl.dart';
 import '../data/database.dart';
 import 'theme/tokens.dart';
 
+/// Add a deposit to a savings goal. When [goalId] is null the sheet shows a
+/// goal picker (used from the savings screen's general "إيداع" action);
+/// otherwise it deposits straight into the given goal. Every deposit can be
+/// dated and annotated with a note.
 class AddContributionSheet extends StatefulWidget {
   final AppDatabase db;
-  final int goalId;
+  final int? goalId;
   const AddContributionSheet({
     super.key,
     required this.db,
-    required this.goalId,
+    this.goalId,
   });
 
   @override
@@ -21,6 +25,13 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
   final _amountCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
   DateTime _date = DateTime.now();
+  int? _goalId;
+
+  @override
+  void initState() {
+    super.initState();
+    _goalId = widget.goalId;
+  }
 
   @override
   void dispose() {
@@ -31,14 +42,14 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
 
   Future<void> _save() async {
     final amount = double.tryParse(_amountCtrl.text.replaceAll(',', '.'));
-    if (amount == null || amount <= 0) {
+    if (_goalId == null || amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('أدخل مبلغًا صحيحًا')),
+        const SnackBar(content: Text('اختر هدفًا وأدخل مبلغًا صحيحًا')),
       );
       return;
     }
     await widget.db.savingsDao.addContribution(
-      goalId: widget.goalId,
+      goalId: _goalId!,
       amount: amount,
       date: _date,
       note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
@@ -62,6 +73,34 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
           children: [
             Text('إضافة إيداع', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: AppSpacing.lg),
+            // Goal picker only when no goal was pre-selected.
+            if (widget.goalId == null) ...[
+              StreamBuilder<List<SavingsGoal>>(
+                stream: widget.db.savingsDao.watchGoals(),
+                builder: (context, snapshot) {
+                  final goals = snapshot.data ?? const <SavingsGoal>[];
+                  if (goals.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                      child: Text('لا توجد أهداف ادخار بعد'),
+                    );
+                  }
+                  return DropdownButtonFormField<int>(
+                    initialValue: _goalId,
+                    decoration: const InputDecoration(
+                      labelText: 'الهدف',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      for (final g in goals)
+                        DropdownMenuItem(value: g.id, child: Text(g.name)),
+                    ],
+                    onChanged: (v) => setState(() => _goalId = v),
+                  );
+                },
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
             TextField(
               controller: _amountCtrl,
               autofocus: true,
@@ -97,7 +136,7 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
             TextField(
               controller: _noteCtrl,
               decoration: const InputDecoration(
-                labelText: 'ملاحظة (اختياري)',
+                labelText: 'ملاحظة / المصدر (اختياري)',
                 border: OutlineInputBorder(),
               ),
             ),
