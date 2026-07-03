@@ -54,16 +54,42 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final db = context.read<AppDatabase>();
     final money = NumberFormat('#,##0.00');
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          builder: (_) => AddTransactionSheet(db: db),
+      // A full-width bottom bar instead of a floating button, so it never
+      // overlaps the transaction list or the dashboard figures.
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, -2),
+            ),
+          ],
         ),
-        icon: const Icon(Icons.add),
-        label: const Text('إضافة'),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm,
+                AppSpacing.lg, AppSpacing.sm),
+            child: SizedBox(
+              height: 50,
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (_) => AddTransactionSheet(db: db),
+                ),
+                icon: const Icon(Icons.add),
+                label: const Text('إضافة حركة'),
+              ),
+            ),
+          ),
+        ),
       ),
       body: Column(
         children: [

@@ -422,13 +422,14 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
           await _seedDefaultCategories();
+          await _seedDefaultSubcategories();
         },
         onUpgrade: (m, from, to) async {
           // v2 introduced sub-categories (parentId) and the essentials/luxuries
@@ -438,6 +439,12 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(categories, categories.parentId);
             await m.addColumn(categories, categories.kind);
           }
+          // v3 seeds a starter set of sub-categories under the default
+          // categories (matched by icon), skipping any parent that already has
+          // children so it never disturbs a user's own edits.
+          if (from < 3) {
+            await _seedDefaultSubcategories();
+          }
         },
       );
 
@@ -445,6 +452,46 @@ class AppDatabase extends _$AppDatabase {
     await batch((b) {
       b.insertAll(categories, _defaultCategories);
     });
+  }
+
+  /// Adds the default sub-categories under each matching top-level default
+  /// category. Idempotent: a parent that already has any sub-category is left
+  /// untouched. Sub-categories inherit their parent's colour and type.
+  Future<void> _seedDefaultSubcategories() async {
+    final tops =
+        await (select(categories)..where((c) => c.parentId.isNull())).get();
+    for (final entry in _defaultSubcategories.entries) {
+      Category? parent;
+      for (final t in tops) {
+        if (t.iconKey == entry.key && !t.archived) {
+          parent = t;
+          break;
+        }
+      }
+      if (parent == null) continue;
+      final p = parent;
+      final existing =
+          await (select(categories)..where((c) => c.parentId.equals(p.id)))
+              .get();
+      if (existing.isNotEmpty) continue;
+      var order = 0;
+      await batch((b) {
+        for (final sub in entry.value) {
+          b.insert(
+            categories,
+            CategoriesCompanion.insert(
+              name: sub.name,
+              iconKey: sub.icon,
+              colorValue: p.colorValue,
+              type: p.type,
+              parentId: Value(p.id),
+              kind: Value(sub.kind),
+              sortOrder: Value(order++),
+            ),
+          );
+        }
+      });
+    }
   }
 }
 
@@ -473,3 +520,53 @@ const _defaultCategories = <CategoriesCompanion>[
   CategoriesCompanion(name: Value('دخل إضافي'), iconKey: Value('extra_income'), colorValue: Value(0xFF9CCC65), type: Value(TxnType.income), sortOrder: Value(9)),
   CategoriesCompanion(name: Value('استثمار'), iconKey: Value('investment'), colorValue: Value(0xFF26C6DA), type: Value(TxnType.income), sortOrder: Value(10)),
 ];
+
+/// Default sub-categories, keyed by the parent's icon so they attach to the
+/// right default category. Seeded under expense categories only (income rarely
+/// needs finer buckets). Each inherits its parent's colour + type.
+typedef _Sub = ({String name, String icon, CategoryKind kind});
+const _defaultSubcategories = <String, List<_Sub>>{
+  'food': [
+    (name: 'مطاعم', icon: 'fastfood', kind: CategoryKind.luxury),
+    (name: 'بقالة', icon: 'local_grocery_store', kind: CategoryKind.essential),
+    (name: 'مقاهي', icon: 'local_cafe', kind: CategoryKind.luxury),
+    (name: 'توصيل طعام', icon: 'moped', kind: CategoryKind.luxury),
+  ],
+  'transport': [
+    (name: 'وقود', icon: 'local_gas_station', kind: CategoryKind.essential),
+    (name: 'تطبيقات النقل', icon: 'local_taxi', kind: CategoryKind.essential),
+    (name: 'صيانة', icon: 'directions_car', kind: CategoryKind.essential),
+    (name: 'مواقف', icon: 'local_parking', kind: CategoryKind.essential),
+  ],
+  'shopping': [
+    (name: 'ملابس', icon: 'checkroom', kind: CategoryKind.luxury),
+    (name: 'إلكترونيات', icon: 'devices', kind: CategoryKind.luxury),
+    (name: 'هدايا', icon: 'card_giftcard', kind: CategoryKind.luxury),
+  ],
+  'bills': [
+    (name: 'كهرباء', icon: 'bolt', kind: CategoryKind.essential),
+    (name: 'ماء', icon: 'water_drop', kind: CategoryKind.essential),
+    (name: 'إنترنت', icon: 'wifi', kind: CategoryKind.essential),
+    (name: 'جوال', icon: 'phone_iphone', kind: CategoryKind.essential),
+  ],
+  'health': [
+    (name: 'أدوية', icon: 'medication', kind: CategoryKind.essential),
+    (name: 'عيادات', icon: 'local_hospital', kind: CategoryKind.essential),
+    (name: 'لياقة', icon: 'fitness_center', kind: CategoryKind.luxury),
+  ],
+  'entertainment': [
+    (name: 'اشتراكات', icon: 'subscriptions', kind: CategoryKind.luxury),
+    (name: 'ألعاب', icon: 'sports_esports', kind: CategoryKind.luxury),
+    (name: 'سينما', icon: 'theaters', kind: CategoryKind.luxury),
+    (name: 'مطاعم وخروج', icon: 'nightlife', kind: CategoryKind.luxury),
+  ],
+  'home': [
+    (name: 'أثاث', icon: 'chair', kind: CategoryKind.essential),
+    (name: 'أدوات المطبخ', icon: 'kitchen', kind: CategoryKind.essential),
+    (name: 'تنظيف', icon: 'cleaning_services', kind: CategoryKind.essential),
+  ],
+  'other': [
+    (name: 'سجائر', icon: 'cigarette', kind: CategoryKind.luxury),
+    (name: 'رسوم', icon: 'attach_money', kind: CategoryKind.essential),
+  ],
+};
