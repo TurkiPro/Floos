@@ -47,6 +47,11 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
+  # Drives the app on a real emulator/simulator to capture store screenshots
+  # (and, as a side effect, smoke-tests the native plugins on a real device).
+  integration_test:
+    sdk: flutter
+
   # drift code generation.
   drift_dev: ^2.16.0
   build_runner: ^2.4.9

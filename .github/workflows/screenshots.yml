@@ -1,0 +1,130 @@
+name: Screenshots
+
+# Captures the App Store / Play Store screenshots on real emulated devices, at
+# the exact native resolutions the stores demand. Run it by hand from the
+# Actions tab, then download the artifacts and upload them to the consoles.
+#
+# This exists because you can't produce these on Windows: iOS screenshots need a
+# Mac, and Apple rejects anything that isn't precisely the expected pixel size,
+# so a resized desktop window is useless. GitHub's macOS runners have Xcode and
+# the simulators; the Linux runners can boot an Android emulator.
+#
+# It is also the ONLY place the native plugins (flutter_local_notifications,
+# local_auth, app_badge_plus) ever run on a real device image — everywhere else
+# they no-op. A crash on init fails this run instead of reaching users.
+on:
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: "3.44.4"
+
+jobs:
+  android:
+    name: Android screenshots (Play)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+
+      # KVM is what makes the emulator usably fast on the Linux runners.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run app on emulator and capture
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6_pro
+          disable-animations: true
+          script: |
+            flutter drive \
+              --driver=test_driver/integration_test.dart \
+              --target=integration_test/screenshot_test.dart \
+              -d emulator-5554
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-android
+          path: screenshots/*.png
+          if-no-files-found: error
+
+  ios:
+    name: iOS screenshots (App Store)
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Apple wants one set per display class. The simulator reports the
+          # real device's pixel size, which is exactly what the store checks.
+          - device: "iPhone 16 Pro Max"   # 6.9"/6.7" class — 1320x2868
+            label: "6_9"
+          - device: "iPhone 16 Plus"      # 6.7" class      — 1290x2796
+            label: "6_7"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Boot simulator
+        run: |
+          # Pick the first runtime that actually has this device, so we don't
+          # hard-code an iOS version the runner image may have dropped.
+          UDID=$(xcrun simctl list devices available \
+                  | grep -m1 "${{ matrix.device }} (" \
+                  | grep -oE '[0-9A-F-]{36}')
+          if [ -z "$UDID" ]; then
+            echo "::error::Simulator '${{ matrix.device }}' not available on this runner"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: Run app on simulator and capture
+        run: |
+          flutter drive \
+            --driver=test_driver/integration_test.dart \
+            --target=integration_test/screenshot_test.dart \
+            -d "$SIM_UDID"
+
+      - name: Report captured sizes
+        run: |
+          cd screenshots
+          for f in *.png; do
+            echo "$f -> $(sips -g pixelWidth -g pixelHeight "$f" \
+              | awk '/pixel/ {printf "%s ", $2}')"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-ios-${{ matrix.label }}
+          path: screenshots/*.png
+          if-no-files-found: error

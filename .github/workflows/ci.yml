@@ -38,7 +38,9 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed lib test
+        run: >
+          dart format --output=none --set-exit-if-changed
+          lib test integration_test test_driver
 
       - name: Analyze
         run: flutter analyze

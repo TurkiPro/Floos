@@ -18,6 +18,9 @@ lib/**/*.g.dart
 # OS
 .DS_Store
 
+# Screenshot output (produced by the Screenshots workflow, downloaded as an artifact)
+screenshots/
+
 # Signing secrets — NEVER commit these. CI recreates them from repo secrets.
 android/key.properties
 **/*.jks
