@@ -3,11 +3,13 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../data/database.dart';
+import '../domain/date_grouping.dart';
 import '../domain/savings_math.dart';
 import 'add_contribution_sheet.dart';
 import 'add_goal_sheet.dart';
 import 'goal_detail_screen.dart';
 import 'theme/tokens.dart';
+import 'widgets/day_section.dart';
 
 class SavingsScreen extends StatelessWidget {
   const SavingsScreen({super.key});
@@ -17,7 +19,6 @@ class SavingsScreen extends StatelessWidget {
     final db = context.read<AppDatabase>();
 
     final money = NumberFormat('#,##0.00');
-    final dateFmt = DateFormat('yyyy-MM-dd');
 
     return Scaffold(
       appBar: AppBar(
@@ -76,13 +77,26 @@ class SavingsScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    for (final c in contributions.take(40))
-                      _DepositRow(
-                        contribution: c,
-                        goalName: byId[c.goalId]?.name ?? '—',
-                        money: money,
-                        dateFmt: dateFmt,
+                    // Same day-card layout as every other dated list.
+                    for (final day in groupByDay(
+                        contributions.take(60).toList(), (c) => c.date)) ...[
+                      DaySection(
+                        day: day.key,
+                        today: DateTime.now(),
+                        totalText:
+                            '+${money.format(day.value.fold<double>(0, (s, c) => s + c.amount))} ر.س',
+                        totalColor: AppColors.income,
+                        children: [
+                          for (final c in day.value)
+                            _DepositRow(
+                              contribution: c,
+                              goalName: byId[c.goalId]?.name ?? '—',
+                              money: money,
+                            ),
+                        ],
                       ),
+                      const SizedBox(height: AppSpacing.md),
+                    ],
                   ],
                 ],
               );
@@ -94,18 +108,16 @@ class SavingsScreen extends StatelessWidget {
   }
 }
 
-/// One entry in the savings ledger: which goal it went to, when, its source
-/// note, and the amount.
+/// One entry in the savings ledger: which goal it went to, its source note,
+/// and the amount. The date lives in the day header above it.
 class _DepositRow extends StatelessWidget {
   final SavingsContribution contribution;
   final String goalName;
   final NumberFormat money;
-  final DateFormat dateFmt;
   const _DepositRow({
     required this.contribution,
     required this.goalName,
     required this.money,
-    required this.dateFmt,
   });
 
   @override
@@ -134,13 +146,13 @@ class _DepositRow extends StatelessWidget {
                     style: const TextStyle(
                         fontSize: AppTextSizes.row,
                         fontWeight: FontWeight.w500)),
-                Text(
-                  [dateFmt.format(contribution.date), if (note.isNotEmpty) note]
-                      .join('  •  '),
-                  style: TextStyle(
-                      fontSize: AppTextSizes.label,
-                      color: scheme.onSurfaceVariant),
-                ),
+                if (note.isNotEmpty)
+                  Text(
+                    note,
+                    style: TextStyle(
+                        fontSize: AppTextSizes.label,
+                        color: scheme.onSurfaceVariant),
+                  ),
               ],
             ),
           ),

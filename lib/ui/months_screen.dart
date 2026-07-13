@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../app_settings.dart';
 import '../data/database.dart';
+import '../domain/calendar_format.dart';
 import '../domain/date_grouping.dart';
 import 'month_detail_screen.dart';
 import 'theme/tokens.dart';
@@ -14,6 +16,7 @@ class MonthsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final db = context.read<AppDatabase>();
+    final hijri = context.watch<AppSettings>().useHijri;
     return Scaffold(
       appBar: AppBar(title: const Text('الأشهر')),
       body: StreamBuilder<List<MonthKey>>(
@@ -32,7 +35,7 @@ class MonthsScreen extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: AppSpacing.md),
                 child: ListTile(
                   title: Text(
-                    monthLabel(month),
+                    monthLabelFor(month, hijri: hijri),
                     style: const TextStyle(
                         fontSize: AppTextSizes.row, fontWeight: FontWeight.w500),
                   ),

@@ -30,6 +30,19 @@ dependencies:
   # Persists UI preferences (theme mode + accent color) across launches.
   shared_preferences: ^2.2.2
 
+  # Local reminder/alert notifications (mobile; no-ops elsewhere).
+  flutter_local_notifications: ^17.2.3
+  timezone: ^0.9.4
+
+  # Biometric / device-passcode app lock (Face ID, fingerprint, password).
+  local_auth: ^2.3.0
+
+  # Confirmation chime when a transaction is saved.
+  # Hijri calendar conversion for the ميلادي/هجري toggle.
+  hijri: ^3.0.0
+  app_badge_plus: ^1.3.2
+  flutter_timezone: ^5.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -5,14 +5,17 @@ import 'package:provider/provider.dart';
 import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
+import '../domain/calendar_format.dart';
 import '../domain/date_grouping.dart';
 import '../domain/recurrence_engine.dart';
 import '../domain/recurrence_math.dart';
 import '../domain/savings_math.dart';
+import '../services/alerts_coordinator.dart';
 import 'add_transaction_sheet.dart';
 import 'income_screen.dart';
 import 'savings_screen.dart';
 import 'settings_screen.dart';
+import 'statistics_screen.dart';
 import 'theme/tokens.dart';
 import 'widgets/day_group_card.dart';
 
@@ -42,7 +45,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Re-run catch-up whenever the app returns to the foreground, so a
       // recurrence that came due while we were backgrounded shows up with no
       // manual refresh. The reactive list below updates itself on insert.
-      RecurrenceEngine(context.read<AppDatabase>()).catchUp();
+      final db = context.read<AppDatabase>();
+      RecurrenceEngine(db).catchUp();
+      // Re-arm the alert schedule and the icon badge against the fresh data.
+      refreshAlerts(db, context.read<AppSettings>());
       // catchUp() above only triggers a rebuild via the stream if it actually
       // inserted a row, which isn't guaranteed on the exact day the month
       // rolls over. Force one so "current month" (re-read from
@@ -103,6 +109,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               return _HomeHeader(
                 onSettings: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                ),
+                onStats: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const StatisticsScreen()),
                 ),
                 salaryHint: _salaryHint(rules, DateTime.now()),
               );
@@ -179,16 +188,25 @@ String? _salaryHint(List<RecurrenceRule> incomeRules, DateTime now) {
 /// glyph, the current month + salary countdown, and a circular settings button.
 class _HomeHeader extends StatelessWidget {
   final VoidCallback onSettings;
+  final VoidCallback onStats;
   final String? salaryHint;
-  const _HomeHeader({required this.onSettings, this.salaryHint});
+  const _HomeHeader({
+    required this.onSettings,
+    required this.onStats,
+    this.salaryHint,
+  });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final onAccent = scheme.onPrimary;
     final progress = Theme.of(context).extension<AccentPalette>()!.progress;
-    final month = monthLabel(MonthKey(
-        year: DateTime.now().year, month: DateTime.now().month));
+    final hijri = context.watch<AppSettings>().useHijri;
+    final now = DateTime.now();
+    final month = monthLabelFor(
+      MonthKey(year: now.year, month: now.month),
+      hijri: hijri,
+    );
 
     return ClipRRect(
       borderRadius: const BorderRadius.only(
@@ -267,7 +285,13 @@ class _HomeHeader extends StatelessWidget {
                     ],
                   ),
                   const Spacer(),
-                  // Settings last => left side in RTL.
+                  // Stats then settings => both sit on the left in RTL.
+                  _CircleButton(
+                    icon: Icons.insights_outlined,
+                    color: onAccent,
+                    onTap: onStats,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
                   _CircleButton(
                     icon: Icons.settings_outlined,
                     color: onAccent,

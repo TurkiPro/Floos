@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
+import '../domain/calendar_format.dart';
 import '../domain/date_grouping.dart';
 import 'theme/tokens.dart';
 import 'widgets/day_group_card.dart';
@@ -20,9 +22,10 @@ class MonthDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final db = context.read<AppDatabase>();
     final money = NumberFormat('#,##0.00');
+    final hijri = context.watch<AppSettings>().useHijri;
 
     return Scaffold(
-      appBar: AppBar(title: Text(monthLabel(month))),
+      appBar: AppBar(title: Text(monthLabelFor(month, hijri: hijri))),
       body: StreamBuilder<List<TxnRow>>(
         stream: db.transactionDao.watchForMonth(month),
         builder: (context, snapshot) {

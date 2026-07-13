@@ -5,6 +5,9 @@ import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/dev_seed.dart';
 import '../data/export.dart';
+import '../services/alerts_coordinator.dart';
+import '../services/app_lock_service.dart';
+import '../services/notification_service.dart';
 import 'category_editor_screen.dart';
 import 'months_screen.dart';
 import 'recurring_screen.dart';
@@ -123,6 +126,158 @@ class SettingsScreen extends StatelessWidget {
                   onTap: () => settings.setAccent(accent),
                 ),
             ],
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          _sectionLabel(context, 'التنبيهات'),
+          Card(
+            margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  secondary: const Icon(Icons.notifications_active_outlined),
+                  title: const Text('تفعيل التنبيهات'),
+                  subtitle: const Text('تذكيرك بتحديث مصاريفك'),
+                  value: settings.notificationsEnabled,
+                  onChanged: (v) async {
+                    if (v) await NotificationService.requestPermission();
+                    settings.setNotificationsEnabled(v);
+                    await refreshAlerts(db, settings);
+                  },
+                ),
+                if (settings.notificationsEnabled) ...[
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.repeat),
+                    title: const Text('التكرار'),
+                    trailing: DropdownButton<ReminderCadence>(
+                      value: settings.reminderCadence,
+                      underline: const SizedBox.shrink(),
+                      items: [
+                        for (final c in ReminderCadence.values)
+                          DropdownMenuItem(value: c, child: Text(c.label)),
+                      ],
+                      onChanged: (c) async {
+                        if (c == null) return;
+                        settings.setReminderCadence(c);
+                        await refreshAlerts(db, settings);
+                      },
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.schedule),
+                    title: const Text('وقت التذكير'),
+                    trailing: Text(
+                      settings.reminderTime.format(context),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    onTap: () async {
+                      final picked = await showTimePicker(
+                        context: context,
+                        initialTime: settings.reminderTime,
+                      );
+                      if (picked == null) return;
+                      settings.setReminderTime(picked);
+                      await refreshAlerts(db, settings);
+                    },
+                  ),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.calculate_outlined),
+                    title: const Text('ميزانية الأسبوع جاهزة'),
+                    value: settings.notifyWeeklyBudget,
+                    onChanged: (v) async {
+                      settings.setNotifyWeeklyBudget(v);
+                      await refreshAlerts(db, settings);
+                    },
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.insights_outlined),
+                    title: const Text('تعال شوف إحصائياتك'),
+                    value: settings.notifyStats,
+                    onChanged: (v) async {
+                      settings.setNotifyStats(v);
+                      await refreshAlerts(db, settings);
+                    },
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.payments_outlined),
+                    title: const Text('يوم الراتب'),
+                    value: settings.notifySalaryDay,
+                    onChanged: (v) async {
+                      settings.setNotifySalaryDay(v);
+                      await refreshAlerts(db, settings);
+                    },
+                  ),
+                ],
+                const Divider(height: 1),
+                SwitchListTile(
+                  secondary: const Icon(Icons.filter_1_outlined),
+                  title: const Text('عرض ميزانية الأسبوع على أيقونة التطبيق'),
+                  subtitle: const Text(
+                      'بدلًا من عدد الإشعارات، يظهر المتبقي من ميزانية الأسبوع'),
+                  value: settings.badgeWeeklyBudget,
+                  onChanged: (v) async {
+                    settings.setBadgeWeeklyBudget(v);
+                    await refreshAlerts(db, settings);
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          _sectionLabel(context, 'عام'),
+          Card(
+            margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.calendar_today_outlined),
+                  title: const Text('التقويم'),
+                  trailing: SegmentedButton<CalendarSystem>(
+                    segments: [
+                      for (final c in CalendarSystem.values)
+                        ButtonSegment(value: c, label: Text(c.label)),
+                    ],
+                    selected: {settings.calendar},
+                    onSelectionChanged: (s) => settings.setCalendar(s.first),
+                  ),
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  secondary: const Icon(Icons.volume_up_outlined),
+                  title: const Text('صوت عند إضافة حركة'),
+                  value: settings.soundEnabled,
+                  onChanged: settings.setSoundEnabled,
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  secondary: const Icon(Icons.fingerprint),
+                  title: const Text('قفل التطبيق'),
+                  subtitle:
+                      const Text('بصمة أو بصمة الوجه أو رمز الجهاز'),
+                  value: settings.appLockEnabled,
+                  onChanged: (v) async {
+                    if (v) {
+                      final available = await AppLockService.isAvailable();
+                      if (!available) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text(
+                                    'جهازك لا يدعم القفل — فعّل بصمة أو رمزًا أولًا.')),
+                          );
+                        }
+                        return;
+                      }
+                      final ok = await AppLockService.authenticate();
+                      if (!ok) return;
+                    }
+                    settings.setAppLockEnabled(v);
+                  },
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: AppSpacing.xl),
           _sectionLabel(context, 'أدوات تجريبية'),

@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 
 import '../data/database.dart';
 import '../data/enums.dart';
+import '../data/export.dart';
 import '../domain/date_grouping.dart';
+import 'behavior_screen.dart';
 import 'theme/tokens.dart';
 import 'widgets/category_icon_tile.dart';
 
@@ -23,7 +25,23 @@ class StatisticsScreen extends StatelessWidget {
     // Categories resolve each transaction to its top-level parent + kind,
     // transactions carry the amounts, contributions give the savings rate.
     return Scaffold(
-      appBar: AppBar(title: const Text('الإحصائيات')),
+      appBar: AppBar(
+        title: const Text('الإحصائيات'),
+        actions: [
+          IconButton(
+            tooltip: 'تصدير الإحصائيات',
+            icon: const Icon(Icons.file_download_outlined),
+            onPressed: () async {
+              final path = await exportStatsCsvToFile(db);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('تم تصدير الإحصائيات: $path')),
+                );
+              }
+            },
+          ),
+        ],
+      ),
       body: StreamBuilder<List<Category>>(
         stream: db.categoryDao.watchAll(),
         builder: (context, catSnap) {
@@ -47,6 +65,8 @@ class StatisticsScreen extends StatelessWidget {
                   return ListView(
                     padding: const EdgeInsets.all(AppSpacing.lg),
                     children: [
+                      _behaviorLinks(context),
+                      const SizedBox(height: AppSpacing.md),
                       _thisMonthCard(context, s, money),
                       const SizedBox(height: AppSpacing.md),
                       _paceCard(context, s, money),
@@ -74,6 +94,46 @@ class StatisticsScreen extends StatelessWidget {
   }
 
   // ---------------------------------------------------------------- chrome
+
+  /// Entry points to the per-month and per-year behaviour breakdowns.
+  Widget _behaviorLinks(BuildContext context) {
+    Widget tile(IconData icon, String label, BehaviorScope scope) => Expanded(
+          child: Card(
+            margin: EdgeInsets.zero,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadii.card),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                    builder: (_) => BehaviorScreen(scope: scope)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    vertical: AppSpacing.lg, horizontal: AppSpacing.md),
+                child: Column(
+                  children: [
+                    Icon(icon, color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(label,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: AppTextSizes.label,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+    return Row(
+      children: [
+        tile(Icons.calendar_month_outlined, 'سلوك كل شهر',
+            BehaviorScope.monthly),
+        const SizedBox(width: AppSpacing.md),
+        tile(Icons.event_note_outlined, 'سلوك كل سنة', BehaviorScope.yearly),
+      ],
+    );
+  }
 
   Widget _card(BuildContext context, {required Widget child}) => Container(
         width: double.infinity,

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'app_settings.dart';
 import 'data/database.dart';
+import 'services/app_lock_service.dart';
 import 'ui/home_screen.dart';
 import 'ui/theme/tokens.dart';
 
@@ -40,8 +41,92 @@ class FloosApp extends StatelessWidget {
             theme: _buildTheme(Brightness.light, s.accent),
             darkTheme: _buildTheme(Brightness.dark, s.accent),
             themeMode: s.themeMode,
-            home: const HomeScreen(),
+            home: const _LockGate(child: HomeScreen()),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Holds the app behind Face ID / fingerprint / device passcode when the lock
+/// is enabled. Re-locks whenever the app is backgrounded, so returning to it
+/// requires authenticating again.
+class _LockGate extends StatefulWidget {
+  final Widget child;
+  const _LockGate({required this.child});
+
+  @override
+  State<_LockGate> createState() => _LockGateState();
+}
+
+class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
+  bool _unlocked = false;
+  bool _authenticating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAuthenticate());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      if (context.read<AppSettings>().appLockEnabled && mounted) {
+        setState(() => _unlocked = false);
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      _maybeAuthenticate();
+    }
+  }
+
+  Future<void> _maybeAuthenticate() async {
+    if (!mounted || _authenticating || _unlocked) return;
+    if (!context.read<AppSettings>().appLockEnabled) return;
+    _authenticating = true;
+    final ok = await AppLockService.authenticate();
+    _authenticating = false;
+    if (mounted && ok) setState(() => _unlocked = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final locked = context.watch<AppSettings>().appLockEnabled && !_unlocked;
+    if (!locked) return widget.child;
+
+    final scheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.lock_outline, size: 56, color: scheme.primary),
+            const SizedBox(height: AppSpacing.lg),
+            const Text('فلوس مقفل',
+                style: TextStyle(
+                    fontSize: AppTextSizes.row, fontWeight: FontWeight.w700)),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'استخدم بصمتك أو رمز جهازك للفتح.',
+              style: TextStyle(
+                  fontSize: AppTextSizes.label,
+                  color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            FilledButton.icon(
+              onPressed: _maybeAuthenticate,
+              icon: const Icon(Icons.lock_open),
+              label: const Text('فتح'),
+            ),
+          ],
         ),
       ),
     );

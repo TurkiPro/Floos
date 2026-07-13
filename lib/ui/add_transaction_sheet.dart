@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
+import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
+import '../services/alerts_coordinator.dart';
+import '../services/sound_service.dart';
 import 'theme/tokens.dart';
 import 'widgets/category_picker.dart';
 
@@ -43,7 +47,12 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       date: _date,
       note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
     );
-    if (mounted) Navigator.of(context).pop();
+    if (!mounted) return;
+    final settings = context.read<AppSettings>();
+    SoundService.playSaved(enabled: settings.soundEnabled);
+    // Keeps the weekly-budget badge in step with the new spending.
+    refreshAlerts(widget.db, settings);
+    Navigator.of(context).pop();
   }
 
   @override

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
+import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
 import '../domain/recurrence_engine.dart';
+import '../services/sound_service.dart';
 import 'theme/tokens.dart';
 import 'widgets/category_picker.dart';
 
@@ -72,7 +75,10 @@ class _AddIncomeSheetState extends State<AddIncomeSheet> {
         note: name,
       );
     }
-    if (mounted) Navigator.of(context).pop();
+    if (!mounted) return;
+    SoundService.playSaved(
+        enabled: context.read<AppSettings>().soundEnabled);
+    Navigator.of(context).pop();
   }
 
   @override
