@@ -55,11 +55,12 @@ jobs:
           arch: x86_64
           profile: pixel_6_pro
           disable-animations: true
-          script: |
-            flutter drive \
-              --driver=test_driver/integration_test.dart \
-              --target=integration_test/screenshot_test.dart \
-              -d emulator-5554
+          # MUST stay on one line, with the paths spelled out. This string is
+          # handed to `sh -c`, which does not preserve backslash
+          # line-continuations from the YAML block — a multi-line version ends up
+          # running `flutter drive \` and treating the stray backslash as the
+          # target filename, which is exactly how this failed before.
+          script: flutter drive --driver=test_driver/integration_test.dart --target=integration_test/screenshot_test.dart -d emulator-5554
 
       - uses: actions/upload-artifact@v4
         with:
@@ -70,16 +71,6 @@ jobs:
   ios:
     name: iOS screenshots (App Store)
     runs-on: macos-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Apple wants one set per display class. The simulator reports the
-          # real device's pixel size, which is exactly what the store checks.
-          - device: "iPhone 16 Pro Max"   # 6.9"/6.7" class — 1320x2868
-            label: "6_9"
-          - device: "iPhone 16 Plus"      # 6.7" class      — 1290x2796
-            label: "6_7"
     steps:
       - uses: actions/checkout@v4
 
@@ -92,20 +83,46 @@ jobs:
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
 
+      # Don't hard-code a simulator name: which iPhones exist depends on the
+      # Xcode version baked into the runner image, and that moves. Walk a
+      # preference list (largest first — Apple's primary screenshot slot is the
+      # biggest iPhone) and take the first one actually installed.
+      #
+      # `set +e` matters: this step runs under `bash -e`, so a `grep` that
+      # matches nothing inside a command substitution aborts the whole step
+      # before any diagnostic can print. That is exactly how the previous
+      # version failed silently in 14 seconds.
       - name: Boot simulator
         run: |
-          # Pick the first runtime that actually has this device, so we don't
-          # hard-code an iOS version the runner image may have dropped.
-          UDID=$(xcrun simctl list devices available \
-                  | grep -m1 "${{ matrix.device }} (" \
-                  | grep -oE '[0-9A-F-]{36}')
+          set +e
+          echo "--- simulators available on this runner ---"
+          xcrun simctl list devices available
+          echo "-------------------------------------------"
+
+          UDID=""
+          NAME=""
+          for CANDIDATE in \
+            "iPhone 16 Pro Max" "iPhone 16 Plus" \
+            "iPhone 15 Pro Max" "iPhone 15 Plus" \
+            "iPhone 14 Pro Max" "iPhone 14 Plus" \
+            "iPhone 16 Pro" "iPhone 16" "iPhone 15"
+          do
+            UDID=$(xcrun simctl list devices available \
+                    | grep -m1 "$CANDIDATE (" \
+                    | grep -oE '[0-9A-F]{8}-[0-9A-F-]{27}')
+            if [ -n "$UDID" ]; then NAME="$CANDIDATE"; break; fi
+          done
+
           if [ -z "$UDID" ]; then
-            echo "::error::Simulator '${{ matrix.device }}' not available on this runner"
-            xcrun simctl list devices available
+            echo "::error::No suitable iPhone simulator on this runner (see list above)"
             exit 1
           fi
+          set -e
+
+          echo "Using $NAME ($UDID)"
           echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
-          xcrun simctl boot "$UDID"
+          echo "SIM_NAME=$NAME" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
 
       - name: Run app on simulator and capture
@@ -115,16 +132,20 @@ jobs:
             --target=integration_test/screenshot_test.dart \
             -d "$SIM_UDID"
 
+      # Apple validates screenshots on exact pixel dimensions, so print what we
+      # actually produced — that tells you which store slot these fill.
       - name: Report captured sizes
         run: |
+          echo "Device: $SIM_NAME"
           cd screenshots
           for f in *.png; do
-            echo "$f -> $(sips -g pixelWidth -g pixelHeight "$f" \
-              | awk '/pixel/ {printf "%s ", $2}')"
+            W=$(sips -g pixelWidth "$f" | awk '/pixelWidth/ {print $2}')
+            H=$(sips -g pixelHeight "$f" | awk '/pixelHeight/ {print $2}')
+            echo "$f -> ${W}x${H}"
           done
 
       - uses: actions/upload-artifact@v4
         with:
-          name: screenshots-ios-${{ matrix.label }}
+          name: screenshots-ios
           path: screenshots/*.png
           if-no-files-found: error
