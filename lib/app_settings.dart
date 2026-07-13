@@ -18,8 +18,7 @@ extension ReminderCadenceLabel on ReminderCadence {
 enum CalendarSystem { gregorian, hijri }
 
 extension CalendarSystemLabel on CalendarSystem {
-  String get label =>
-      this == CalendarSystem.gregorian ? 'ميلادي' : 'هجري';
+  String get label => this == CalendarSystem.gregorian ? 'ميلادي' : 'هجري';
 }
 
 /// Reactive holder for every user preference, backed by SharedPreferences. The
@@ -64,8 +63,7 @@ class AppSettings extends ChangeNotifier {
         _accent = _readAccent(_prefs),
         _skippedDeposits =
             (_prefs.getStringList(_kSkippedDeposits) ?? const []).toSet(),
-        _notificationsEnabled =
-            _prefs.getBool(_kNotificationsEnabled) ?? false,
+        _notificationsEnabled = _prefs.getBool(_kNotificationsEnabled) ?? false,
         _reminderCadence = ReminderCadence.values.firstWhere(
           (c) => c.name == _prefs.getString(_kReminderCadence),
           orElse: () => ReminderCadence.daily,

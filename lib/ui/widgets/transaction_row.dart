@@ -49,7 +49,8 @@ class TransactionRow extends StatelessWidget {
                   Text(
                     row.category.name,
                     style: const TextStyle(
-                        fontSize: AppTextSizes.row, fontWeight: FontWeight.w500),
+                        fontSize: AppTextSizes.row,
+                        fontWeight: FontWeight.w500),
                   ),
                   if ((row.txn.note ?? '').isNotEmpty ||
                       row.txn.recurrenceId != null)

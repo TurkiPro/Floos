@@ -19,8 +19,8 @@ Future<void> seedDummyData(AppDatabase db) async {
 
   final cats = await db.categoryDao.getAll();
   final expenseCats = cats
-      .where((c) =>
-          c.type == TxnType.expense && !c.archived && c.parentId == null)
+      .where(
+          (c) => c.type == TxnType.expense && !c.archived && c.parentId == null)
       .toList();
   final incomeCats =
       cats.where((c) => c.type == TxnType.income && !c.archived).toList();

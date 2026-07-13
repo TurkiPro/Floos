@@ -56,8 +56,7 @@ class StatisticsScreen extends StatelessWidget {
                 builder: (context, contribSnap) {
                   final contributions =
                       contribSnap.data ?? const <SavingsContribution>[];
-                  final s =
-                      _Stats.from(rows, contributions, DateTime.now());
+                  final s = _Stats.from(rows, contributions, DateTime.now());
                   if (s.allExpenseCount == 0) {
                     return const Center(
                         child: Text('لا توجد بيانات كافية بعد'));
@@ -103,8 +102,7 @@ class StatisticsScreen extends StatelessWidget {
             child: InkWell(
               borderRadius: BorderRadius.circular(AppRadii.card),
               onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                    builder: (_) => BehaviorScreen(scope: scope)),
+                MaterialPageRoute(builder: (_) => BehaviorScreen(scope: scope)),
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -194,8 +192,7 @@ class StatisticsScreen extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Text('${money.format(s.spentThisMonth)} ر.س',
               style: const TextStyle(
-                  fontSize: AppTextSizes.heroMin,
-                  fontWeight: FontWeight.w700)),
+                  fontSize: AppTextSizes.heroMin, fontWeight: FontWeight.w700)),
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
@@ -250,9 +247,7 @@ class StatisticsScreen extends StatelessWidget {
           _label(context, 'المتاح يوميًا لبقية الشهر'),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            allowance == null
-                ? '—'
-                : '${money.format(allowance.abs())} ر.س',
+            allowance == null ? '—' : '${money.format(allowance.abs())} ر.س',
             style: TextStyle(
               fontSize: AppTextSizes.heroMin,
               fontWeight: FontWeight.w700,
@@ -276,8 +271,7 @@ class StatisticsScreen extends StatelessWidget {
     );
   }
 
-  Widget _weeklyBudgetCard(
-      BuildContext context, _Stats s, NumberFormat money) {
+  Widget _weeklyBudgetCard(BuildContext context, _Stats s, NumberFormat money) {
     final scheme = Theme.of(context).colorScheme;
     return _card(
       context,
@@ -389,8 +383,11 @@ class StatisticsScreen extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
-              _legend(context, 'أساسيات',
-                  '${money.format(s.essentialThisMonth)} ر.س', AppColors.income),
+              _legend(
+                  context,
+                  'أساسيات',
+                  '${money.format(s.essentialThisMonth)} ر.س',
+                  AppColors.income),
               const SizedBox(width: AppSpacing.lg),
               _legend(context, 'كماليات',
                   '${money.format(s.luxuryThisMonth)} ر.س', _luxuryColor),
@@ -569,8 +566,7 @@ class StatisticsScreen extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           Text(money.format(e.value),
-                              style: const TextStyle(fontSize: 9),
-                              maxLines: 1),
+                              style: const TextStyle(fontSize: 9), maxLines: 1),
                           const SizedBox(height: 2),
                           Container(
                             height: (e.value / maxVal * 80).clamp(2, 80),
@@ -626,8 +622,18 @@ class StatisticsScreen extends StatelessWidget {
   }
 
   static const _arMonthsShort = [
-    'ينا', 'فبر', 'مار', 'أبر', 'ماي', 'يون',
-    'يول', 'أغس', 'سبت', 'أكت', 'نوف', 'ديس',
+    'ينا',
+    'فبر',
+    'مار',
+    'أبر',
+    'ماي',
+    'يون',
+    'يول',
+    'أغس',
+    'سبت',
+    'أكت',
+    'نوف',
+    'ديس',
   ];
   String _shortMonth(MonthKey k) => _arMonthsShort[k.month - 1];
 }
@@ -639,6 +645,7 @@ class _Stats {
   final double dailyAvgThisMonth;
   final double projectedThisMonth;
   final double lastMonthSpent;
+
   /// Percent change of the projected month total vs last month's total.
   final double projectedVsLastMonth;
   final double recommendedWeekly;

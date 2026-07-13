@@ -226,8 +226,8 @@ class _GoalCard extends StatelessWidget {
                             onPressed: () => showModalBottomSheet(
                               context: context,
                               isScrollControlled: true,
-                              builder: (_) => AddContributionSheet(
-                                  db: db, goalId: goal.id),
+                              builder: (_) =>
+                                  AddContributionSheet(db: db, goalId: goal.id),
                             ),
                           ),
                         ],
@@ -268,10 +268,9 @@ class _GoalCard extends StatelessWidget {
                           minHeight: 6,
                           backgroundColor:
                               scheme.onSurfaceVariant.withValues(alpha: 0.15),
-                          valueColor: AlwaysStoppedAnimation(
-                              Theme.of(context)
-                                  .extension<AccentPalette>()!
-                                  .progress),
+                          valueColor: AlwaysStoppedAnimation(Theme.of(context)
+                              .extension<AccentPalette>()!
+                              .progress),
                         ),
                       ),
                     ],

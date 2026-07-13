@@ -7,8 +7,7 @@
 /// Number of monthly deposits left until [deadline], counting from [now].
 /// Never below 1 (a past/current-month deadline means "deposit the rest now").
 int monthsUntilDeadline(DateTime now, DateTime deadline) {
-  final months =
-      (deadline.year - now.year) * 12 + (deadline.month - now.month);
+  final months = (deadline.year - now.year) * 12 + (deadline.month - now.month);
   return months < 1 ? 1 : months;
 }
 

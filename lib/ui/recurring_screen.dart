@@ -104,7 +104,8 @@ class ObligationsScreen extends StatelessWidget {
                   title: Text(
                     r.title,
                     style: const TextStyle(
-                        fontSize: AppTextSizes.row, fontWeight: FontWeight.w500),
+                        fontSize: AppTextSizes.row,
+                        fontWeight: FontWeight.w500),
                   ),
                   subtitle: Text(subtitle.toString()),
                   trailing: Switch(

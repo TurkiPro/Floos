@@ -80,8 +80,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm,
-                AppSpacing.lg, AppSpacing.sm),
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.sm),
             child: SizedBox(
               height: 50,
               width: double.infinity,
@@ -129,8 +129,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 return StreamBuilder<List<SavingsContribution>>(
                   stream: db.savingsDao.watchAllContributions(),
                   builder: (context, savingsSnapshot) {
-                    final contributions = savingsSnapshot.data ??
-                        const <SavingsContribution>[];
+                    final contributions =
+                        savingsSnapshot.data ?? const <SavingsContribution>[];
                     return StreamBuilder<List<SavingsGoal>>(
                       stream: db.savingsDao.watchGoals(),
                       builder: (context, goalsSnapshot) {
@@ -305,7 +305,6 @@ class _HomeHeader extends StatelessWidget {
       ),
     );
   }
-
 }
 
 /// Paints the fluted-glass ribs: a repeating vertical gradient (shadow →
@@ -472,8 +471,7 @@ class _DashboardBody extends StatelessWidget {
   /// Goals still owed this month's deposit: income has landed, the goal has a
   /// deadline and isn't met, and the user hasn't already deposited or skipped
   /// it this month. Amounts are recomputed live from the saved total.
-  List<_PendingDeposit> _pendingDeposits(
-      BuildContext context, DateTime now) {
+  List<_PendingDeposit> _pendingDeposits(BuildContext context, DateTime now) {
     if (!data.incomeReceivedThisMonth) return const [];
     final settings = context.watch<AppSettings>();
     bool inMonth(DateTime d) => d.year == now.year && d.month == now.month;
@@ -610,7 +608,8 @@ class _TopCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final bg = emphasized
-        ? Color.alphaBlend(scheme.primary.withValues(alpha: 0.08), scheme.surface)
+        ? Color.alphaBlend(
+            scheme.primary.withValues(alpha: 0.08), scheme.surface)
         : scheme.surface;
 
     return Container(
@@ -716,8 +715,7 @@ class _MonthStatsCard extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       );
 
-  Widget _stat(
-      BuildContext context, String label, double value, Color color) {
+  Widget _stat(BuildContext context, String label, double value, Color color) {
     final scheme = Theme.of(context).colorScheme;
     return Expanded(
       child: Column(
@@ -763,8 +761,7 @@ class _SavingsPromptCard extends StatelessWidget {
         );
   }
 
-  Future<void> _depositCustom(
-      BuildContext context, _PendingDeposit p) async {
+  Future<void> _depositCustom(BuildContext context, _PendingDeposit p) async {
     final ctrl = TextEditingController(text: p.monthly.toStringAsFixed(0));
     final amount = await showDialog<double>(
       context: context,
@@ -786,8 +783,8 @@ class _SavingsPromptCard extends StatelessWidget {
             child: const Text('إلغاء'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(
-                double.tryParse(ctrl.text.replaceAll(',', '.'))),
+            onPressed: () => Navigator.of(context)
+                .pop(double.tryParse(ctrl.text.replaceAll(',', '.'))),
             child: const Text('إيداع'),
           ),
         ],
@@ -835,8 +832,7 @@ class _SavingsPromptCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(p.goal.name,
-                          style:
-                              const TextStyle(fontWeight: FontWeight.w600)),
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
                       Text(
                         'الإيداع الشهري: ${money.format(p.monthly)} ر.س',
                         style: TextStyle(

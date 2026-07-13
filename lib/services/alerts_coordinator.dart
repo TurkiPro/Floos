@@ -65,8 +65,7 @@ Future<DateTime?> _nextSalaryDate(AppDatabase db, DateTime now) async {
 /// Recommended weekly spend (all essentials + 85% of the discretionary
 /// average, the same formula the statistics screen shows) and what's already
 /// been spent since the start of this week.
-Future<WeeklyBudget> computeWeeklyBudget(
-    AppDatabase db, DateTime now) async {
+Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
   final rows = await db.transactionDao.watchAllWithCategory().first;
   final today = DateTime(now.year, now.month, now.day);
   final windowStart = today.subtract(const Duration(days: 84)); // 12 weeks
@@ -98,8 +97,7 @@ Future<WeeklyBudget> computeWeeklyBudget(
   final windowDays =
       earliest == null ? 1 : today.difference(earliest).inDays + 1;
   final weeks = (windowDays / 7).clamp(1.0, 12.0);
-  final recommended =
-      essentialWindow / weeks + (luxuryWindow / weeks) * 0.85;
+  final recommended = essentialWindow / weeks + (luxuryWindow / weeks) * 0.85;
 
   return WeeklyBudget(recommended, spentThisWeek);
 }

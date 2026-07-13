@@ -136,8 +136,7 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
       itemCount: tops.length,
       itemBuilder: (context, i) {
         final top = tops[i];
-        final children =
-            active.where((c) => c.parentId == top.id).toList();
+        final children = active.where((c) => c.parentId == top.id).toList();
         return Card(
           margin: const EdgeInsets.only(bottom: AppSpacing.md),
           child: Column(
@@ -189,8 +188,7 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
           if (!isSub)
             const PopupMenuItem(
                 value: _CatAction.addSub, child: Text('إضافة تصنيف فرعي')),
-          const PopupMenuItem(
-              value: _CatAction.archive, child: Text('أرشفة')),
+          const PopupMenuItem(value: _CatAction.archive, child: Text('أرشفة')),
         ],
       ),
     );

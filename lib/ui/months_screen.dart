@@ -37,7 +37,8 @@ class MonthsScreen extends StatelessWidget {
                   title: Text(
                     monthLabelFor(month, hijri: hijri),
                     style: const TextStyle(
-                        fontSize: AppTextSizes.row, fontWeight: FontWeight.w500),
+                        fontSize: AppTextSizes.row,
+                        fontWeight: FontWeight.w500),
                   ),
                   trailing: const Icon(Icons.chevron_left),
                   onTap: () => Navigator.of(context).push(

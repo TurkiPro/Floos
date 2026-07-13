@@ -6,6 +6,7 @@ import 'date_grouping.dart';
 /// what was set aside, and what was left over at the end of it.
 class PeriodSummary {
   final int year;
+
   /// Null for a yearly summary.
   final int? month;
   final double income;

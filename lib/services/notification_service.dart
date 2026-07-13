@@ -144,7 +144,8 @@ class NotificationService {
           id: _idWeeklyBudget,
           title: 'ميزانية الأسبوع',
           body: body,
-          when: _nextInstanceOfWeekday(DateTime.saturday, time.hour, time.minute),
+          when:
+              _nextInstanceOfWeekday(DateTime.saturday, time.hour, time.minute),
           match: DateTimeComponents.dayOfWeekAndTime,
         );
       }

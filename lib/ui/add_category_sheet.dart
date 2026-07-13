@@ -95,9 +95,8 @@ class _AddCategorySheetState extends State<AddCategorySheet> {
 
   @override
   Widget build(BuildContext context) {
-    final title = _isEditing
-        ? 'تعديل الفئة'
-        : (_isSub ? 'تصنيف فرعي جديد' : 'فئة جديدة');
+    final title =
+        _isEditing ? 'تعديل الفئة' : (_isSub ? 'تصنيف فرعي جديد' : 'فئة جديدة');
 
     return Padding(
       padding: EdgeInsets.only(

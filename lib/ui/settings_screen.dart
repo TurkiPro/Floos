@@ -80,15 +80,14 @@ class SettingsScreen extends StatelessWidget {
               onTap: () => _push(context, const CategoryEditorScreen())),
           _navTile(context,
               icon: Icons.file_download_outlined,
-              label: 'تصدير CSV',
-              onTap: () async {
-                final path = await exportTransactionsCsvToFile(db);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('تم التصدير: $path')),
-                  );
-                }
-              }),
+              label: 'تصدير CSV', onTap: () async {
+            final path = await exportTransactionsCsvToFile(db);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('تم التصدير: $path')),
+              );
+            }
+          }),
           const SizedBox(height: AppSpacing.lg),
           _sectionLabel(context, 'المظهر'),
           SegmentedButton<ThemeMode>(
@@ -254,8 +253,7 @@ class SettingsScreen extends StatelessWidget {
                 SwitchListTile(
                   secondary: const Icon(Icons.fingerprint),
                   title: const Text('قفل التطبيق'),
-                  subtitle:
-                      const Text('بصمة أو بصمة الوجه أو رمز الجهاز'),
+                  subtitle: const Text('بصمة أو بصمة الوجه أو رمز الجهاز'),
                   value: settings.appLockEnabled,
                   onChanged: (v) async {
                     if (v) {
@@ -283,16 +281,14 @@ class SettingsScreen extends StatelessWidget {
           _sectionLabel(context, 'أدوات تجريبية'),
           _navTile(context,
               icon: Icons.auto_awesome_outlined,
-              label: 'تعبئة ببيانات تجريبية',
-              onTap: () async {
-                await seedDummyData(db);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('تمت تعبئة بيانات آخر ٦ أشهر')),
-                  );
-                }
-              }),
+              label: 'تعبئة ببيانات تجريبية', onTap: () async {
+            await seedDummyData(db);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('تمت تعبئة بيانات آخر ٦ أشهر')),
+              );
+            }
+          }),
           _navTile(context,
               icon: Icons.delete_outline,
               label: 'حذف كل البيانات',
@@ -363,12 +359,11 @@ class _AccentSwatch extends StatelessWidget {
                   ? Border.all(color: scheme.onSurface, width: 3)
                   : null,
             ),
-            child: selected
-                ? Icon(Icons.check, color: accent.onPrimary)
-                : null,
+            child: selected ? Icon(Icons.check, color: accent.onPrimary) : null,
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(accent.label, style: const TextStyle(fontSize: AppTextSizes.label)),
+          Text(accent.label,
+              style: const TextStyle(fontSize: AppTextSizes.label)),
         ],
       ),
     );

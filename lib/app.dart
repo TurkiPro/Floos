@@ -117,8 +117,7 @@ class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
             Text(
               'استخدم بصمتك أو رمز جهازك للفتح.',
               style: TextStyle(
-                  fontSize: AppTextSizes.label,
-                  color: scheme.onSurfaceVariant),
+                  fontSize: AppTextSizes.label, color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: AppSpacing.xl),
             FilledButton.icon(
@@ -140,8 +139,7 @@ ThemeData _buildTheme(Brightness brightness, AppAccent accent) {
     useMaterial3: true,
     colorScheme:
         isLight ? AppColorSchemes.light(accent) : AppColorSchemes.dark(accent),
-    scaffoldBackgroundColor:
-        isLight ? AppColors.pageLight : AppColors.pageDark,
+    scaffoldBackgroundColor: isLight ? AppColors.pageLight : AppColors.pageDark,
     // Card/tile/button radii set once globally so individual screens don't
     // repeat AppRadii values per widget.
     extensions: [categoryTileColors, AccentPalette(progress: accent.progress)],
@@ -165,14 +163,12 @@ ThemeData _buildTheme(Brightness brightness, AppAccent accent) {
     segmentedButtonTheme: SegmentedButtonThemeData(
       style: ButtonStyle(
         backgroundColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? accent.primary
-              : null,
+          (states) =>
+              states.contains(WidgetState.selected) ? accent.primary : null,
         ),
         foregroundColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? accent.onPrimary
-              : null,
+          (states) =>
+              states.contains(WidgetState.selected) ? accent.onPrimary : null,
         ),
       ),
     ),

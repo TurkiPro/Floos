@@ -32,7 +32,8 @@ class RecurrenceRules extends Table {
   IntColumn get categoryId => integer().references(Categories, #id)();
   IntColumn get type => intEnum<TxnType>()();
   IntColumn get frequency => intEnum<Frequency>()();
-  IntColumn get interval => integer().withDefault(const Constant(1))(); // every N units
+  IntColumn get interval =>
+      integer().withDefault(const Constant(1))(); // every N units
   DateTimeColumn get startDate => dateTime()();
   DateTimeColumn get endDate => dateTime().nullable()();
   // Through this date, transactions have already been generated. Advancing it

@@ -59,8 +59,7 @@ List<MonthKey> distinctMonthsDesc(List<DateTime> dates) {
     seen.add(MonthKey(year: d.year, month: d.month));
   }
   final list = seen.toList()
-    ..sort((a, b) =>
-        a.year != b.year ? b.year - a.year : b.month - a.month);
+    ..sort((a, b) => a.year != b.year ? b.year - a.year : b.month - a.month);
   return list;
 }
 

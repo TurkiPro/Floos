@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Masareef</string>
+	<string>فلوس</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,16 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>masareef</string>
+	<string>Floos</string>
+	<!-- Required by local_auth: iOS kills the app on the first Face ID call if
+	     this purpose string is missing. -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>يُستخدم Face ID لفتح تطبيق فلوس وحماية بياناتك المالية.</string>
+	<!-- The app is Arabic-only and renders right-to-left. -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>ar</string>
+	</array>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

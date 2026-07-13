@@ -20,7 +20,8 @@ class TxnRow {
 }
 
 @DriftAccessor(tables: [Categories])
-class CategoryDao extends DatabaseAccessor<AppDatabase> with _$CategoryDaoMixin {
+class CategoryDao extends DatabaseAccessor<AppDatabase>
+    with _$CategoryDaoMixin {
   CategoryDao(super.db);
 
   Future<List<Category>> getAll() => select(categories).get();
@@ -83,8 +84,7 @@ class CategoryDao extends DatabaseAccessor<AppDatabase> with _$CategoryDaoMixin 
   }
 
   Stream<List<Category>> watchAll() {
-    return (select(categories)
-          ..orderBy([(c) => OrderingTerm.asc(c.sortOrder)]))
+    return (select(categories)..orderBy([(c) => OrderingTerm.asc(c.sortOrder)]))
         .watch();
   }
 }
@@ -316,8 +316,7 @@ class RecurrenceDao extends DatabaseAccessor<AppDatabase>
             categoryId != null ? Value(categoryId) : const Value.absent(),
         frequency: frequency != null ? Value(frequency) : const Value.absent(),
         interval: interval != null ? Value(interval) : const Value.absent(),
-        startDate:
-            startDate != null ? Value(startDate) : const Value.absent(),
+        startDate: startDate != null ? Value(startDate) : const Value.absent(),
         endDate: clearEndDate
             ? const Value(null)
             : (endDate != null ? Value(endDate) : const Value.absent()),
@@ -474,9 +473,9 @@ class AppDatabase extends _$AppDatabase {
       if (parent == null) continue;
       final p = parent;
       // Includes archived children, so a sub the user archived stays gone.
-      final existing =
-          await (select(categories)..where((c) => c.parentId.equals(p.id)))
-              .get();
+      final existing = await (select(categories)
+            ..where((c) => c.parentId.equals(p.id)))
+          .get();
       final existingNames = {for (final c in existing) c.name};
       final missing =
           entry.value.where((s) => !existingNames.contains(s.name)).toList();
@@ -514,18 +513,81 @@ LazyDatabase _openConnection() {
 /// just a sane starting set so the app isn't empty and isn't limited to five icons.
 const _defaultCategories = <CategoriesCompanion>[
   // Expenses (kind: necessities vs discretionary as a sensible starting guess)
-  CategoriesCompanion(name: Value('طعام'), iconKey: Value('food'), colorValue: Value(0xFFEF5350), type: Value(TxnType.expense), kind: Value(CategoryKind.essential), sortOrder: Value(0)),
-  CategoriesCompanion(name: Value('مواصلات'), iconKey: Value('transport'), colorValue: Value(0xFF42A5F5), type: Value(TxnType.expense), kind: Value(CategoryKind.essential), sortOrder: Value(1)),
-  CategoriesCompanion(name: Value('تسوق'), iconKey: Value('shopping'), colorValue: Value(0xFFAB47BC), type: Value(TxnType.expense), kind: Value(CategoryKind.luxury), sortOrder: Value(2)),
-  CategoriesCompanion(name: Value('فواتير'), iconKey: Value('bills'), colorValue: Value(0xFFFFCA28), type: Value(TxnType.expense), kind: Value(CategoryKind.essential), sortOrder: Value(3)),
-  CategoriesCompanion(name: Value('صحة'), iconKey: Value('health'), colorValue: Value(0xFF26A69A), type: Value(TxnType.expense), kind: Value(CategoryKind.essential), sortOrder: Value(4)),
-  CategoriesCompanion(name: Value('ترفيه'), iconKey: Value('entertainment'), colorValue: Value(0xFFEC407A), type: Value(TxnType.expense), kind: Value(CategoryKind.luxury), sortOrder: Value(5)),
-  CategoriesCompanion(name: Value('منزل'), iconKey: Value('home'), colorValue: Value(0xFF8D6E63), type: Value(TxnType.expense), kind: Value(CategoryKind.essential), sortOrder: Value(6)),
-  CategoriesCompanion(name: Value('أخرى'), iconKey: Value('other'), colorValue: Value(0xFF78909C), type: Value(TxnType.expense), kind: Value(CategoryKind.essential), sortOrder: Value(7)),
+  CategoriesCompanion(
+      name: Value('طعام'),
+      iconKey: Value('food'),
+      colorValue: Value(0xFFEF5350),
+      type: Value(TxnType.expense),
+      kind: Value(CategoryKind.essential),
+      sortOrder: Value(0)),
+  CategoriesCompanion(
+      name: Value('مواصلات'),
+      iconKey: Value('transport'),
+      colorValue: Value(0xFF42A5F5),
+      type: Value(TxnType.expense),
+      kind: Value(CategoryKind.essential),
+      sortOrder: Value(1)),
+  CategoriesCompanion(
+      name: Value('تسوق'),
+      iconKey: Value('shopping'),
+      colorValue: Value(0xFFAB47BC),
+      type: Value(TxnType.expense),
+      kind: Value(CategoryKind.luxury),
+      sortOrder: Value(2)),
+  CategoriesCompanion(
+      name: Value('فواتير'),
+      iconKey: Value('bills'),
+      colorValue: Value(0xFFFFCA28),
+      type: Value(TxnType.expense),
+      kind: Value(CategoryKind.essential),
+      sortOrder: Value(3)),
+  CategoriesCompanion(
+      name: Value('صحة'),
+      iconKey: Value('health'),
+      colorValue: Value(0xFF26A69A),
+      type: Value(TxnType.expense),
+      kind: Value(CategoryKind.essential),
+      sortOrder: Value(4)),
+  CategoriesCompanion(
+      name: Value('ترفيه'),
+      iconKey: Value('entertainment'),
+      colorValue: Value(0xFFEC407A),
+      type: Value(TxnType.expense),
+      kind: Value(CategoryKind.luxury),
+      sortOrder: Value(5)),
+  CategoriesCompanion(
+      name: Value('منزل'),
+      iconKey: Value('home'),
+      colorValue: Value(0xFF8D6E63),
+      type: Value(TxnType.expense),
+      kind: Value(CategoryKind.essential),
+      sortOrder: Value(6)),
+  CategoriesCompanion(
+      name: Value('أخرى'),
+      iconKey: Value('other'),
+      colorValue: Value(0xFF78909C),
+      type: Value(TxnType.expense),
+      kind: Value(CategoryKind.essential),
+      sortOrder: Value(7)),
   // Income (kind is irrelevant for income, defaults to essential)
-  CategoriesCompanion(name: Value('راتب'), iconKey: Value('salary'), colorValue: Value(0xFF66BB6A), type: Value(TxnType.income), sortOrder: Value(8)),
-  CategoriesCompanion(name: Value('دخل إضافي'), iconKey: Value('extra_income'), colorValue: Value(0xFF9CCC65), type: Value(TxnType.income), sortOrder: Value(9)),
-  CategoriesCompanion(name: Value('استثمار'), iconKey: Value('investment'), colorValue: Value(0xFF26C6DA), type: Value(TxnType.income), sortOrder: Value(10)),
+  CategoriesCompanion(
+      name: Value('راتب'),
+      iconKey: Value('salary'),
+      colorValue: Value(0xFF66BB6A),
+      type: Value(TxnType.income),
+      sortOrder: Value(8)),
+  CategoriesCompanion(
+      name: Value('دخل إضافي'),
+      iconKey: Value('extra_income'),
+      colorValue: Value(0xFF9CCC65),
+      type: Value(TxnType.income),
+      sortOrder: Value(9)),
+  CategoriesCompanion(
+      name: Value('استثمار'),
+      iconKey: Value('investment'),
+      colorValue: Value(0xFF26C6DA),
+      type: Value(TxnType.income),
+      sortOrder: Value(10)),
 ];
 
 /// Default sub-categories, keyed by the parent's icon so they attach to the

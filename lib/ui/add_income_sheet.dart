@@ -76,8 +76,7 @@ class _AddIncomeSheetState extends State<AddIncomeSheet> {
       );
     }
     if (!mounted) return;
-    SoundService.playSaved(
-        enabled: context.read<AppSettings>().soundEnabled);
+    SoundService.playSaved(enabled: context.read<AppSettings>().soundEnabled);
     Navigator.of(context).pop();
   }
 
@@ -95,8 +94,7 @@ class _AddIncomeSheetState extends State<AddIncomeSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('إضافة دخل',
-                style: Theme.of(context).textTheme.titleMedium),
+            Text('إضافة دخل', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: AppSpacing.md),
             TextField(
               controller: _nameCtrl,
@@ -148,7 +146,8 @@ class _AddIncomeSheetState extends State<AddIncomeSheet> {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('يتكرر كل شهر'),
-              subtitle: const Text('سيتم إنشاؤه تلقائيًا كل شهر في نفس التاريخ'),
+              subtitle:
+                  const Text('سيتم إنشاؤه تلقائيًا كل شهر في نفس التاريخ'),
               value: _recurring,
               onChanged: (v) => setState(() => _recurring = v),
             ),

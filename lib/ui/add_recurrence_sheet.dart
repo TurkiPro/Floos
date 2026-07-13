@@ -289,8 +289,8 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
               TextButton(
                 onPressed: _delete,
                 style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: Text(
-                    _type == TxnType.income ? 'حذف الدخل' : 'حذف القاعدة'),
+                child:
+                    Text(_type == TxnType.income ? 'حذف الدخل' : 'حذف القاعدة'),
               ),
             ],
           ],

@@ -84,7 +84,8 @@ class NetSummaryCard extends StatelessWidget {
         children: [
           Text(label,
               style: TextStyle(
-                  fontSize: AppTextSizes.label, color: scheme.onSurfaceVariant)),
+                  fontSize: AppTextSizes.label,
+                  color: scheme.onSurfaceVariant)),
           Text('${money.format(value)} ر.س',
               style: TextStyle(
                   fontSize: AppTextSizes.row,

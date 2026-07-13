@@ -163,8 +163,7 @@ class _PeriodCard extends StatelessWidget {
   static const _spentColor = Color(0xFFE8A13A);
   static const _luxury = Color(0xFFE8A13A);
 
-  Widget _stat(
-      BuildContext context, String label, double value, Color color) {
+  Widget _stat(BuildContext context, String label, double value, Color color) {
     final scheme = Theme.of(context).colorScheme;
     return Expanded(
       child: Column(

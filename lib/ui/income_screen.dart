@@ -65,8 +65,7 @@ class IncomeScreen extends StatelessWidget {
                       margin: const EdgeInsets.only(bottom: AppSpacing.md),
                       child: ListTile(
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg,
-                            vertical: AppSpacing.xs),
+                            horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
                         isThreeLine: true,
                         onTap: () => showModalBottomSheet(
                           context: context,
@@ -147,7 +146,8 @@ class IncomeScreen extends StatelessWidget {
     );
   }
 
-  String _subtitleFor(RecurrenceRule r, NumberFormat money, DateFormat dateFmt) {
+  String _subtitleFor(
+      RecurrenceRule r, NumberFormat money, DateFormat dateFmt) {
     final next = r.active
         ? nextOccurrence(
             startDate: r.startDate,
@@ -159,7 +159,8 @@ class IncomeScreen extends StatelessWidget {
           )
         : null;
     final subtitle = StringBuffer()
-      ..write('${money.format(r.amount)} ر.س  •  ${frequencyLabelAr(r.frequency)}');
+      ..write(
+          '${money.format(r.amount)} ر.س  •  ${frequencyLabelAr(r.frequency)}');
     if (r.interval > 1) subtitle.write(' (كل ${r.interval})');
     if (r.active && next != null) {
       subtitle.write('\nالتالي: ${dateFmt.format(next)}');

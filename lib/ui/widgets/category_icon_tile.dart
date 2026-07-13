@@ -21,8 +21,9 @@ class CategoryIconTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pair = Theme.of(context).extension<CategoryTileColors>()?.byIconKey[iconKey] ??
-        categoryTileColors.byIconKey['other']!;
+    final pair =
+        Theme.of(context).extension<CategoryTileColors>()?.byIconKey[iconKey] ??
+            categoryTileColors.byIconKey['other']!;
     return Container(
       width: size,
       height: size,
@@ -30,8 +31,7 @@ class CategoryIconTile extends StatelessWidget {
         color: pair.$1,
         borderRadius: BorderRadius.circular(AppRadii.tile),
         border: selected
-            ? Border.all(
-                color: Theme.of(context).colorScheme.primary, width: 2)
+            ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
             : null,
       ),
       child: Icon(iconForKey(iconKey), color: pair.$2, size: size * 0.5),
