@@ -114,6 +114,25 @@ void main() {
     });
   });
 
+  group('dayName / dayFullLabel', () {
+    test('names the weekday in Arabic', () {
+      // 2026-07-03 is a Friday.
+      expect(dayName(DateTime(2026, 7, 3)), 'الجمعة');
+      // 2026-07-05 is a Sunday.
+      expect(dayName(DateTime(2026, 7, 5)), 'الأحد');
+    });
+
+    test('prefixes today/yesterday and includes weekday + Arabic date', () {
+      final today = DateTime(2026, 7, 3);
+      expect(dayFullLabel(DateTime(2026, 7, 3), today: today),
+          'اليوم • الجمعة، 3 يوليو');
+      expect(dayFullLabel(DateTime(2026, 7, 2), today: today),
+          'أمس • الخميس، 2 يوليو');
+      expect(dayFullLabel(DateTime(2026, 7, 1), today: today),
+          'الأربعاء، 1 يوليو');
+    });
+  });
+
   group('monthLabel', () {
     test('formats an Arabic month name with the year', () {
       expect(monthLabel(const MonthKey(year: 2026, month: 7)), 'يوليو 2026');

@@ -85,3 +85,29 @@ const _arabicMonthNames = [
 String monthLabel(MonthKey key) {
   return '${_arabicMonthNames[key.month - 1]} ${key.year}';
 }
+
+// DateTime.weekday is 1 = Monday … 7 = Sunday.
+const _arabicDayNames = [
+  'الإثنين',
+  'الثلاثاء',
+  'الأربعاء',
+  'الخميس',
+  'الجمعة',
+  'السبت',
+  'الأحد',
+];
+
+/// Arabic weekday name, e.g. "الجمعة".
+String dayName(DateTime day) => _arabicDayNames[day.weekday - 1];
+
+/// Weekday + day-of-month + Arabic month, prefixed with اليوم/أمس when it
+/// applies, e.g. "اليوم • الجمعة، 3 يوليو" or "الأربعاء، 1 يوليو".
+String dayFullLabel(DateTime day, {required DateTime today}) {
+  final d = DateTime(day.year, day.month, day.day);
+  final t = DateTime(today.year, today.month, today.day);
+  final diff = t.difference(d).inDays;
+  final base = '${dayName(d)}، ${d.day} ${_arabicMonthNames[d.month - 1]}';
+  if (diff == 0) return 'اليوم • $base';
+  if (diff == 1) return 'أمس • $base';
+  return base;
+}
