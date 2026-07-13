@@ -53,9 +53,16 @@ void main() {
     await tester.pumpWidget(FloosApp(db: db, settings: settings));
     await tester.pumpAndSettle(const Duration(seconds: 2));
 
+    // Capture is only supported on the mobile targets. Skipping it elsewhere
+    // lets the whole navigation path be validated on the desktop dev machine,
+    // instead of only ever finding a bad finder inside a 10-minute CI run.
     Future<void> shoot(String name) async {
       await tester.pumpAndSettle();
-      await binding.takeScreenshot(name);
+      if (Platform.isAndroid || Platform.isIOS) {
+        await binding.takeScreenshot(name);
+      } else {
+        debugPrint('SHOOT (skipped on this platform): $name');
+      }
     }
 
     // 1. Home: header, balance + savings, the monthly split, the income-day
