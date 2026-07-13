@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -278,21 +279,32 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.xl),
-          _sectionLabel(context, 'أدوات تجريبية'),
-          _navTile(context,
-              icon: Icons.auto_awesome_outlined,
-              label: 'تعبئة ببيانات تجريبية', onTap: () async {
-            await seedDummyData(db);
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('تمت تعبئة بيانات آخر ٦ أشهر')),
-              );
-            }
-          }),
+          _sectionLabel(context, 'البيانات'),
+          // Deleting everything is a real user-facing feature, not a dev tool:
+          // the published privacy policy promises exactly this control
+          // ("الإعدادات ← حذف كل البيانات"), so it ships in release too.
           _navTile(context,
               icon: Icons.delete_outline,
               label: 'حذف كل البيانات',
               onTap: () => _confirmClear(context, db)),
+
+          // Debug builds only. Seeding wipes the database before inserting six
+          // months of fake transactions — shipping that to a real user, one tap
+          // away in Settings, would destroy their financial records.
+          if (kDebugMode) ...[
+            const SizedBox(height: AppSpacing.xl),
+            _sectionLabel(context, 'أدوات تجريبية (للتطوير فقط)'),
+            _navTile(context,
+                icon: Icons.auto_awesome_outlined,
+                label: 'تعبئة ببيانات تجريبية', onTap: () async {
+              await seedDummyData(db);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('تمت تعبئة بيانات آخر ٦ أشهر')),
+                );
+              }
+            }),
+          ],
         ],
       ),
     );

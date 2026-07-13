@@ -43,26 +43,14 @@ To change the artwork, replace `assets/icon/icon.png` and re-run:
 dart run flutter_launcher_icons
 ```
 
-### 0b. Privacy policy page — written, needs hosting ⚠️
+### 0b. Privacy policy + contact email — done ✅
 
-`docs/privacy.html` is a self-contained bilingual (AR/EN) policy. It states the
-truth about this app: no data collection, no network calls, no analytics, no
-trackers; everything lives in a local SQLite file. It also explains the three
-permissions (notifications, exact alarms, biometrics).
+- Policy live at <https://floos.turkisecurity.com/privacy.html> (Cloudflare Pages),
+  bilingual AR/EN, verified returning 200.
+- `privacy@turkisecurity.com` routes to `turki.security@gmail.com` via Cloudflare
+  Email Routing (MX records confirmed live).
 
-**It must be reachable at a public URL before either store will let you submit.**
-Pick one:
-
-- **Your own domain (recommended)** — you own `turkisecurity.com`, and the app ID
-  is `com.turkisecurity.floos`, so the domains match. Upload `docs/privacy.html`
-  to e.g. `https://turkisecurity.com/floos/privacy.html`.
-- **GitHub Pages** — *Settings → Pages → Source: `main` / `/docs`*. Serves at
-  `https://turkipro.github.io/Floos/privacy.html`. Note: Pages on a **private**
-  repo needs a paid GitHub plan; on the free plan you'd have to make the repo
-  public first.
-
-Then set the contact address in the page (currently `privacy@turkisecurity.com`)
-to a mailbox you actually read — reviewers do sometimes email it.
+Both go in the store listings — see `STORE_LISTING.md`.
 
 ### 1. Google Play ($25, one-time)
 
@@ -139,22 +127,18 @@ build time.
 
 ## Store listing content you still have to write
 
-Both stores need this before they'll let you submit:
+**All of the copy and every form answer is written out in `STORE_LISTING.md`** —
+app names, descriptions, keywords, the Data safety answers, the privacy nutrition
+labels, and the content-rating answers. Paste them straight in.
 
-- **Privacy policy URL** — the page is written (`docs/privacy.html`); you just
-  need to host it. See step 0b above.
-- **Screenshots** — Play: phone screenshots (min 2). Apple: 6.7" and 6.5" iPhone
-  sizes. Grab them from a real device or simulator.
-- **Short + full description** (Arabic).
-- **Play Data safety form** — declare *no data collected, no data shared*. That's
-  accurate: the DB is a local SQLite file, and there is no network code.
-- **Apple privacy nutrition labels** — same answer: *Data Not Collected*.
-- **Content rating questionnaire** (Play) and **age rating** (Apple).
+The one thing still missing is **screenshots**, which need a real device,
+emulator or simulator (a resized desktop window won't satisfy Apple's exact
+pixel dimensions). `STORE_LISTING.md` lists the required sizes and which five
+screens to shoot.
 
-Because the app requests notifications, biometrics, and exact alarms, expect
-reviewers to check them. The exact-alarm permission in particular can draw a
-Play review question — the honest justification is that the user picks an exact
-reminder time in Settings.
+On permissions: the app declares only `POST_NOTIFICATIONS`,
+`RECEIVE_BOOT_COMPLETED`, `VIBRATE` and `USE_BIOMETRIC`. Nothing restricted, so
+there is no permissions declaration form to fill in.
 
 ---
 

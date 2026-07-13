@@ -1,11 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Notifications: POST_NOTIFICATIONS is the Android 13+ runtime permission
-         requested when the user enables alerts; the alarm permissions let
-         flutter_local_notifications fire the reminder at the exact chosen time,
-         and BOOT_COMPLETED lets it re-arm the schedule after a reboot. -->
+    <!-- POST_NOTIFICATIONS is the Android 13+ runtime permission requested when
+         the user enables alerts; RECEIVE_BOOT_COMPLETED lets the reminder
+         schedule survive a reboot.
+
+         Deliberately NOT declared: SCHEDULE_EXACT_ALARM / USE_EXACT_ALARM.
+         We schedule with AndroidScheduleMode.inexactAllowWhileIdle, so we don't
+         need them — and USE_EXACT_ALARM is a Play-restricted permission limited
+         to alarm-clock and calendar apps. Declaring it here would force a policy
+         declaration and invite a rejection for a capability we never use. The
+         cost is that a reminder may fire a little after its chosen time when the
+         device is dozing, which is fine for a "log your spending" nudge. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <!-- Fingerprint / face unlock behind the app lock. -->
