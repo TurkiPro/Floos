@@ -422,7 +422,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -439,10 +439,11 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(categories, categories.parentId);
             await m.addColumn(categories, categories.kind);
           }
-          // v3 seeds a starter set of sub-categories under the default
-          // categories (matched by icon), skipping any parent that already has
-          // children so it never disturbs a user's own edits.
-          if (from < 3) {
+          // v3 seeded a starter set of sub-categories under the default
+          // categories; v4 expands that set (breakfast/lunch/coffee/… and
+          // income sub-buckets). The seeder only adds names that aren't there
+          // yet, so running it again just tops up the missing ones.
+          if (from < 4) {
             await _seedDefaultSubcategories();
           }
         },
@@ -455,8 +456,10 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Adds the default sub-categories under each matching top-level default
-  /// category. Idempotent: a parent that already has any sub-category is left
-  /// untouched. Sub-categories inherit their parent's colour and type.
+  /// category. Idempotent *per name*: only sub-categories whose name isn't
+  /// already under that parent get inserted, so re-running tops up the set
+  /// without duplicating, and one the user renamed/archived is never
+  /// resurrected. Sub-categories inherit their parent's colour and type.
   Future<void> _seedDefaultSubcategories() async {
     final tops =
         await (select(categories)..where((c) => c.parentId.isNull())).get();
@@ -470,13 +473,17 @@ class AppDatabase extends _$AppDatabase {
       }
       if (parent == null) continue;
       final p = parent;
+      // Includes archived children, so a sub the user archived stays gone.
       final existing =
           await (select(categories)..where((c) => c.parentId.equals(p.id)))
               .get();
-      if (existing.isNotEmpty) continue;
-      var order = 0;
+      final existingNames = {for (final c in existing) c.name};
+      final missing =
+          entry.value.where((s) => !existingNames.contains(s.name)).toList();
+      if (missing.isEmpty) continue;
+      var order = existing.length;
       await batch((b) {
-        for (final sub in entry.value) {
+        for (final sub in missing) {
           b.insert(
             categories,
             CategoriesCompanion.insert(
@@ -527,46 +534,118 @@ const _defaultCategories = <CategoriesCompanion>[
 typedef _Sub = ({String name, String icon, CategoryKind kind});
 const _defaultSubcategories = <String, List<_Sub>>{
   'food': [
-    (name: 'مطاعم', icon: 'fastfood', kind: CategoryKind.luxury),
+    (name: 'فطور', icon: 'breakfast_dining', kind: CategoryKind.essential),
+    (name: 'غداء', icon: 'lunch_dining', kind: CategoryKind.essential),
+    (name: 'عشاء', icon: 'dinner_dining', kind: CategoryKind.essential),
+    (name: 'قهوة', icon: 'local_cafe', kind: CategoryKind.luxury),
+    (name: 'شاي', icon: 'tea', kind: CategoryKind.luxury),
+    (name: 'مشروبات', icon: 'local_drink', kind: CategoryKind.luxury),
+    (name: 'وجبات سريعة', icon: 'fastfood', kind: CategoryKind.luxury),
+    (name: 'حلويات', icon: 'icecream', kind: CategoryKind.luxury),
+    (name: 'مخبوزات', icon: 'bakery_dining', kind: CategoryKind.luxury),
+    (name: 'مطاعم', icon: 'set_meal', kind: CategoryKind.luxury),
+    (name: 'توصيل طعام', icon: 'takeout_dining', kind: CategoryKind.luxury),
     (name: 'بقالة', icon: 'local_grocery_store', kind: CategoryKind.essential),
-    (name: 'مقاهي', icon: 'local_cafe', kind: CategoryKind.luxury),
-    (name: 'توصيل طعام', icon: 'moped', kind: CategoryKind.luxury),
   ],
   'transport': [
     (name: 'وقود', icon: 'local_gas_station', kind: CategoryKind.essential),
+    (name: 'شحن كهربائي', icon: 'ev_station', kind: CategoryKind.essential),
     (name: 'تطبيقات النقل', icon: 'local_taxi', kind: CategoryKind.essential),
-    (name: 'صيانة', icon: 'directions_car', kind: CategoryKind.essential),
     (name: 'مواقف', icon: 'local_parking', kind: CategoryKind.essential),
+    (name: 'صيانة المركبة', icon: 'car_repair', kind: CategoryKind.essential),
+    (name: 'تأمين المركبة', icon: 'security', kind: CategoryKind.essential),
+    (name: 'طيران', icon: 'flight', kind: CategoryKind.luxury),
+    (name: 'قطار وحافلات', icon: 'train', kind: CategoryKind.essential),
   ],
   'shopping': [
     (name: 'ملابس', icon: 'checkroom', kind: CategoryKind.luxury),
+    (name: 'أحذية', icon: 'shopping_basket', kind: CategoryKind.luxury),
     (name: 'إلكترونيات', icon: 'devices', kind: CategoryKind.luxury),
+    (name: 'عناية شخصية', icon: 'face', kind: CategoryKind.essential),
+    (name: 'إكسسوارات', icon: 'watch', kind: CategoryKind.luxury),
+    (name: 'مجوهرات', icon: 'diamond', kind: CategoryKind.luxury),
     (name: 'هدايا', icon: 'card_giftcard', kind: CategoryKind.luxury),
+    (name: 'حلاقة', icon: 'content_cut', kind: CategoryKind.essential),
   ],
   'bills': [
     (name: 'كهرباء', icon: 'bolt', kind: CategoryKind.essential),
     (name: 'ماء', icon: 'water_drop', kind: CategoryKind.essential),
+    (name: 'غاز', icon: 'propane_tank', kind: CategoryKind.essential),
     (name: 'إنترنت', icon: 'wifi', kind: CategoryKind.essential),
     (name: 'جوال', icon: 'phone_iphone', kind: CategoryKind.essential),
+    (name: 'تلفزيون', icon: 'tv', kind: CategoryKind.luxury),
+    (name: 'اشتراكات رقمية', icon: 'subscriptions', kind: CategoryKind.luxury),
+    (name: 'رسوم حكومية', icon: 'receipt', kind: CategoryKind.essential),
   ],
   'health': [
     (name: 'أدوية', icon: 'medication', kind: CategoryKind.essential),
     (name: 'عيادات', icon: 'local_hospital', kind: CategoryKind.essential),
-    (name: 'لياقة', icon: 'fitness_center', kind: CategoryKind.luxury),
+    (name: 'أسنان', icon: 'healing', kind: CategoryKind.essential),
+    (name: 'تحاليل وأشعة', icon: 'monitor_heart', kind: CategoryKind.essential),
+    (name: 'نظارات', icon: 'visibility', kind: CategoryKind.essential),
+    (name: 'مكملات', icon: 'medication_liquid', kind: CategoryKind.luxury),
+    (
+      name: 'تأمين صحي',
+      icon: 'medical_information',
+      kind: CategoryKind.essential
+    ),
+    (name: 'صحة نفسية', icon: 'psychology', kind: CategoryKind.essential),
+    (name: 'نادي رياضي', icon: 'fitness_center', kind: CategoryKind.luxury),
   ],
   'entertainment': [
     (name: 'اشتراكات', icon: 'subscriptions', kind: CategoryKind.luxury),
     (name: 'ألعاب', icon: 'sports_esports', kind: CategoryKind.luxury),
     (name: 'سينما', icon: 'theaters', kind: CategoryKind.luxury),
-    (name: 'مطاعم وخروج', icon: 'nightlife', kind: CategoryKind.luxury),
+    (name: 'خروج ومقاهي', icon: 'nightlife', kind: CategoryKind.luxury),
+    (name: 'رياضة', icon: 'sports_soccer', kind: CategoryKind.luxury),
+    (name: 'سفر', icon: 'flight_takeoff', kind: CategoryKind.luxury),
+    (name: 'فنادق', icon: 'hotel', kind: CategoryKind.luxury),
+    (name: 'حفلات', icon: 'celebration', kind: CategoryKind.luxury),
+    (name: 'نزهات', icon: 'park', kind: CategoryKind.luxury),
   ],
   'home': [
-    (name: 'أثاث', icon: 'chair', kind: CategoryKind.essential),
+    (name: 'إيجار', icon: 'apartment', kind: CategoryKind.essential),
+    (name: 'أثاث', icon: 'chair', kind: CategoryKind.luxury),
     (name: 'أدوات المطبخ', icon: 'kitchen', kind: CategoryKind.essential),
     (name: 'تنظيف', icon: 'cleaning_services', kind: CategoryKind.essential),
+    (name: 'مستلزمات منزلية', icon: 'soap', kind: CategoryKind.essential),
+    (name: 'صيانة', icon: 'handyman', kind: CategoryKind.essential),
+    (name: 'سباكة وكهرباء', icon: 'plumbing', kind: CategoryKind.essential),
+    (name: 'حديقة', icon: 'yard', kind: CategoryKind.luxury),
+    (name: 'ديكور', icon: 'local_florist', kind: CategoryKind.luxury),
   ],
   'other': [
     (name: 'سجائر', icon: 'cigarette', kind: CategoryKind.luxury),
     (name: 'رسوم', icon: 'attach_money', kind: CategoryKind.essential),
+    (name: 'تعليم', icon: 'school', kind: CategoryKind.essential),
+    (name: 'كتب', icon: 'menu_book', kind: CategoryKind.luxury),
+    (name: 'أطفال', icon: 'child_care', kind: CategoryKind.essential),
+    (name: 'حيوانات أليفة', icon: 'pets', kind: CategoryKind.luxury),
+    (name: 'تبرعات', icon: 'volunteer_activism', kind: CategoryKind.luxury),
+    (name: 'تحويلات', icon: 'currency_exchange', kind: CategoryKind.essential),
+  ],
+  // Income categories get sub-buckets too, so income can be broken down by
+  // source the same way spending is.
+  'salary': [
+    (name: 'راتب أساسي', icon: 'payments', kind: CategoryKind.essential),
+    (name: 'بدلات', icon: 'add_card', kind: CategoryKind.essential),
+    (name: 'مكافآت', icon: 'card_giftcard', kind: CategoryKind.essential),
+    (name: 'عمل إضافي', icon: 'work', kind: CategoryKind.essential),
+  ],
+  'extra_income': [
+    (name: 'عمل حر', icon: 'business_center', kind: CategoryKind.essential),
+    (name: 'بيع أغراض', icon: 'sell', kind: CategoryKind.essential),
+    (
+      name: 'إيجار عقار',
+      icon: 'real_estate_agent',
+      kind: CategoryKind.essential
+    ),
+    (name: 'هدايا', icon: 'redeem', kind: CategoryKind.essential),
+  ],
+  'investment': [
+    (name: 'أسهم', icon: 'show_chart', kind: CategoryKind.essential),
+    (name: 'أرباح موزعة', icon: 'attach_money', kind: CategoryKind.essential),
+    (name: 'عقارات', icon: 'real_estate_agent', kind: CategoryKind.essential),
+    (name: 'ودائع', icon: 'savings', kind: CategoryKind.essential),
   ],
 };

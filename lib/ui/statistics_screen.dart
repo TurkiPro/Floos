@@ -20,10 +20,10 @@ class StatisticsScreen extends StatelessWidget {
     final db = context.read<AppDatabase>();
     final money = NumberFormat('#,##0.00');
 
+    // Categories resolve each transaction to its top-level parent + kind,
+    // transactions carry the amounts, contributions give the savings rate.
     return Scaffold(
       appBar: AppBar(title: const Text('الإحصائيات')),
-      // Categories resolve each transaction to its top-level parent + kind;
-      // transactions carry the amounts.
       body: StreamBuilder<List<Category>>(
         stream: db.categoryDao.watchAll(),
         builder: (context, catSnap) {
@@ -33,23 +33,38 @@ class StatisticsScreen extends StatelessWidget {
             stream: db.transactionDao.watchAllWithCategory(),
             builder: (context, txnSnap) {
               final rows = txnSnap.data ?? const <TxnRow>[];
-              final stats = _Stats.from(rows, byId, DateTime.now());
-              if (stats.allExpenseCount == 0) {
-                return const Center(child: Text('لا توجد بيانات كافية بعد'));
-              }
-              return ListView(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                children: [
-                  _thisMonthCard(context, stats, money),
-                  const SizedBox(height: AppSpacing.md),
-                  _weeklyBudgetCard(context, stats, money),
-                  const SizedBox(height: AppSpacing.md),
-                  _essentialsCard(context, stats, money),
-                  const SizedBox(height: AppSpacing.md),
-                  _topCategoriesCard(context, stats, money, byId),
-                  const SizedBox(height: AppSpacing.md),
-                  _trendCard(context, stats, money),
-                ],
+              return StreamBuilder<List<SavingsContribution>>(
+                stream: db.savingsDao.watchAllContributions(),
+                builder: (context, contribSnap) {
+                  final contributions =
+                      contribSnap.data ?? const <SavingsContribution>[];
+                  final s =
+                      _Stats.from(rows, contributions, DateTime.now());
+                  if (s.allExpenseCount == 0) {
+                    return const Center(
+                        child: Text('لا توجد بيانات كافية بعد'));
+                  }
+                  return ListView(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    children: [
+                      _thisMonthCard(context, s, money),
+                      const SizedBox(height: AppSpacing.md),
+                      _paceCard(context, s, money),
+                      const SizedBox(height: AppSpacing.md),
+                      _weeklyBudgetCard(context, s, money),
+                      const SizedBox(height: AppSpacing.md),
+                      _savingsRateCard(context, s, money),
+                      const SizedBox(height: AppSpacing.md),
+                      _essentialsCard(context, s, money),
+                      const SizedBox(height: AppSpacing.md),
+                      _quickFactsCard(context, s, money),
+                      const SizedBox(height: AppSpacing.md),
+                      _topCategoriesCard(context, s, money, byId),
+                      const SizedBox(height: AppSpacing.md),
+                      _trendCard(context, s, money),
+                    ],
+                  );
+                },
               );
             },
           );
@@ -58,18 +73,18 @@ class StatisticsScreen extends StatelessWidget {
     );
   }
 
-  Widget _card(BuildContext context, {required Widget child}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        boxShadow: const [AppShadows.card],
-      ),
-      child: child,
-    );
-  }
+  // ---------------------------------------------------------------- chrome
+
+  Widget _card(BuildContext context, {required Widget child}) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(AppRadii.card),
+          boxShadow: const [AppShadows.card],
+        ),
+        child: child,
+      );
 
   Widget _label(BuildContext context, String text) => Text(
         text,
@@ -79,6 +94,34 @@ class StatisticsScreen extends StatelessWidget {
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       );
+
+  Widget _miniStat(
+      BuildContext context, String label, String value, Color color) {
+    final scheme = Theme.of(context).colorScheme;
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: TextStyle(
+                  fontSize: AppTextSizes.label,
+                  color: scheme.onSurfaceVariant)),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(value,
+                style: TextStyle(
+                    fontSize: AppTextSizes.row,
+                    fontWeight: FontWeight.w700,
+                    color: color)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ----------------------------------------------------------------- cards
 
   Widget _thisMonthCard(BuildContext context, _Stats s, NumberFormat money) {
     final scheme = Theme.of(context).colorScheme;
@@ -102,6 +145,71 @@ class StatisticsScreen extends StatelessWidget {
               _miniStat(context, 'المتوقع للشهر',
                   '${money.format(s.projectedThisMonth)} ر.س', scheme.primary),
             ],
+          ),
+          if (s.lastMonthSpent > 0) ...[
+            const Divider(height: AppSpacing.xl),
+            Row(
+              children: [
+                Icon(
+                  s.projectedVsLastMonth >= 0
+                      ? Icons.trending_up
+                      : Icons.trending_down,
+                  size: 18,
+                  color: s.projectedVsLastMonth >= 0
+                      ? Colors.red.shade400
+                      : AppColors.income,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Text(
+                    'الشهر الماضي ${money.format(s.lastMonthSpent)} ر.س — '
+                    'متوقع أن ${s.projectedVsLastMonth >= 0 ? 'ترتفع' : 'تنخفض'} '
+                    '${s.projectedVsLastMonth.abs().toStringAsFixed(0)}٪',
+                    style: TextStyle(
+                        fontSize: AppTextSizes.label,
+                        color: scheme.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _paceCard(BuildContext context, _Stats s, NumberFormat money) {
+    final scheme = Theme.of(context).colorScheme;
+    final allowance = s.dailyAllowanceRemaining;
+    final over = allowance != null && allowance < 0;
+    return _card(
+      context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _label(context, 'المتاح يوميًا لبقية الشهر'),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            allowance == null
+                ? '—'
+                : '${money.format(allowance.abs())} ر.س',
+            style: TextStyle(
+              fontSize: AppTextSizes.heroMin,
+              fontWeight: FontWeight.w700,
+              color: allowance == null
+                  ? scheme.onSurface
+                  : (over ? Colors.red.shade400 : AppColors.income),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            allowance == null
+                ? 'أضف دخلًا لهذا الشهر لحساب المتاح يوميًا.'
+                : over
+                    ? 'تجاوزت دخل هذا الشهر — قلّل الإنفاق أو استخدم من رصيدك.'
+                    : 'ما تبقّى من دخلك موزّعًا على ${s.daysLeftInMonth} يوم متبقٍ.',
+            style: TextStyle(
+                fontSize: AppTextSizes.label, color: scheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -144,6 +252,55 @@ class StatisticsScreen extends StatelessWidget {
     );
   }
 
+  Widget _savingsRateCard(BuildContext context, _Stats s, NumberFormat money) {
+    final scheme = Theme.of(context).colorScheme;
+    final rate = s.savingsRate;
+    return _card(
+      context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _label(context, 'معدل الادخار هذا الشهر'),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            rate == null ? '—' : '${(rate * 100).toStringAsFixed(0)}٪',
+            style: TextStyle(
+              fontSize: AppTextSizes.heroMin,
+              fontWeight: FontWeight.w700,
+              color: rate == null
+                  ? scheme.onSurface
+                  : (rate >= 0.2 ? AppColors.income : _luxuryColor),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (rate != null) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadii.chip),
+              child: LinearProgressIndicator(
+                value: rate.clamp(0.0, 1.0),
+                minHeight: 8,
+                backgroundColor:
+                    scheme.onSurfaceVariant.withValues(alpha: 0.15),
+                valueColor: AlwaysStoppedAnimation(
+                    Theme.of(context).extension<AccentPalette>()!.progress),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          Text(
+            rate == null
+                ? 'أضف دخلًا لهذا الشهر لحساب معدل الادخار.'
+                : 'ادّخرت ${money.format(s.monthSaved)} من دخل '
+                    '${money.format(s.monthIncome)} ر.س. '
+                    '${rate >= 0.2 ? 'ممتاز — أنت فوق هدف ٢٠٪.' : 'الهدف الشائع هو ٢٠٪.'}',
+            style: TextStyle(
+                fontSize: AppTextSizes.label, color: scheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _essentialsCard(BuildContext context, _Stats s, NumberFormat money) {
     final total = s.essentialThisMonth + s.luxuryThisMonth;
     final essentialPct = total > 0 ? s.essentialThisMonth / total : 0.0;
@@ -154,7 +311,21 @@ class StatisticsScreen extends StatelessWidget {
         children: [
           _label(context, 'أساسيات مقابل كماليات (هذا الشهر)'),
           const SizedBox(height: AppSpacing.md),
-          _splitBar(essentialPct),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.chip),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: (essentialPct * 1000).round().clamp(0, 1000),
+                  child: Container(height: 12, color: AppColors.income),
+                ),
+                Expanded(
+                  flex: ((1 - essentialPct) * 1000).round().clamp(0, 1000),
+                  child: Container(height: 12, color: _luxuryColor),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
@@ -170,19 +341,79 @@ class StatisticsScreen extends StatelessWidget {
     );
   }
 
-  Widget _splitBar(double essentialPct) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadii.chip),
-      child: Row(
+  Widget _quickFactsCard(BuildContext context, _Stats s, NumberFormat money) {
+    final scheme = Theme.of(context).colorScheme;
+    final facts = <(IconData, String, String)>[
+      (
+        Icons.receipt_long,
+        'عدد الحركات',
+        '${s.txnCountThisMonth}',
+      ),
+      (
+        Icons.straighten,
+        'متوسط الحركة',
+        '${money.format(s.avgTxnThisMonth)} ر.س',
+      ),
+      if (s.biggestExpense != null)
+        (
+          Icons.arrow_upward,
+          'أكبر مصروف',
+          '${money.format(s.biggestExpense!.txn.amount)} ر.س'
+              ' • ${s.biggestExpense!.category.name}',
+        ),
+      if (s.highestDayAmount > 0)
+        (
+          Icons.calendar_today,
+          'أعلى يوم إنفاقًا',
+          '${money.format(s.highestDayAmount)} ر.س'
+              ' • ${dayName(s.highestDay!)} ${s.highestDay!.day}',
+        ),
+      (
+        Icons.savings_outlined,
+        'أيام بلا إنفاق',
+        '${s.noSpendDays} من ${s.daysElapsed}',
+      ),
+      if (s.topWeekday != null)
+        (
+          Icons.event_repeat,
+          'أكثر أيام الأسبوع إنفاقًا',
+          '${dayNameForWeekday(s.topWeekday!)}'
+              ' • ${money.format(s.topWeekdayAvg)} ر.س وسطيًا',
+        ),
+    ];
+
+    return _card(
+      context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            flex: (essentialPct * 1000).round().clamp(0, 1000),
-            child: Container(height: 12, color: AppColors.income),
-          ),
-          Expanded(
-            flex: ((1 - essentialPct) * 1000).round().clamp(0, 1000),
-            child: Container(height: 12, color: _luxuryColor),
-          ),
+          _label(context, 'لمحات سريعة'),
+          const SizedBox(height: AppSpacing.sm),
+          for (final f in facts) ...[
+            const Divider(height: AppSpacing.lg),
+            Row(
+              children: [
+                Icon(f.$1, size: 18, color: scheme.onSurfaceVariant),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(f.$2,
+                      style: TextStyle(
+                          fontSize: AppTextSizes.label,
+                          color: scheme.onSurfaceVariant)),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Flexible(
+                  child: Text(
+                    f.$3,
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(
+                        fontSize: AppTextSizes.label,
+                        fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -227,6 +458,10 @@ class StatisticsScreen extends StatelessWidget {
               Row(
                 children: [
                   Expanded(child: Text(cat?.name ?? '—')),
+                  Text('${(share * 100).toStringAsFixed(0)}٪  ',
+                      style: TextStyle(
+                          fontSize: AppTextSizes.label,
+                          color: scheme.onSurfaceVariant)),
                   Text('${money.format(entry.value)} ر.س',
                       style: const TextStyle(fontWeight: FontWeight.w600)),
                 ],
@@ -252,8 +487,8 @@ class StatisticsScreen extends StatelessWidget {
 
   Widget _trendCard(BuildContext context, _Stats s, NumberFormat money) {
     final scheme = Theme.of(context).colorScheme;
-    final maxVal = s.monthlyTrend
-        .fold<double>(1, (m, e) => e.value > m ? e.value : m);
+    final maxVal =
+        s.monthlyTrend.fold<double>(1, (m, e) => e.value > m ? e.value : m);
     return _card(
       context,
       child: Column(
@@ -273,17 +508,14 @@ class StatisticsScreen extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          Text(
-                            money.format(e.value),
-                            style: const TextStyle(fontSize: 9),
-                            maxLines: 1,
-                          ),
+                          Text(money.format(e.value),
+                              style: const TextStyle(fontSize: 9),
+                              maxLines: 1),
                           const SizedBox(height: 2),
                           Container(
                             height: (e.value / maxVal * 80).clamp(2, 80),
                             decoration: BoxDecoration(
-                              color: scheme.primary
-                                  .withValues(alpha: 0.85),
+                              color: scheme.primary.withValues(alpha: 0.85),
                               borderRadius: BorderRadius.circular(4),
                             ),
                           ),
@@ -298,32 +530,6 @@ class StatisticsScreen extends StatelessWidget {
                   ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _miniStat(
-      BuildContext context, String label, String value, Color color) {
-    final scheme = Theme.of(context).colorScheme;
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: TextStyle(
-                  fontSize: AppTextSizes.label,
-                  color: scheme.onSurfaceVariant)),
-          const SizedBox(height: 2),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: AlignmentDirectional.centerStart,
-            child: Text(value,
-                style: TextStyle(
-                    fontSize: AppTextSizes.row,
-                    fontWeight: FontWeight.w700,
-                    color: color)),
           ),
         ],
       ),
@@ -366,18 +572,33 @@ class StatisticsScreen extends StatelessWidget {
   String _shortMonth(MonthKey k) => _arMonthsShort[k.month - 1];
 }
 
-// (top-level id resolution uses category.parentId ?? category.id inline)
-
-/// All statistics, computed once in a single pass.
+/// All statistics, computed once in a single pass over the transactions.
 class _Stats {
   final int allExpenseCount;
   final double spentThisMonth;
   final double dailyAvgThisMonth;
   final double projectedThisMonth;
+  final double lastMonthSpent;
+  /// Percent change of the projected month total vs last month's total.
+  final double projectedVsLastMonth;
   final double recommendedWeekly;
   final double currentWeeklyPace;
   final double essentialThisMonth;
   final double luxuryThisMonth;
+  final double monthIncome;
+  final double monthSaved;
+  final double? savingsRate;
+  final double? dailyAllowanceRemaining;
+  final int daysLeftInMonth;
+  final int daysElapsed;
+  final int txnCountThisMonth;
+  final double avgTxnThisMonth;
+  final TxnRow? biggestExpense;
+  final DateTime? highestDay;
+  final double highestDayAmount;
+  final int noSpendDays;
+  final int? topWeekday;
+  final double topWeekdayAvg;
   final List<MapEntry<int, double>> topCategories; // topLevelId -> amount
   final List<MapEntry<MonthKey, double>> monthlyTrend;
 
@@ -386,45 +607,78 @@ class _Stats {
     required this.spentThisMonth,
     required this.dailyAvgThisMonth,
     required this.projectedThisMonth,
+    required this.lastMonthSpent,
+    required this.projectedVsLastMonth,
     required this.recommendedWeekly,
     required this.currentWeeklyPace,
     required this.essentialThisMonth,
     required this.luxuryThisMonth,
+    required this.monthIncome,
+    required this.monthSaved,
+    required this.savingsRate,
+    required this.dailyAllowanceRemaining,
+    required this.daysLeftInMonth,
+    required this.daysElapsed,
+    required this.txnCountThisMonth,
+    required this.avgTxnThisMonth,
+    required this.biggestExpense,
+    required this.highestDay,
+    required this.highestDayAmount,
+    required this.noSpendDays,
+    required this.topWeekday,
+    required this.topWeekdayAvg,
     required this.topCategories,
     required this.monthlyTrend,
   });
 
   static _Stats from(
-      List<TxnRow> rows, Map<int, Category> byId, DateTime now) {
+    List<TxnRow> rows,
+    List<SavingsContribution> contributions,
+    DateTime now,
+  ) {
     final today = DateTime(now.year, now.month, now.day);
     final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
     final dayOfMonth = now.day;
     final windowStart = today.subtract(const Duration(days: 84)); // 12 weeks
+    final lastMonth = DateTime(now.year, now.month - 1, 1);
 
     var allExpenseCount = 0;
-    var spentThisMonth = 0.0;
+    var spentThisMonth = 0.0, lastMonthSpent = 0.0, monthIncome = 0.0;
     var essentialThisMonth = 0.0, luxuryThisMonth = 0.0;
     var essentialWindow = 0.0, luxuryWindow = 0.0;
+    var txnCountThisMonth = 0;
     DateTime? earliestInWindow;
+    TxnRow? biggestExpense;
     final byTop = <int, double>{};
     final byMonth = <MonthKey, double>{};
+    final byDayThisMonth = <int, double>{};
+    final weekdayTotals = <int, double>{};
 
-    bool inThisMonth(DateTime d) =>
-        d.year == now.year && d.month == now.month;
+    bool inThisMonth(DateTime d) => d.year == now.year && d.month == now.month;
 
     for (final r in rows) {
-      if (r.txn.type != TxnType.expense) continue;
-      allExpenseCount++;
-      final amount = r.txn.amount;
       final date = r.txn.date;
+      final amount = r.txn.amount;
+
+      if (r.txn.type == TxnType.income) {
+        if (inThisMonth(date)) monthIncome += amount;
+        continue;
+      }
+
+      allExpenseCount++;
       final kind = r.category.kind;
 
-      // Monthly trend (last 6 calendar months).
       final mk = MonthKey(year: date.year, month: date.month);
       byMonth[mk] = (byMonth[mk] ?? 0) + amount;
 
+      if (date.year == lastMonth.year && date.month == lastMonth.month) {
+        lastMonthSpent += amount;
+      }
+
       if (inThisMonth(date)) {
         spentThisMonth += amount;
+        txnCountThisMonth++;
+        byDayThisMonth[date.day] = (byDayThisMonth[date.day] ?? 0) + amount;
         if (kind == CategoryKind.luxury) {
           luxuryThisMonth += amount;
         } else {
@@ -432,6 +686,9 @@ class _Stats {
         }
         final topId = r.category.parentId ?? r.category.id;
         byTop[topId] = (byTop[topId] ?? 0) + amount;
+        if (biggestExpense == null || amount > biggestExpense.txn.amount) {
+          biggestExpense = r;
+        }
       }
 
       if (!date.isBefore(windowStart) && !date.isAfter(today)) {
@@ -440,25 +697,64 @@ class _Stats {
         } else {
           essentialWindow += amount;
         }
+        weekdayTotals[date.weekday] =
+            (weekdayTotals[date.weekday] ?? 0) + amount;
         if (earliestInWindow == null || date.isBefore(earliestInWindow)) {
           earliestInWindow = date;
         }
       }
     }
 
+    var monthSaved = 0.0;
+    for (final c in contributions) {
+      if (inThisMonth(c.date)) monthSaved += c.amount;
+    }
+
     final dailyAvg = dayOfMonth > 0 ? spentThisMonth / dayOfMonth : 0.0;
     final projected = dailyAvg * daysInMonth;
+    final projectedVsLast = lastMonthSpent > 0
+        ? (projected - lastMonthSpent) / lastMonthSpent * 100
+        : 0.0;
 
-    // Weeks of history actually present in the window (so a new user with a
-    // few days of data isn't averaged across a full 12 weeks).
+    // Weeks of history actually present in the window, so a new user with a
+    // few days of data isn't averaged across a full 12 weeks.
     final windowDays = earliestInWindow == null
         ? 1
         : today.difference(earliestInWindow).inDays + 1;
     final weeks = (windowDays / 7).clamp(1.0, 12.0);
     final essentialWeekly = essentialWindow / weeks;
     final luxuryWeekly = luxuryWindow / weeks;
-    final recommendedWeekly = essentialWeekly + luxuryWeekly * 0.85;
-    final currentWeeklyPace = (essentialWindow + luxuryWindow) / weeks;
+
+    // Average spend per weekday over the window: divide each weekday's total
+    // by how many times that weekday actually occurred in the window.
+    final effectiveStart = earliestInWindow ?? today;
+    int? topWeekday;
+    var topWeekdayAvg = 0.0;
+    for (final wd in weekdayTotals.keys) {
+      final occurrences = _countWeekday(effectiveStart, today, wd);
+      if (occurrences == 0) continue;
+      final avg = weekdayTotals[wd]! / occurrences;
+      if (avg > topWeekdayAvg) {
+        topWeekdayAvg = avg;
+        topWeekday = wd;
+      }
+    }
+
+    // Highest-spend day and no-spend days, within the elapsed part of the month.
+    DateTime? highestDay;
+    var highestDayAmount = 0.0;
+    byDayThisMonth.forEach((day, amount) {
+      if (amount > highestDayAmount) {
+        highestDayAmount = amount;
+        highestDay = DateTime(now.year, now.month, day);
+      }
+    });
+    final noSpendDays = dayOfMonth - byDayThisMonth.length;
+
+    final daysLeft = (daysInMonth - dayOfMonth + 1).clamp(1, daysInMonth);
+    final unspentIncome = monthIncome - spentThisMonth - monthSaved;
+    final allowance = monthIncome > 0 ? unspentIncome / daysLeft : null;
+    final savingsRate = monthIncome > 0 ? monthSaved / monthIncome : null;
 
     final topCategories = byTop.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
@@ -476,12 +772,41 @@ class _Stats {
       spentThisMonth: spentThisMonth,
       dailyAvgThisMonth: dailyAvg,
       projectedThisMonth: projected,
-      recommendedWeekly: recommendedWeekly,
-      currentWeeklyPace: currentWeeklyPace,
+      lastMonthSpent: lastMonthSpent,
+      projectedVsLastMonth: projectedVsLast,
+      recommendedWeekly: essentialWeekly + luxuryWeekly * 0.85,
+      currentWeeklyPace: (essentialWindow + luxuryWindow) / weeks,
       essentialThisMonth: essentialThisMonth,
       luxuryThisMonth: luxuryThisMonth,
+      monthIncome: monthIncome,
+      monthSaved: monthSaved,
+      savingsRate: savingsRate,
+      dailyAllowanceRemaining: allowance,
+      daysLeftInMonth: daysLeft,
+      daysElapsed: dayOfMonth,
+      txnCountThisMonth: txnCountThisMonth,
+      avgTxnThisMonth:
+          txnCountThisMonth > 0 ? spentThisMonth / txnCountThisMonth : 0,
+      biggestExpense: biggestExpense,
+      highestDay: highestDay,
+      highestDayAmount: highestDayAmount,
+      noSpendDays: noSpendDays < 0 ? 0 : noSpendDays,
+      topWeekday: topWeekday,
+      topWeekdayAvg: topWeekdayAvg,
       topCategories: topCategories.take(5).toList(),
       monthlyTrend: trend,
     );
+  }
+
+  /// How many times [weekday] falls between [from] and [to], inclusive.
+  static int _countWeekday(DateTime from, DateTime to, int weekday) {
+    var count = 0;
+    var d = DateTime(from.year, from.month, from.day);
+    final end = DateTime(to.year, to.month, to.day);
+    while (!d.isAfter(end)) {
+      if (d.weekday == weekday) count++;
+      d = d.add(const Duration(days: 1));
+    }
+    return count;
   }
 }

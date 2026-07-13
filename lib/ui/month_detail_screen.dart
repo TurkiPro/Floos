@@ -6,8 +6,8 @@ import '../data/database.dart';
 import '../data/enums.dart';
 import '../domain/date_grouping.dart';
 import 'theme/tokens.dart';
+import 'widgets/day_group_card.dart';
 import 'widgets/net_summary_card.dart';
-import 'widgets/transaction_row.dart';
 
 /// Income/expense/net summary + day-grouped transaction list for one
 /// arbitrary month -- the same shape as HomeScreen's body, generalized to any
@@ -54,19 +54,8 @@ class MonthDetailScreen extends StatelessWidget {
                 )
               else
                 for (final group in groups) ...[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.xs, AppSpacing.md, AppSpacing.xs, AppSpacing.sm),
-                    child: Text(
-                      dayLabel(group.key, today: now),
-                      style: TextStyle(
-                        fontSize: AppTextSizes.label,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                  ...group.value.map((r) => TransactionRow(row: r, money: money)),
+                  DayGroupCard(group: group, money: money, today: now),
+                  const SizedBox(height: AppSpacing.md),
                 ],
             ],
           );

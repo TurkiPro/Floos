@@ -14,7 +14,7 @@ import 'income_screen.dart';
 import 'savings_screen.dart';
 import 'settings_screen.dart';
 import 'theme/tokens.dart';
-import 'widgets/transaction_row.dart';
+import 'widgets/day_group_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -551,70 +551,10 @@ class _DashboardBody extends StatelessWidget {
           )
         else
           for (final group in groups) ...[
-            _DayGroupCard(group: group, money: money, today: now),
+            DayGroupCard(group: group, money: money, today: now),
             const SizedBox(height: AppSpacing.md),
           ],
       ],
-    );
-  }
-}
-
-/// One day's expenses on their own surface, so consecutive days read as
-/// separate blocks. Header shows the weekday + date and that day's total.
-class _DayGroupCard extends StatelessWidget {
-  final MapEntry<DateTime, List<TxnRow>> group;
-  final NumberFormat money;
-  final DateTime today;
-  const _DayGroupCard({
-    required this.group,
-    required this.money,
-    required this.today,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final total =
-        group.value.fold<double>(0, (sum, r) => sum + r.txn.amount);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        boxShadow: const [AppShadows.card],
-      ),
-      padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  dayFullLabel(group.key, today: today),
-                  style: TextStyle(
-                    fontSize: AppTextSizes.label,
-                    fontWeight: FontWeight.w600,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Text(
-                '${money.format(total)} ر.س',
-                style: TextStyle(
-                  fontSize: AppTextSizes.label,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-          const Divider(height: AppSpacing.lg),
-          ...group.value.map((r) => TransactionRow(row: r, money: money)),
-        ],
-      ),
     );
   }
 }

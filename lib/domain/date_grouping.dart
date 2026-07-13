@@ -100,6 +100,9 @@ const _arabicDayNames = [
 /// Arabic weekday name, e.g. "الجمعة".
 String dayName(DateTime day) => _arabicDayNames[day.weekday - 1];
 
+/// Arabic weekday name from a raw `DateTime.weekday` value (1 = Monday).
+String dayNameForWeekday(int weekday) => _arabicDayNames[weekday - 1];
+
 /// Weekday + day-of-month + Arabic month, prefixed with اليوم/أمس when it
 /// applies, e.g. "اليوم • الجمعة، 3 يوليو" or "الأربعاء، 1 يوليو".
 String dayFullLabel(DateTime day, {required DateTime today}) {

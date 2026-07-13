@@ -11,7 +11,7 @@ import 'add_income_sheet.dart';
 import 'add_recurrence_sheet.dart';
 import 'recurring_screen.dart' show frequencyLabelAr;
 import 'theme/tokens.dart';
-import 'widgets/transaction_row.dart';
+import 'widgets/day_group_card.dart';
 
 /// Dedicated income page: recent one-off income entries, plus a list of
 /// recurring incomes (each independently named and dated) that can be
@@ -135,24 +135,8 @@ class IncomeScreen extends StatelessWidget {
               return Column(
                 children: [
                   for (final group in groups) ...[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(AppSpacing.xs,
-                          AppSpacing.md, AppSpacing.xs, AppSpacing.sm),
-                      child: Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: Text(
-                          dayLabel(group.key, today: now),
-                          style: TextStyle(
-                            fontSize: AppTextSizes.label,
-                            fontWeight: FontWeight.w600,
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ),
-                    ...group.value
-                        .map((r) => TransactionRow(row: r, money: money)),
+                    DayGroupCard(group: group, money: money, today: now),
+                    const SizedBox(height: AppSpacing.md),
                   ],
                 ],
               );
