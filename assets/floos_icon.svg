@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+      <stop offset="0%" stop-color="#33333A"/>
+      <stop offset="55%" stop-color="#232328"/>
+      <stop offset="100%" stop-color="#141417"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="#1C1C20"/>
+
+  <!-- sparkles -->
+  <g fill="#2FA363">
+    <path d="M196 208 l10 34 34 10 -34 10 -10 34 -10 -34 -34 -10 34 -10 z"/>
+    <path d="M836 296 l7 24 24 7 -24 7 -7 24 -7 -24 -24 -7 24 -7 z"/>
+    <path d="M238 806 l7 24 24 7 -24 7 -7 24 -7 -24 -24 -7 24 -7 z"/>
+    <circle cx="806" cy="770" r="10"/>
+  </g>
+
+  <!-- coin, slightly tilted -->
+  <g transform="rotate(-8 512 512)">
+    <!-- offset edge for sticker depth -->
+    <circle cx="530" cy="534" r="322" fill="#0B0B0C"/>
+    <!-- coin body -->
+    <circle cx="512" cy="512" r="322" fill="#2FA363" stroke="#0B0B0C" stroke-width="22"/>
+    <!-- inner rim -->
+    <circle cx="512" cy="512" r="262" fill="none" stroke="#0B0B0C" stroke-width="13"/>
+    <!-- highlight (lighter tint of the brand green) -->
+    <path d="M330 348 A 240 240 0 0 1 486 274 A 254 254 0 0 0 300 428 A 240 240 0 0 1 330 348 Z" fill="#5CC48D"/>
+    <!-- eyes -->
+    <path d="M384 486 Q424 428 464 486" fill="none" stroke="#0B0B0C" stroke-width="26" stroke-linecap="round"/>
+    <path d="M560 486 Q600 428 640 486" fill="none" stroke="#0B0B0C" stroke-width="26" stroke-linecap="round"/>
+    <!-- smile -->
+    <path d="M448 586 Q512 646 576 586" fill="none" stroke="#0B0B0C" stroke-width="28" stroke-linecap="round"/>
+  </g>
+</svg>

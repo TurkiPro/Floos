@@ -30,30 +30,39 @@ strictly increase for every store upload, so never reuse one).
 
 ## Before your first submission
 
-### 0. The app icon (blocking)
+### 0. App icon — done ✅
 
-The app still ships Flutter's default icon. Both stores reject that.
+Generated from `assets/icon/icon.png` (1024×1024, RGB, no alpha) into both
+platforms' icon sets. Android gets an adaptive icon (`#1C1C20` background +
+the artwork inset into the launcher safe zone, so no mask can clip the coin);
+iOS gets the flat, alpha-free square Apple requires.
 
-Supply a **1024×1024 PNG** (no transparency, no rounded corners — the OS applies
-those), then:
-
-```bash
-flutter pub add --dev flutter_launcher_icons
-```
-
-Add to `pubspec.yaml`:
-
-```yaml
-flutter_launcher_icons:
-  image_path: "assets/icon/icon.png"
-  android: true
-  ios: true
-  remove_alpha_ios: true
-```
+To change the artwork, replace `assets/icon/icon.png` and re-run:
 
 ```bash
 dart run flutter_launcher_icons
 ```
+
+### 0b. Privacy policy page — written, needs hosting ⚠️
+
+`docs/privacy.html` is a self-contained bilingual (AR/EN) policy. It states the
+truth about this app: no data collection, no network calls, no analytics, no
+trackers; everything lives in a local SQLite file. It also explains the three
+permissions (notifications, exact alarms, biometrics).
+
+**It must be reachable at a public URL before either store will let you submit.**
+Pick one:
+
+- **Your own domain (recommended)** — you own `turkisecurity.com`, and the app ID
+  is `com.turkisecurity.floos`, so the domains match. Upload `docs/privacy.html`
+  to e.g. `https://turkisecurity.com/floos/privacy.html`.
+- **GitHub Pages** — *Settings → Pages → Source: `main` / `/docs`*. Serves at
+  `https://turkipro.github.io/Floos/privacy.html`. Note: Pages on a **private**
+  repo needs a paid GitHub plan; on the free plan you'd have to make the repo
+  public first.
+
+Then set the contact address in the page (currently `privacy@turkisecurity.com`)
+to a mailbox you actually read — reviewers do sometimes email it.
 
 ### 1. Google Play ($25, one-time)
 
@@ -132,9 +141,8 @@ build time.
 
 Both stores need this before they'll let you submit:
 
-- **Privacy policy URL** — required even though the app collects nothing. Host a
-  page (e.g. `floos.turkisecurity.com/privacy`) stating that all data stays on
-  the device, nothing is transmitted, and there are no third-party trackers.
+- **Privacy policy URL** — the page is written (`docs/privacy.html`); you just
+  need to host it. See step 0b above.
 - **Screenshots** — Play: phone screenshots (min 2). Apple: 6.7" and 6.5" iPhone
   sizes. Grab them from a real device or simulator.
 - **Short + full description** (Arabic).

@@ -52,6 +52,24 @@ dev_dependencies:
   build_runner: ^2.4.9
 
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: 0.14.1
+
+# Generates the native Android/iOS launcher icons from the artwork in assets/.
+# Regenerate with: dart run flutter_launcher_icons
+#
+# The coin already sits at ~65% of the source square, which is the size an
+# Android adaptive foreground wants, so the artwork is passed through as-is --
+# the tool insets it 16% for the launcher's safe zone. Pre-padding it here too
+# would compound the two and leave the coin tiny. The adaptive background is the
+# artwork's own #1C1C20, so its backdrop blends into the mask seamlessly.
+# iOS gets the flat, alpha-free 1024 square Apple requires.
+flutter_launcher_icons:
+  image_path: "assets/icon/icon.png"
+  android: true
+  adaptive_icon_background: "#1C1C20"
+  adaptive_icon_foreground: "assets/icon/icon.png"
+  ios: true
+  remove_alpha_ios: true
 
 flutter:
   uses-material-design: true
