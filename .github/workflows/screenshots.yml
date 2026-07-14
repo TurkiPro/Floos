@@ -47,6 +47,15 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # Compile the app BEFORE the emulator exists. Previously Gradle was
+      # compiling while QEMU was already running, and the two fought over the
+      # runner's few vCPUs until the emulator starved and died with
+      # "detected a hanging thread 'QEMU2 main loop'". Warming the Gradle daemon
+      # and the dependency cache here means the run inside the emulator step is
+      # nearly incremental.
+      - name: Pre-build the app (keeps Gradle off the emulator's CPU)
+        run: flutter build apk --debug
+
       - name: Run app on emulator and capture
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -55,6 +64,13 @@ jobs:
           arch: x86_64
           profile: pixel_6_pro
           disable-animations: true
+          emulator-boot-timeout: 900
+          # No GPU and no audio device exist on a CI runner; without
+          # swiftshader_indirect the emulator tries to negotiate host graphics
+          # and wedges. -no-snapshot avoids slow snapshot save/load too.
+          emulator-options: >-
+            -no-window -no-audio -no-boot-anim -no-snapshot
+            -gpu swiftshader_indirect -camera-back none -camera-front none
           # MUST stay on one line, with the paths spelled out. This string is
           # handed to `sh -c`, which does not preserve backslash
           # line-continuations from the YAML block — a multi-line version ends up

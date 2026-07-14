@@ -14,7 +14,9 @@ Future<void> seedDummyData(AppDatabase db) async {
   final rng = Random(42);
   final now = DateTime.now();
 
+  // Transactions first: they carry a recurrenceId foreign key into the rules.
   await db.transactionDao.clearAll();
+  await db.recurrenceDao.clearAll();
   await db.savingsDao.clearAll();
 
   final cats = await db.categoryDao.getAll();
@@ -88,6 +90,22 @@ Future<void> seedDummyData(AppDatabase db) async {
       }
     }
   }
+
+  // A recurring salary rule, so the income screen shows a real recurring entry
+  // rather than an empty state. The months above already have their salary
+  // transactions, so the marker is parked at today: catch-up then generates
+  // nothing retroactively and the rule simply comes due next month.
+  final salaryRule = await db.recurrenceDao.add(
+    title: 'راتب',
+    amount: 17000,
+    categoryId: salary.id,
+    type: TxnType.income,
+    frequency: Frequency.monthly,
+    interval: 1,
+    startDate: DateTime(now.year, now.month, 1),
+    note: 'راتب',
+  );
+  await db.recurrenceDao.setLastMaterialized(salaryRule, now);
 
   // A couple of savings goals with deadlines and some history.
   final carGoal = await db.savingsDao.addGoal(
