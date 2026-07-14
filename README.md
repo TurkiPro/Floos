@@ -1,80 +1,72 @@
 # فلوس (Floos)
 
-A deliberately minimal expense tracker for iOS + Android, built in Flutter.
-This is a **starter skeleton** — the spine the rest of the app hangs off — with
-the original app's worst bugs designed out from the start rather than patched
-later.
+An Arabic-first, offline-first personal finance app for iOS and Android, built
+in Flutter. Track expenses, income, recurring commitments and savings goals,
+with statistics that explain your spending — no accounts, no network, no
+tracking. Every byte stays in a local SQLite file on the device.
 
-> The package is named `floos` (`pubspec.yaml` `name:`, `package:floos/...`
-> imports). Bundle/app IDs under `android/`/`ios/` still use the original
-> `masareef` placeholder and should be updated before publishing.
+- **Bundle / app ID:** `com.turkisecurity.floos`
+- **Privacy policy:** <https://floos.turkisecurity.com/privacy.html>
+- **Status:** shipping. v1.0.0 is built and signed by CI and uploaded to
+  TestFlight / Play internal testing from a version tag.
 
 ---
 
-## What's baked in (and why)
+## Design decisions (and why)
 
-Three of the original's complaints were the same root cause: recurring entries
-that depended on background execution, which iOS suspension and Android Doze
-silently kill. The fixes:
+A few choices shape everything else. They're here because they're the parts a
+new reader is most likely to "fix" without realizing they were deliberate.
 
 - **Recurrence is lazily evaluated, not scheduled.** We store recurrence
-  *rules*, and on every launch/resume a deterministic catch-up
-  (`lib/domain/recurrence_engine.dart`) materializes any occurrences that came
-  due while the app was closed, then advances a per-rule marker. No background
-  task, nothing dropped, and running it repeatedly is idempotent. The pure date
-  math lives in `lib/domain/recurrence_math.dart` and is covered by
-  `test/recurrence_math_test.dart`. This single decision fixes fixed-monthly
-  income, lagging weekly expenses, and inconsistent monthly bills at once.
+  *rules*; on every launch/resume a deterministic catch-up
+  ([recurrence_engine.dart](lib/domain/recurrence_engine.dart)) materializes any
+  occurrences that came due while the app was closed, then advances a per-rule
+  marker. No background task to be killed by iOS suspension or Android Doze,
+  nothing dropped, and running it repeatedly is idempotent. The pure date math
+  is in [recurrence_math.dart](lib/domain/recurrence_math.dart), covered by
+  [recurrence_math_test.dart](test/recurrence_math_test.dart). This one decision
+  handles recurring salary, weekly expenses and monthly bills together.
 
-- **Savings is a ledger, not a stored balance.** The current amount is always
-  `SUM(contributions)` (`SavingsDao.watchTotal`), never a mutable field that can
-  drift out of sync — which is the usual cause of "savings is buggy as fuck."
+- **Savings is a ledger, not a stored balance.** A goal's current amount is
+  always `SUM(contributions)`, never a mutable field that can drift out of sync.
+  The derived monthly-deposit math lives in
+  [savings_math.dart](lib/domain/savings_math.dart) and recomputes whenever you
+  deposit, skip a month, or change the target.
 
-- **Reactive lists.** The UI reads drift `.watch()` streams, so an insert
-  (including ones the recurrence engine generates) refreshes the screen
-  automatically. No more "go in and refresh the month" to see your data.
+- **Reactive lists.** The UI reads drift `.watch()` streams, so any insert —
+  including ones the recurrence engine generates — refreshes the screen with no
+  manual reload.
 
-- **Analysis-friendly export** (`lib/data/export.dart`): long format, one row
-  per transaction, ISO dates, numeric amount with **no** `ر.س` in the cell,
-  category id + name in separate columns, UTF-8 **with BOM** so Excel renders
-  Arabic correctly.
+- **Local-first, no backend.** There is no networking code anywhere in the app.
+  This is a privacy stance and a security one: we never become the custodian of
+  anyone's financial data. It's also why the data-safety declarations are
+  "nothing collected" rather than a list of mitigations.
 
-Categories are user-editable (icon + color + type) and ship with a sensible
-Arabic default set, so the app isn't empty on first launch and you're not stuck
-with five icons.
+- **Notifications never create data.** Reminders only *remind*; the recurrence
+  engine is the sole writer of generated transactions. A missed or
+  silently-failing notification can't corrupt anything.
+
+Categories are user-editable (icon + color + type), nest into sub-categories,
+and ship with a detailed Arabic default set so the app isn't empty on first
+launch.
 
 ---
 
-## Run it
+## Run it locally
 
-This skeleton has no platform folders yet (no `/ios`, `/android`). Generate them,
-then build. `flutter create .` only adds missing scaffolding — it will **not**
-overwrite anything in `lib/`.
+Requires Flutter 3.44.4. The `.g.dart` drift files are gitignored and
+regenerated by step 3.
 
 ```bash
-# 1. Generate the iOS/Android/etc. platform folders in place.
-flutter create .
-
-# 2. Fetch dependencies.
 flutter pub get
-
-# 3. Generate the drift database code (creates lib/data/database.g.dart).
 dart run build_runner build --delete-conflicting-outputs
-
-# 4. Run the tests (pure date math — no device needed).
 flutter test
-
-# 5. Launch on a simulator/device.
-flutter run
+flutter run           # -d windows / an emulator / a device
 ```
 
-> **Heads up — not yet compiled.** This project was assembled in a sandbox
-> without the Flutter SDK and without pub.dev access, so `flutter pub get`,
-> `build_runner`, and `flutter test` have **not** been run against it here. The
-> code is written to compile cleanly, but you may need to nudge a dependency
-> version to match your installed Flutter/Dart. If `build_runner` complains,
-> running `flutter pub upgrade` and regenerating usually resolves it. The
-> `.g.dart` files are intentionally not included — step 3 creates them.
+To fill the app with six months of realistic demo data, run a **debug** build
+and open Settings → أدوات تجريبية → تعبئة ببيانات تجريبية. That tool is gated
+behind `kDebugMode` and never ships to users.
 
 ---
 
@@ -82,46 +74,75 @@ flutter run
 
 ```
 lib/
-  main.dart                     entry point; runs catch-up, then launches
-  app.dart                      MaterialApp, Arabic RTL locale, light/dark theme
+  main.dart                 entry point; init services, run catch-up, launch
+  app.dart                  MaterialApp, Arabic RTL, accent-driven theme
+  app_settings.dart         all UI prefs (theme, accent, calendar, alerts, lock)
   data/
-    enums.dart                  TxnType, Frequency
-    tables.dart                 drift table definitions
-    database.dart               AppDatabase + all DAOs + default categories
-    export.dart                 analysis-friendly CSV export
-  domain/
-    recurrence_math.dart        pure, testable occurrence date math
-    recurrence_engine.dart      the launch/resume catch-up
-    date_grouping.dart          pure, testable اليوم/أمس/date grouping for lists
+    enums.dart              TxnType, Frequency
+    tables.dart             drift table definitions
+    database.dart           AppDatabase + DAOs + schema migrations (v4)
+    dev_seed.dart           six-month demo data (debug-only)
+    export.dart             analysis-friendly CSV export (UTF-8 BOM)
+  domain/                   pure, unit-tested logic
+    recurrence_math.dart    occurrence date math
+    recurrence_engine.dart  launch/resume catch-up
+    savings_math.dart       derived monthly-deposit math
+    date_grouping.dart      day/month grouping for lists
+    period_summary.dart     monthly/yearly behaviour aggregates
+    calendar_format.dart    Gregorian/Hijri date formatting
+  services/                 platform integrations (all no-op off-device)
+    notification_service.dart  reminders + budget/stats/salary alerts
+    alerts_coordinator.dart    schedules alerts from settings + data
+    app_lock_service.dart      Face ID / fingerprint / passcode (local_auth)
+    badge_service.dart         weekly budget on the app icon
+    sound_service.dart         add-transaction feedback
   ui/
-    home_screen.dart            net-this-month hero card + day-grouped list
-    add_transaction_sheet.dart  add a one-off transaction
-    recurring_screen.dart       list/pause/reactivate recurrence rules
-    add_recurrence_sheet.dart   create a recurrence rule
-    savings_screen.dart         goals list with reactive per-goal progress
-    goal_detail_screen.dart     contribution history + add-contribution for one goal
-    add_goal_sheet.dart         create a savings goal
-    add_contribution_sheet.dart add a contribution to a goal
-    category_editor_screen.dart list/add/archive/unarchive categories
-    add_category_sheet.dart     create a category (icon + color pickers)
-    icon_registry.dart          iconKey -> IconData mapping
-    theme/tokens.dart           design tokens + light/dark ColorScheme + CategoryTileColors
-    widgets/                    CategoryIconTile, IconKeyPicker, ColorSwatchPicker
-test/
-  recurrence_math_test.dart     monthly/weekly/yearly clamps, bounds, idempotency
-  date_grouping_test.dart       today/yesterday/date labels, grouping order
-  widget_test.dart              home screen smoke test
+    home_screen.dart           balance + savings, monthly split, day-grouped list
+    statistics_screen.dart     insights; behavior_screen.dart is monthly/yearly
+    savings_screen.dart        goals + deposit ledger; goal_detail_screen.dart
+    income_screen.dart         income + recurring income
+    months_screen.dart         month browser; month_detail_screen.dart
+    category_editor_screen.dart  category + sub-category tree
+    settings_screen.dart       theme, accent, calendar, alerts, lock, data
+    add_*_sheet.dart           the various add/edit bottom sheets
+    widgets/                   shared day cards, pickers, summary card
+    theme/tokens.dart          design tokens + accent palettes
+test/                       pure-logic unit tests (no device needed)
+integration_test/
+  screenshot_test.dart      drives the real app to capture store screenshots
 ```
 
 ---
 
-## Left for next (deliberately not in v1)
+## CI / release
+
+Three GitHub Actions workflows:
+
+- **[ci.yml](.github/workflows/ci.yml)** — on push/PR: format check, codegen,
+  analyze, test, and a full release AAB build.
+- **[release.yml](.github/workflows/release.yml)** — on a `v*` tag (or manual
+  dispatch): builds and signs the Android AAB and iOS IPA, and uploads them to
+  Play internal testing and TestFlight. Every store-upload step is gated on its
+  secrets being present, so it runs and produces artifacts even before the
+  secrets exist. Cut a release with `git tag v1.0.1 && git push origin v1.0.1`.
+- **[screenshots.yml](.github/workflows/screenshots.yml)** — manual: drives the
+  real app on an Android emulator and an iPhone simulator to capture store
+  screenshots at exact native resolutions.
+
+Signing secrets (keystore, Play service account, Apple distribution cert and App
+Store Connect API key) live only as GitHub repository secrets and are recreated
+at build time — they are gitignored and must never be committed. The full secret
+list and the step-by-step store-submission guide are in
+[RELEASE.md](RELEASE.md); all store copy and console form answers are in
+[STORE_LISTING.md](STORE_LISTING.md).
+
+---
+
+## Not in v1 (deliberately)
 
 - Editing/skipping a single recurrence occurrence (an exceptions table) —
-  transactions already carry `recurrenceId` to make this possible.
-- Backup to the **user's own** iCloud/Google Drive + import. (Running our own
-  server was intentionally dropped: it makes us the custodian of everyone's
-  financial data, which is a breach target and PDPL exposure for no real v1
-  benefit. Local-first keeps the data in the user's custody.)
-- Reminder notifications — decoupled by design: they only *remind*, they never
-  create data, so a missed notification can't corrupt anything.
+  transactions already carry `recurrenceId` to make this possible later.
+- Backup to the **user's own** iCloud/Google Drive + import. Running our own
+  server stays out of scope on purpose: it would make us the custodian of
+  everyone's financial data for no real user benefit. Local-first keeps the data
+  in the user's custody.
