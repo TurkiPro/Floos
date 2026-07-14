@@ -140,27 +140,28 @@ calls. Answer **No** to the "non-exempt encryption" question.
 
 ---
 
-## Screenshots (still to capture)
+## Screenshots — captured
 
-Neither store accepts a submission without them.
+Produced by the **Screenshots** workflow (Actions → Screenshots → Run workflow),
+which drives the real app on an emulator and a simulator, seeded with six months
+of demo data. Download the `screenshots-ios` / `screenshots-android` artifacts.
 
-| Store | Requirement |
-|---|---|
-| Play | Min 2 phone screenshots. 16:9–9:16, each side 320–3840 px. |
-| Apple | 6.7" iPhone (1290×2796) **and** 6.5" (1284×2778). Min 3 each. |
+Regenerate them whenever the UI changes materially — never hand-crop or resize,
+because both stores validate exact pixel dimensions.
 
-Good screens to shoot, in order — they tell the product's story:
+| Store | Captured | Where it goes |
+|---|---|---|
+| Apple | 1320×2868 (iPhone 17 Pro Max) | App Store Connect → **View All Sizes in Media Manager** → **iPhone 6.9" Display**. Apple reuses these for the smaller display sizes, so this is the only slot to fill. The default 6.5" box on the version page wants 1242×2688 and will reject them. |
+| Play | 1440×2952 (Pixel 6 Pro) | Play Console → Main store listing → Phone screenshots. |
 
-1. **Home** — the gradient header, balance + savings cards, the monthly split,
-   and the day-grouped expense list.
-2. **Statistics** — the savings-rate and essentials-vs-luxuries cards.
-3. **Savings** — a goal with its auto-computed monthly deposit.
-4. **Income-day prompt** — "استلمت دخلك — خصّص لأهدافك" with the deposit buttons.
+Order matters: upload `01`…`05` in filename order. Apple shows only the first
+three on the install sheet, and home → statistics → savings is the story.
+
+1. **Home** — gradient header, balance + savings, the monthly split, the
+   income-day savings prompt, and the day-grouped expense list.
+2. **Statistics** — spend-to-date, suggested weekly budget, savings rate,
+   essentials vs. luxuries.
+3. **Savings** — goals with their auto-computed monthly deposits, plus the
+   deposit ledger.
+4. **Income** — the recurring salary rule and recent income.
 5. **Categories** — the sub-category tree, to show the depth.
-
-Seed realistic-looking numbers first (debug builds have Settings → أدوات تجريبية
-→ تعبئة ببيانات تجريبية, which fills six months of plausible data).
-
-**You need a device or emulator for this** — screenshots must come from real
-phone hardware/simulator at those exact pixel sizes; a resized desktop window
-won't pass Apple's dimension check.
