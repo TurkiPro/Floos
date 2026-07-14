@@ -25,6 +25,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The Ubuntu runner ships ~14 GB free, and between the Flutter SDK, the
+      # Gradle caches and the debug APK there was nothing left for the emulator:
+      # "An error occurred while preparing SDK package Google APIs Intel x86_64
+      # Atom System Image: No space left on device". Reclaim the preinstalled
+      # toolchains we never touch — but keep android: false, since deleting the
+      # Android SDK would take the emulator tooling with it.
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          android: false
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -99,45 +115,28 @@ jobs:
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
 
-      # Don't hard-code a simulator name: which iPhones exist depends on the
-      # Xcode version baked into the runner image, and that moves. Walk a
-      # preference list (largest first — Apple's primary screenshot slot is the
-      # biggest iPhone) and take the first one actually installed.
-      #
-      # `set +e` matters: this step runs under `bash -e`, so a `grep` that
-      # matches nothing inside a command substitution aborts the whole step
-      # before any diagnostic can print. That is exactly how the previous
-      # version failed silently in 14 seconds.
+      # Which iPhones exist depends on the Xcode baked into the runner image, and
+      # that image moves: `macos-latest` rolled to macOS 26, the iPhone 16 family
+      # disappeared, and the previous hard-coded preference list matched nothing.
+      # pick_simulator.py asks the runner what it actually has instead.
       - name: Boot simulator
         run: |
-          set +e
-          echo "--- simulators available on this runner ---"
+          echo "--- iOS simulators available on this runner ---"
           xcrun simctl list devices available
-          echo "-------------------------------------------"
+          echo "-----------------------------------------------"
 
-          UDID=""
-          NAME=""
-          for CANDIDATE in \
-            "iPhone 16 Pro Max" "iPhone 16 Plus" \
-            "iPhone 15 Pro Max" "iPhone 15 Plus" \
-            "iPhone 14 Pro Max" "iPhone 14 Plus" \
-            "iPhone 16 Pro" "iPhone 16" "iPhone 15"
-          do
-            UDID=$(xcrun simctl list devices available \
-                    | grep -m1 "$CANDIDATE (" \
-                    | grep -oE '[0-9A-F]{8}-[0-9A-F-]{27}')
-            if [ -n "$UDID" ]; then NAME="$CANDIDATE"; break; fi
-          done
-
-          if [ -z "$UDID" ]; then
-            echo "::error::No suitable iPhone simulator on this runner (see list above)"
+          SELECTED=$(xcrun simctl list devices available -j \
+                      | python3 .github/scripts/pick_simulator.py) || {
+            echo "::error::No iPhone simulator on this runner (see list above)"
             exit 1
-          fi
-          set -e
+          }
 
+          UDID="${SELECTED%%$'\t'*}"
+          NAME="${SELECTED#*$'\t'}"
           echo "Using $NAME ($UDID)"
           echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
           echo "SIM_NAME=$NAME" >> "$GITHUB_ENV"
+
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
 
