@@ -47,12 +47,23 @@ jobs:
 
       # The tag is the version name (v1.0.1 -> 1.0.1); the run number is the
       # build number, which must strictly increase for every store upload.
+      #
+      # On a manual re-run there is no tag, so fall back to pubspec's version.
+      # That matters: the stores let you upload a NEW BUILD of the SAME version
+      # (rejected listing, metadata fix, a build-only change like dropping iPad
+      # support), and without this the build would be named after the branch.
+      # It also means we don't have to keep moving a published tag around.
       - name: Derive version
         id: version
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          echo "name=${TAG#v}" >> "$GITHUB_OUTPUT"
-          echo "code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            NAME="${GITHUB_REF_NAME#v}"
+          else
+            NAME=$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)
+          fi
+          echo "Version $NAME (build $GITHUB_RUN_NUMBER)"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
 
       # Recreate the keystore + key.properties that .gitignore keeps out of git.
       # Without them, build.gradle.kts falls back to the debug key and the AAB is
@@ -225,9 +236,12 @@ jobs:
           api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
           api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
 
+  # Only on a real tag: a manual re-run has no tag for the release to hang off,
+  # and the store uploads above are the part that actually matters there.
   github-release:
     name: Attach artifacts to the GitHub release
     needs: [android, ios]
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
       contents: write
