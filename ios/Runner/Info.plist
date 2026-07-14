@@ -56,6 +56,14 @@
 			</array>
 		</dict>
 	</dict>
+	<!-- Floos stores everything in a plain local SQLite file and talks to no
+	     network at all, so it uses no encryption whatsoever — not even the
+	     exempt HTTPS kind. Declaring that here answers Apple's export-compliance
+	     question at build time; without it, every single TestFlight/App Store
+	     upload stalls waiting for the question to be answered by hand in the
+	     console, which would defeat the point of the automated release. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
