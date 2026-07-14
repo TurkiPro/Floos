@@ -27,19 +27,22 @@ jobs:
 
       # The Ubuntu runner ships ~14 GB free, and between the Flutter SDK, the
       # Gradle caches and the debug APK there was nothing left for the emulator:
-      # "An error occurred while preparing SDK package Google APIs Intel x86_64
-      # Atom System Image: No space left on device". Reclaim the preinstalled
-      # toolchains we never touch — but keep android: false, since deleting the
-      # Android SDK would take the emulator tooling with it.
+      # "An error occurred while preparing SDK package ... No space left on
+      # device". Reclaim the preinstalled toolchains we never touch.
+      #
+      # android: false — deleting the Android SDK would take the emulator tooling
+      # with it. swap-storage: false — the emulator wants every byte of memory
+      # headroom it can get, and reclaiming ~4 GB of swap to buy disk we don't
+      # need is a bad trade.
       - name: Free disk space
         uses: jlumbroso/free-disk-space@main
         with:
           android: false
+          swap-storage: false
           dotnet: true
           haskell: true
           large-packages: true
           docker-images: true
-          swap-storage: true
 
       - uses: actions/setup-java@v4
         with:
@@ -72,11 +75,24 @@ jobs:
       - name: Pre-build the app (keeps Gradle off the emulator's CPU)
         run: flutter build apk --debug
 
+      # If the emulator misbehaves again, these two numbers are the first thing
+      # to look at — the last three failures were all resources, not code.
+      - name: Report free disk and memory
+        run: |
+          df -h /
+          free -h
+
       - name: Run app on emulator and capture
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          target: google_apis
+          # `default`, not `google_apis`: nothing we ship needs Play Services
+          # (flutter_local_notifications, local_auth and app_badge_plus are all
+          # plain framework/launcher APIs). The plain image is a couple of GB
+          # smaller and boots far less on startup, which is exactly what the
+          # last run ran out of — it reached "performing a full startup" and then
+          # sat in `adb: device offline` until the step gave up.
+          target: default
           arch: x86_64
           profile: pixel_6_pro
           disable-animations: true
