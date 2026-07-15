@@ -40,3 +40,6 @@ play-store-key.json
 # /linux/
 # /windows/
 # /web/
+
+# Executor worktrees created by the improve skill (disposable)
+.claude/worktrees/

@@ -14,9 +14,9 @@ and the lock you just shipped). 003 and 004 are lower urgency.
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
 | 001 | Cover the user-facing money math with tests | P1 | M | — | DONE (branch `advisor/001-test-money-math`, commit `9deeaf9`, awaiting merge) |
-| 002 | Stop the app lock leaking the balance in the app switcher | P1 | S | — | TODO |
-| 003 | Enforce foreign keys with deliberate delete semantics | P2 | M | — | TODO |
-| 004 | Design local backup & restore (spike) | P3 | L | — | TODO |
+| 002 | Stop the app lock leaking the balance in the app switcher | P1 | S | — | DONE (on main; needs on-device iOS verification) |
+| 003 | Enforce foreign keys with deliberate delete semantics | P2 | M | — | DONE (on main; schema v5, migration untested against a real v4 upgrade) |
+| 004 | Design local backup & restore (spike) | P3 | L | — | DONE (spike on main; POC + tests + design doc, no UI/deps) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale)
 

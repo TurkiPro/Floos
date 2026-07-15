@@ -421,7 +421,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -445,6 +445,23 @@ class AppDatabase extends _$AppDatabase {
           if (from < 4) {
             await _seedDefaultSubcategories();
           }
+          // v5 turns on foreign-key enforcement and adds ON DELETE SET NULL to
+          // transactions.recurrenceId. SQLite bakes the delete action into the
+          // table definition, so rebuild Transactions from its current Dart
+          // shape. First null out any recurrenceId already pointing at a
+          // deleted rule, or FK enforcement would reject the rebuilt table.
+          if (from < 5) {
+            await customStatement(
+              'UPDATE transactions SET recurrence_id = NULL '
+              'WHERE recurrence_id IS NOT NULL '
+              'AND recurrence_id NOT IN (SELECT id FROM recurrence_rules)',
+            );
+            await m.alterTable(TableMigration(transactions));
+          }
+        },
+        beforeOpen: (details) async {
+          // SQLite ignores foreign keys unless this is set per connection.
+          await customStatement('PRAGMA foreign_keys = ON');
         },
       );
 

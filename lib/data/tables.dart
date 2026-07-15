@@ -51,9 +51,12 @@ class Transactions extends Table {
   IntColumn get type => intEnum<TxnType>()();
   DateTimeColumn get date => dateTime()();
   TextColumn get note => text().nullable()();
-  // Non-null => this row was generated from a recurrence rule.
-  IntColumn get recurrenceId =>
-      integer().nullable().references(RecurrenceRules, #id)();
+  // Non-null => this row was generated from a recurrence rule. ON DELETE SET
+  // NULL: deleting a rule keeps its already-generated transactions (real money
+  // that changed hands) but drops the now-dangling link.
+  IntColumn get recurrenceId => integer()
+      .nullable()
+      .references(RecurrenceRules, #id, onDelete: KeyAction.setNull)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 

@@ -63,6 +63,11 @@ class _LockGate extends StatefulWidget {
 class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
   bool _unlocked = false;
   bool _authenticating = false;
+  // Covers the screen the instant the app stops being frontmost, so the
+  // OS app-switcher snapshot (taken on `inactive`, before `paused`) and the
+  // transient inactive overlays (Control Centre, an incoming call) can't
+  // capture the balance. Only engaged when the lock is on.
+  bool _obscured = false;
 
   @override
   void initState() {
@@ -79,12 +84,24 @@ class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
-      if (context.read<AppSettings>().appLockEnabled && mounted) {
-        setState(() => _unlocked = false);
-      }
-    } else if (state == AppLifecycleState.resumed) {
-      _maybeAuthenticate();
+    final lockOn = context.read<AppSettings>().appLockEnabled;
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+        if (lockOn && mounted) {
+          setState(() {
+            _obscured = true;
+            _unlocked = false;
+          });
+        }
+        break;
+      case AppLifecycleState.resumed:
+        if (mounted) setState(() => _obscured = false);
+        _maybeAuthenticate();
+        break;
+      case AppLifecycleState.detached:
+        break;
     }
   }
 
@@ -99,7 +116,20 @@ class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final locked = context.watch<AppSettings>().appLockEnabled && !_unlocked;
+    final lockOn = context.watch<AppSettings>().appLockEnabled;
+
+    // While backgrounded/inactive with the lock on, show an opaque cover with
+    // no data and no button — this is what the app-switcher snapshots.
+    if (lockOn && _obscured) {
+      final scheme = Theme.of(context).colorScheme;
+      return Scaffold(
+        body: Center(
+          child: Icon(Icons.lock_outline, size: 56, color: scheme.primary),
+        ),
+      );
+    }
+
+    final locked = lockOn && !_unlocked;
     if (!locked) return widget.child;
 
     final scheme = Theme.of(context).colorScheme;
