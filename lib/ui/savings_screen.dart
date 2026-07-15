@@ -58,13 +58,21 @@ class SavingsScreen extends StatelessWidget {
               final contributions =
                   contribSnapshot.data ?? const <SavingsContribution>[];
               final scheme = Theme.of(context).colorScheme;
+              // A goal's balance is always the sum of its contributions. We
+              // already hold every contribution here, so fold the per-goal
+              // totals once rather than opening a SUM stream per goal.
+              final totalByGoal = <int, double>{};
+              for (final c in contributions) {
+                totalByGoal[c.goalId] = (totalByGoal[c.goalId] ?? 0) + c.amount;
+              }
               return ListView(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 children: [
                   for (final g in goals)
                     Padding(
                       padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: _GoalCard(db: db, goal: g),
+                      child: _GoalCard(
+                          db: db, goal: g, total: totalByGoal[g.id] ?? 0),
                     ),
                   if (contributions.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.sm),
@@ -172,115 +180,109 @@ class _DepositRow extends StatelessWidget {
 class _GoalCard extends StatelessWidget {
   final AppDatabase db;
   final SavingsGoal goal;
-  const _GoalCard({required this.db, required this.goal});
+
+  /// Summed once by the parent from the shared contributions stream — a goal's
+  /// balance is always SUM(contributions), never a stored field.
+  final double total;
+  const _GoalCard({required this.db, required this.goal, required this.total});
 
   @override
   Widget build(BuildContext context) {
     final money = NumberFormat('#,##0.00');
     final scheme = Theme.of(context).colorScheme;
+    final ratio = goal.targetAmount > 0
+        ? (total / goal.targetAmount).clamp(0.0, 1.0)
+        : 0.0;
 
-    return StreamBuilder<double>(
-      // The only source for a goal's balance -- always SUM(contributions),
-      // never a stored field.
-      stream: db.savingsDao.watchTotal(goal.id),
-      builder: (context, snapshot) {
-        final total = snapshot.data ?? 0.0;
-        final ratio = goal.targetAmount > 0
-            ? (total / goal.targetAmount).clamp(0.0, 1.0)
-            : 0.0;
-
-        return Container(
-          decoration: BoxDecoration(
-            color: scheme.surface,
-            borderRadius: BorderRadius.circular(AppRadii.card),
-            boxShadow: const [AppShadows.card],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadii.card),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => GoalDetailScreen(goal: goal)),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        boxShadow: const [AppShadows.card],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => GoalDetailScreen(goal: goal)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              goal.name,
-                              style: const TextStyle(
-                                  fontSize: AppTextSizes.row,
-                                  fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: 'إضافة إيداع',
-                            icon: Icon(Icons.add_circle_outline,
-                                color: scheme.primary),
-                            onPressed: () => showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              builder: (_) =>
-                                  AddContributionSheet(db: db, goalId: goal.id),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        // RTL note: a bare "X / Y" with two adjacent LTR
-                        // number runs gets visually reordered by the bidi
-                        // algorithm inside RTL text (confirmed by manual
-                        // testing). Explicit RTL label words anchor each
-                        // number to its own context and keep the reading
-                        // order unambiguous.
-                        'الحالي ${money.format(total)} ر.س  •  الهدف ${money.format(goal.targetAmount)} ر.س',
-                        style: TextStyle(
-                            fontSize: AppTextSizes.label,
-                            color: scheme.onSurfaceVariant),
-                      ),
-                      if (goal.targetDate != null)
-                        Text(
-                          'بحلول: ${DateFormat('yyyy-MM-dd').format(goal.targetDate!)}',
-                          style: TextStyle(
-                              fontSize: AppTextSizes.label,
-                              color: scheme.onSurfaceVariant),
+                      Expanded(
+                        child: Text(
+                          goal.name,
+                          style: const TextStyle(
+                              fontSize: AppTextSizes.row,
+                              fontWeight: FontWeight.w600),
                         ),
-                      if (_monthlyLabel(goal, total, money) != null)
-                        Text(
-                          _monthlyLabel(goal, total, money)!,
-                          style: TextStyle(
-                            fontSize: AppTextSizes.label,
-                            fontWeight: FontWeight.w600,
-                            color: scheme.primary,
-                          ),
-                        ),
-                      const SizedBox(height: AppSpacing.sm),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(AppRadii.chip),
-                        child: LinearProgressIndicator(
-                          value: ratio.toDouble(),
-                          minHeight: 6,
-                          backgroundColor:
-                              scheme.onSurfaceVariant.withValues(alpha: 0.15),
-                          valueColor: AlwaysStoppedAnimation(Theme.of(context)
-                              .extension<AccentPalette>()!
-                              .progress),
+                      ),
+                      IconButton(
+                        tooltip: 'إضافة إيداع',
+                        icon: Icon(Icons.add_circle_outline,
+                            color: scheme.primary),
+                        onPressed: () => showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          builder: (_) =>
+                              AddContributionSheet(db: db, goalId: goal.id),
                         ),
                       ),
                     ],
                   ),
-                ),
+                  Text(
+                    // RTL note: a bare "X / Y" with two adjacent LTR
+                    // number runs gets visually reordered by the bidi
+                    // algorithm inside RTL text (confirmed by manual
+                    // testing). Explicit RTL label words anchor each
+                    // number to its own context and keep the reading
+                    // order unambiguous.
+                    'الحالي ${money.format(total)} ر.س  •  الهدف ${money.format(goal.targetAmount)} ر.س',
+                    style: TextStyle(
+                        fontSize: AppTextSizes.label,
+                        color: scheme.onSurfaceVariant),
+                  ),
+                  if (goal.targetDate != null)
+                    Text(
+                      'بحلول: ${DateFormat('yyyy-MM-dd').format(goal.targetDate!)}',
+                      style: TextStyle(
+                          fontSize: AppTextSizes.label,
+                          color: scheme.onSurfaceVariant),
+                    ),
+                  if (_monthlyLabel(goal, total, money) != null)
+                    Text(
+                      _monthlyLabel(goal, total, money)!,
+                      style: TextStyle(
+                        fontSize: AppTextSizes.label,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.primary,
+                      ),
+                    ),
+                  const SizedBox(height: AppSpacing.sm),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadii.chip),
+                    child: LinearProgressIndicator(
+                      value: ratio.toDouble(),
+                      minHeight: 6,
+                      backgroundColor:
+                          scheme.onSurfaceVariant.withValues(alpha: 0.15),
+                      valueColor: AlwaysStoppedAnimation(Theme.of(context)
+                          .extension<AccentPalette>()!
+                          .progress),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 

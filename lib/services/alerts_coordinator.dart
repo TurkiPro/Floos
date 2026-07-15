@@ -2,6 +2,7 @@ import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
 import '../domain/recurrence_math.dart';
+import '../domain/spending_window.dart';
 import 'badge_service.dart';
 import 'notification_service.dart';
 
@@ -68,7 +69,7 @@ Future<DateTime?> _nextSalaryDate(AppDatabase db, DateTime now) async {
 Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
   final rows = await db.transactionDao.watchAllWithCategory().first;
   final today = DateTime(now.year, now.month, now.day);
-  final windowStart = today.subtract(const Duration(days: 84)); // 12 weeks
+  final windowStart = today.subtract(const Duration(days: spendingWindowDays));
   // Weeks here start on Saturday.
   final daysSinceSaturday = (today.weekday + 1) % 7;
   final weekStart = today.subtract(Duration(days: daysSinceSaturday));
@@ -94,10 +95,12 @@ Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
     }
   }
 
-  final windowDays =
-      earliest == null ? 1 : today.difference(earliest).inDays + 1;
-  final weeks = (windowDays / 7).clamp(1.0, 12.0);
-  final recommended = essentialWindow / weeks + (luxuryWindow / weeks) * 0.85;
+  final window = weeklySpend(
+    essentialWindow: essentialWindow,
+    luxuryWindow: luxuryWindow,
+    earliestInWindow: earliest,
+    today: today,
+  );
 
-  return WeeklyBudget(recommended, spentThisWeek);
+  return WeeklyBudget(window.recommended, spentThisWeek);
 }

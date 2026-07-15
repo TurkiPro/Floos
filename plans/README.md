@@ -6,30 +6,38 @@ read the plan fully before starting, honour its STOP conditions, and update your
 row when done.
 
 The codebase is in good shape — these are targeted improvements, not a rescue.
-001 and 002 are the high-leverage, low-risk pair (they protect the money math
-and the lock you just shipped). 003 and 004 are lower urgency.
+Plans 001–004 (batch 1, standard audit) are DONE and on main. Plans 005–008
+(batch 2, deep audit at commit `8edb242`) are the current backlog: 005 de-risks
+the migration that 003 just shipped, 006+007 finish the "extract & test the
+money math" work that 001 started (statistics this time) and remove a duplicated
+formula, and 008 is a small perf cleanup.
 
 ## Execution order & status
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 001 | Cover the user-facing money math with tests | P1 | M | — | DONE (branch `advisor/001-test-money-math`, commit `9deeaf9`, awaiting merge) |
+| 001 | Cover the user-facing money math with tests | P1 | M | — | DONE (on main, commit `9deeaf9`) |
 | 002 | Stop the app lock leaking the balance in the app switcher | P1 | S | — | DONE (on main; needs on-device iOS verification) |
-| 003 | Enforce foreign keys with deliberate delete semantics | P2 | M | — | DONE (on main; schema v5, migration untested against a real v4 upgrade) |
+| 003 | Enforce foreign keys with deliberate delete semantics | P2 | M | — | DONE (on main; schema v5 — see 005 for its test) |
 | 004 | Design local backup & restore (spike) | P3 | L | — | DONE (spike on main; POC + tests + design doc, no UI/deps) |
+| 005 | Test the v4→v5 database migration | P1 | L | — | TODO |
+| 006 | Extract and test the statistics money math | P2 | M | — | TODO |
+| 007 | Consolidate the duplicated weekly-budget formula | P2 | M | 006 | TODO |
+| 008 | Compute savings totals in one pass, not one query per goal | P3 | S | — | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale)
 
 ## Dependency notes
 
-- No hard dependencies between plans — each is independently executable.
-- Soft ordering: do **001 first**. It establishes tests around the money math,
-  so the later changes have a richer safety net.
-- **003 before 004's build phase**: once FK enforcement is on (003), the
-  restore path in the backup design (004) must insert in FK-safe order. 004 is a
-  design spike and calls this out; it doesn't block on 003 to *start*.
-- 002 is fully independent and the smallest — a good first merge if you want a
-  quick win.
+- **005 first among the new batch.** It tests the v4→v5 migration that already
+  shipped in 003 — the highest-risk unproven code in the repo (runs against real
+  user data on upgrade, no backup).
+- **007 depends on 006.** 007 factors out the weekly-budget formula shared by
+  `computeWeeklyBudget` and the statistics summary; it needs 006 to have
+  extracted `StatisticsSummary` into `lib/domain/` first.
+- 006 and 008 are otherwise independent. 008 is the smallest (a rendering
+  cleanup) if you want a quick one.
+- Batch 1 (001–004) has no remaining dependencies — all merged.
 
 ## Findings considered and rejected
 
@@ -45,6 +53,13 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED 
 - **Stale comment** at `pubspec.yaml:40` ("Confirmation chime") referencing the
   removed audioplayers dependency: trivial doc nit, not worth a plan — fix it
   opportunistically next time that file is touched.
+- **Async-gap `BuildContext` misuse** (a common Flutter bug class): checked the
+  write paths (`add_transaction_sheet`, `settings_screen`) — they correctly
+  guard with `if (!mounted) return;` / `if (context.mounted)` after every await.
+  Not a finding.
+- **`_monthlyLabel` computed twice per build** and **unbounded growth of
+  `_skippedDeposits` in prefs** (`savings_screen`, `app_settings`): trivial;
+  not worth a plan.
 
 ## Notes for the maintainer
 
@@ -52,5 +67,15 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED 
   snapshot behaviour can't be reproduced in CI or on Windows. The plan makes
   this its acceptance test; don't mark it DONE on green CI alone.
 - **003 touches a schema migration**, which runs against real user databases on
-  upgrade with no server backup. Review that plan's migration branch with extra
-  care and consider a drift schema-migration test as follow-up.
+  upgrade with no server backup. **Plan 005 is that migration test** — treat it
+  as the highest-priority item in the current backlog; the migration is live but
+  unproven against a real v4 database until 005 lands.
+- **Deep-audit coverage (batch 2)**: covered the data layer, domain, services,
+  `app`/`main`, `app_settings`, and the statistics/settings/savings screens.
+  Not read line-by-line (mostly presentational, low risk): the smaller UI
+  screens (behavior, months, month_detail, goal_detail, income, recurring,
+  category_editor), the add-sheets beyond `add_transaction`, the shared widgets,
+  `icon_registry`, `tokens`, `calendar_format`.
+- **Direction not yet planned**: user-set budgets (a target to measure the
+  computed recommendation against) — the `StatisticsSummary` scaffolding is one
+  step from it. Run `/improve next` if you want that scoped into a spike.
