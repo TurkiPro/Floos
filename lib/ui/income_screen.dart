@@ -31,6 +31,7 @@ class IncomeScreen extends StatelessWidget {
         onPressed: () => showModalBottomSheet(
           context: context,
           isScrollControlled: true,
+          useSafeArea: true,
           builder: (_) => AddIncomeSheet(db: db),
         ),
         icon: const Icon(Icons.add),
@@ -70,6 +71,7 @@ class IncomeScreen extends StatelessWidget {
                         onTap: () => showModalBottomSheet(
                           context: context,
                           isScrollControlled: true,
+                          useSafeArea: true,
                           builder: (_) =>
                               AddRecurrenceSheet(db: db, existingRule: r),
                         ),

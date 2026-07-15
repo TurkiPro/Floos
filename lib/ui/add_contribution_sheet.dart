@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../data/database.dart';
 import 'theme/tokens.dart';
+import 'widgets/picker_field.dart';
 
 /// Add a deposit to a savings goal. When [goalId] is null the sheet shows a
 /// goal picker (used from the savings screen's general "إيداع" action);
@@ -85,15 +86,11 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
                       child: Text('لا توجد أهداف ادخار بعد'),
                     );
                   }
-                  return DropdownButtonFormField<int>(
-                    initialValue: _goalId,
-                    decoration: const InputDecoration(
-                      labelText: 'الهدف',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: [
-                      for (final g in goals)
-                        DropdownMenuItem(value: g.id, child: Text(g.name)),
+                  return PickerField<int>(
+                    label: 'الهدف',
+                    value: _goalId,
+                    options: [
+                      for (final g in goals) PickerOption(g.id, g.name),
                     ],
                     onChanged: (v) => setState(() => _goalId = v),
                   );

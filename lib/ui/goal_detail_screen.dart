@@ -22,6 +22,7 @@ class GoalDetailScreen extends StatelessWidget {
         onPressed: () => showModalBottomSheet(
           context: context,
           isScrollControlled: true,
+          useSafeArea: true,
           builder: (_) => AddContributionSheet(db: db, goalId: goal.id),
         ),
         icon: const Icon(Icons.add),

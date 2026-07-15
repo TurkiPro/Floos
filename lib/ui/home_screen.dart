@@ -90,6 +90,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 onPressed: () => showModalBottomSheet(
                   context: context,
                   isScrollControlled: true,
+                  useSafeArea: true,
                   builder: (_) => AddTransactionSheet(db: db),
                 ),
                 icon: const Icon(Icons.add),

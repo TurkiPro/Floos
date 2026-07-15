@@ -30,6 +30,7 @@ class SavingsScreen extends StatelessWidget {
             onPressed: () => showModalBottomSheet(
               context: context,
               isScrollControlled: true,
+              useSafeArea: true,
               builder: (_) => AddContributionSheet(db: db),
             ),
           ),
@@ -39,6 +40,7 @@ class SavingsScreen extends StatelessWidget {
         onPressed: () => showModalBottomSheet(
           context: context,
           isScrollControlled: true,
+          useSafeArea: true,
           builder: (_) => AddGoalSheet(db: db),
         ),
         icon: const Icon(Icons.add),
@@ -230,6 +232,7 @@ class _GoalCard extends StatelessWidget {
                         onPressed: () => showModalBottomSheet(
                           context: context,
                           isScrollControlled: true,
+                          useSafeArea: true,
                           builder: (_) =>
                               AddContributionSheet(db: db, goalId: goal.id),
                         ),

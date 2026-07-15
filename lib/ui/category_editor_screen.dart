@@ -49,6 +49,7 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (_) => AddCategorySheet(
         db: db,
         existingCategory: existing,

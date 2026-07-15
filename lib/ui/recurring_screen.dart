@@ -41,6 +41,7 @@ class ObligationsScreen extends StatelessWidget {
         onPressed: () => showModalBottomSheet(
           context: context,
           isScrollControlled: true,
+          useSafeArea: true,
           builder: (_) =>
               AddRecurrenceSheet(db: db, lockedType: TxnType.expense),
         ),
@@ -90,6 +91,7 @@ class ObligationsScreen extends StatelessWidget {
                   onTap: () => showModalBottomSheet(
                     context: context,
                     isScrollControlled: true,
+                    useSafeArea: true,
                     builder: (_) => AddRecurrenceSheet(db: db, existingRule: r),
                   ),
                   leading: Container(

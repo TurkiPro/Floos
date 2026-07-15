@@ -8,6 +8,7 @@ import '../domain/recurrence_math.dart' show dateOnly;
 import 'recurring_screen.dart' show frequencyLabelAr;
 import 'theme/tokens.dart';
 import 'widgets/category_picker.dart';
+import 'widgets/picker_field.dart';
 
 class AddRecurrenceSheet extends StatefulWidget {
   final AppDatabase db;
@@ -205,20 +206,13 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
             Row(
               children: [
                 Expanded(
-                  child: DropdownButtonFormField<Frequency>(
-                    initialValue: _frequency,
-                    decoration: const InputDecoration(
-                      labelText: 'التكرار',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: Frequency.values
-                        .map((f) => DropdownMenuItem(
-                              value: f,
-                              child: Text(frequencyLabelAr(f)),
-                            ))
+                  child: PickerField<Frequency>(
+                    label: 'التكرار',
+                    value: _frequency,
+                    options: Frequency.values
+                        .map((f) => PickerOption(f, frequencyLabelAr(f)))
                         .toList(),
-                    onChanged: (f) =>
-                        setState(() => _frequency = f ?? _frequency),
+                    onChanged: (f) => setState(() => _frequency = f),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
