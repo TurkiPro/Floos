@@ -6,6 +6,7 @@ import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
 import '../domain/calendar_format.dart';
+import '../domain/dashboard_summary.dart';
 import '../domain/date_grouping.dart';
 import '../domain/recurrence_engine.dart';
 import '../domain/recurrence_math.dart';
@@ -136,7 +137,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       builder: (context, goalsSnapshot) {
                         final goals =
                             goalsSnapshot.data ?? const <SavingsGoal>[];
-                        final data = _Dashboard.from(rows, contributions);
+                        final data = DashboardSummary.from(
+                            rows, contributions, DateTime.now());
                         return _DashboardBody(
                           data: data,
                           money: money,
@@ -380,75 +382,6 @@ class _CircleButton extends StatelessWidget {
   }
 }
 
-/// Everything the home dashboard shows, computed once from the two streams.
-/// [balance] is money neither spent nor set aside: all income − all expenses
-/// − all savings. The monthly figures split this month's income into what's
-/// left, what was spent, and what was saved.
-class _Dashboard {
-  final double balance;
-  final double savingsTotal;
-  final double monthRemaining;
-  final double monthSpent;
-  final double monthSaved;
-  final List<TxnRow> monthExpenses;
-  // Whether any income landed this month -- the trigger for the savings prompt.
-  final bool incomeReceivedThisMonth;
-
-  const _Dashboard({
-    required this.balance,
-    required this.savingsTotal,
-    required this.monthRemaining,
-    required this.monthSpent,
-    required this.monthSaved,
-    required this.monthExpenses,
-    required this.incomeReceivedThisMonth,
-  });
-
-  static _Dashboard from(
-    List<TxnRow> rows,
-    List<SavingsContribution> contributions,
-  ) {
-    final now = DateTime.now();
-    bool inMonth(DateTime d) => d.year == now.year && d.month == now.month;
-
-    double allIncome = 0, allExpense = 0, monthIncome = 0, monthSpent = 0;
-    var incomeThisMonth = false;
-    final monthExpenses = <TxnRow>[];
-    for (final r in rows) {
-      final amount = r.txn.amount;
-      if (r.txn.type == TxnType.income) {
-        allIncome += amount;
-        if (inMonth(r.txn.date)) {
-          monthIncome += amount;
-          incomeThisMonth = true;
-        }
-      } else {
-        allExpense += amount;
-        if (inMonth(r.txn.date)) {
-          monthSpent += amount;
-          monthExpenses.add(r);
-        }
-      }
-    }
-
-    double allSaved = 0, monthSaved = 0;
-    for (final c in contributions) {
-      allSaved += c.amount;
-      if (inMonth(c.date)) monthSaved += c.amount;
-    }
-
-    return _Dashboard(
-      balance: allIncome - allExpense - allSaved,
-      savingsTotal: allSaved,
-      monthRemaining: monthIncome - monthSpent - monthSaved,
-      monthSpent: monthSpent,
-      monthSaved: monthSaved,
-      monthExpenses: monthExpenses,
-      incomeReceivedThisMonth: incomeThisMonth,
-    );
-  }
-}
-
 /// A goal that still needs this month's deposit, with the recomputed amount.
 class _PendingDeposit {
   final SavingsGoal goal;
@@ -457,7 +390,7 @@ class _PendingDeposit {
 }
 
 class _DashboardBody extends StatelessWidget {
-  final _Dashboard data;
+  final DashboardSummary data;
   final NumberFormat money;
   final List<SavingsGoal> goals;
   final List<SavingsContribution> contributions;
@@ -679,7 +612,7 @@ class _TopCard extends StatelessWidget {
 
 /// This month's split of income: what's left, what was spent, what was saved.
 class _MonthStatsCard extends StatelessWidget {
-  final _Dashboard data;
+  final DashboardSummary data;
   final NumberFormat money;
   const _MonthStatsCard({required this.data, required this.money});
 
