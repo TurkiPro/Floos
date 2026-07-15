@@ -145,6 +145,27 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
     if (mounted) Navigator.of(context).pop();
   }
 
+  /// A plain-Arabic sentence describing the schedule, so the numeric "كل"
+  /// field can't be mistaken for a day-of-month. For monthly/yearly it also
+  /// spells out which day the day-of-month is taken from (the start date).
+  String _scheduleSummary() {
+    final n = int.tryParse(_intervalCtrl.text) ?? 1;
+    final every = n > 1 ? 'كل $n ' : 'كل ';
+    final unit = switch (_frequency) {
+      Frequency.daily => n > 1 ? 'أيام' : 'يوم',
+      Frequency.weekly => n > 1 ? 'أسابيع' : 'أسبوع',
+      Frequency.monthly => n > 1 ? 'أشهر' : 'شهر',
+      Frequency.yearly => n > 1 ? 'سنوات' : 'سنة',
+    };
+    final buf = StringBuffer('يتكرر $every$unit');
+    if (_frequency == Frequency.monthly) {
+      buf.write('، يوم ${_startDate.day} من الشهر');
+    } else if (_frequency == Frequency.yearly) {
+      buf.write('، ${_startDate.day}/${_startDate.month}');
+    }
+    return buf.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     final fmt = DateFormat('yyyy-MM-dd');
@@ -221,6 +242,7 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
                   child: TextField(
                     controller: _intervalCtrl,
                     keyboardType: TextInputType.number,
+                    onChanged: (_) => setState(() {}),
                     decoration: const InputDecoration(
                       labelText: 'كل',
                       border: OutlineInputBorder(),
@@ -228,6 +250,16 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            // Plain-Arabic summary so "كل" reads as an interval (every N months),
+            // not a day-of-month — the day comes from the start date.
+            Text(
+              _scheduleSummary(),
+              style: TextStyle(
+                fontSize: AppTextSizes.label,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
             Row(
@@ -247,6 +279,21 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
                 ),
               ],
             ),
+            // Creating a rule with a past start date backfills the missed
+            // occurrences on save (the engine catches up from the start date),
+            // so make that discoverable instead of surprising.
+            if (!_isEditing &&
+                dateOnly(_startDate).isBefore(dateOnly(DateTime.now())))
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
+                child: Text(
+                  'تاريخ البدء في الماضي — سيتم تسجيل الحركات الفائتة عند الحفظ.',
+                  style: TextStyle(
+                    fontSize: AppTextSizes.label,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
             Row(
               children: [
                 Expanded(
