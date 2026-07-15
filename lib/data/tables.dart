@@ -60,6 +60,18 @@ class Transactions extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
+/// A user-set monthly spending budget for one top-level category. At most one
+/// row per category (enforced in the DAO by upserting). The "spent" side is
+/// never stored — it's summed live from this month's transactions, same
+/// ledger philosophy as savings.
+@DataClassName('CategoryBudget')
+class CategoryBudgets extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get categoryId =>
+      integer().references(Categories, #id, onDelete: KeyAction.cascade)();
+  RealColumn get amount => real()(); // monthly limit
+}
+
 /// Savings goal. The current balance is NOT stored here — it is summed from the
 /// contributions ledger below. A stored balance is what drifts out of sync and
 /// makes "savings" feel buggy.

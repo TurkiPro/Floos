@@ -20,10 +20,11 @@ formula, and 008 is a small perf cleanup.
 | 002 | Stop the app lock leaking the balance in the app switcher | P1 | S | — | DONE (on main; needs on-device iOS verification) |
 | 003 | Enforce foreign keys with deliberate delete semantics | P2 | M | — | DONE (on main; schema v5 — see 005 for its test) |
 | 004 | Design local backup & restore (spike) | P3 | L | — | DONE (spike on main; POC + tests + design doc, no UI/deps) |
-| 005 | Test the v4→v5 database migration | P1 | L | — | TODO |
-| 006 | Extract and test the statistics money math | P2 | M | — | TODO |
-| 007 | Consolidate the duplicated weekly-budget formula | P2 | M | 006 | TODO |
-| 008 | Compute savings totals in one pass, not one query per goal | P3 | S | — | TODO |
+| 005 | Test the v4→v5 database migration | P1 | L | — | DONE (on main; extended to a full v4→v6 test — `test/migration_v4_to_v6_test.dart`) |
+| 006 | Extract and test the statistics money math | P2 | M | — | DONE (on main, commit `ea2b1a8`) |
+| 007 | Consolidate the duplicated weekly-budget formula | P2 | M | 006 | DONE (on main; `lib/domain/spending_window.dart`) |
+| 008 | Compute savings totals in one pass, not one query per goal | P3 | S | — | DONE (on main, commit `ea2b1a8`) |
+| — | **Feature: user-set category budgets** (direction) | — | M | — | DONE (on main; schema v6, `BudgetsScreen`, `budget_progress` + tests) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale)
 

@@ -18,6 +18,7 @@ Future<void> seedDummyData(AppDatabase db) async {
   await db.transactionDao.clearAll();
   await db.recurrenceDao.clearAll();
   await db.savingsDao.clearAll();
+  await db.budgetDao.clearAll();
 
   final cats = await db.categoryDao.getAll();
   final expenseCats = cats
@@ -135,5 +136,12 @@ Future<void> seedDummyData(AppDatabase db) async {
         note: 'إيداع شهري',
       );
     }
+  }
+
+  // A few monthly budgets so the budgets screen isn't empty in the demo.
+  const budgetByIcon = {'food': 2500.0, 'transport': 800.0, 'bills': 1500.0};
+  for (final cat in expenseCats) {
+    final amount = budgetByIcon[cat.iconKey];
+    if (amount != null) await db.budgetDao.setBudget(cat.id, amount);
   }
 }

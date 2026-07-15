@@ -9,6 +9,7 @@ import '../data/export.dart';
 import '../services/alerts_coordinator.dart';
 import '../services/app_lock_service.dart';
 import '../services/notification_service.dart';
+import 'budgets_screen.dart';
 import 'category_editor_screen.dart';
 import 'months_screen.dart';
 import 'recurring_screen.dart';
@@ -67,6 +68,10 @@ class SettingsScreen extends StatelessWidget {
               icon: Icons.insights_outlined,
               label: 'الإحصائيات',
               onTap: () => _push(context, const StatisticsScreen())),
+          _navTile(context,
+              icon: Icons.account_balance_wallet_outlined,
+              label: 'الميزانيات',
+              onTap: () => _push(context, const BudgetsScreen())),
           _navTile(context,
               icon: Icons.event_repeat_outlined,
               label: 'الالتزامات الشهرية',
@@ -334,6 +339,7 @@ class SettingsScreen extends StatelessWidget {
       await db.transactionDao.clearAll();
       await db.savingsDao.clearAll();
       await db.recurrenceDao.clearAll();
+      await db.budgetDao.clearAll();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تم حذف كل البيانات')),

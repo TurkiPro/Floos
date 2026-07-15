@@ -406,6 +406,38 @@ class SavingsDao extends DatabaseAccessor<AppDatabase> with _$SavingsDaoMixin {
   }
 }
 
+@DriftAccessor(tables: [CategoryBudgets])
+class BudgetDao extends DatabaseAccessor<AppDatabase> with _$BudgetDaoMixin {
+  BudgetDao(super.db);
+
+  Stream<List<CategoryBudget>> watchAll() => select(categoryBudgets).watch();
+
+  Future<List<CategoryBudget>> getAll() => select(categoryBudgets).get();
+
+  /// Sets (or replaces) the monthly budget for a category. At most one row per
+  /// category: clear any existing then insert, so callers don't juggle ids.
+  Future<void> setBudget(int categoryId, double amount) async {
+    await transaction(() async {
+      await (delete(categoryBudgets)
+            ..where((b) => b.categoryId.equals(categoryId)))
+          .go();
+      await into(categoryBudgets).insert(CategoryBudgetsCompanion.insert(
+        categoryId: categoryId,
+        amount: amount,
+      ));
+    });
+  }
+
+  Future<void> removeBudget(int categoryId) {
+    return (delete(categoryBudgets)
+          ..where((b) => b.categoryId.equals(categoryId)))
+        .go();
+  }
+
+  /// Wipes all budgets -- used only by the dev data tools.
+  Future<void> clearAll() => delete(categoryBudgets).go();
+}
+
 @DriftDatabase(
   tables: [
     Categories,
@@ -413,15 +445,16 @@ class SavingsDao extends DatabaseAccessor<AppDatabase> with _$SavingsDaoMixin {
     RecurrenceRules,
     SavingsGoals,
     SavingsContributions,
+    CategoryBudgets,
   ],
-  daos: [CategoryDao, TransactionDao, RecurrenceDao, SavingsDao],
+  daos: [CategoryDao, TransactionDao, RecurrenceDao, SavingsDao, BudgetDao],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -457,6 +490,10 @@ class AppDatabase extends _$AppDatabase {
               'AND recurrence_id NOT IN (SELECT id FROM recurrence_rules)',
             );
             await m.alterTable(TableMigration(transactions));
+          }
+          // v6 adds user-set monthly budgets per category.
+          if (from < 6) {
+            await m.createTable(categoryBudgets);
           }
         },
         beforeOpen: (details) async {

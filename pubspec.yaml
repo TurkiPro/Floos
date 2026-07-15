@@ -59,6 +59,11 @@ dev_dependencies:
   flutter_lints: ^4.0.0
   flutter_launcher_icons: 0.14.1
 
+  # Used only by test/migration_v4_to_v6_test.dart to build a raw v4-schema
+  # database file (predating drift's current schema) and drive the real
+  # upgrade path. Already a transitive dependency of drift.
+  sqlite3: ^3.0.0
+
 # Generates the native Android/iOS launcher icons from the artwork in assets/.
 # Regenerate with: dart run flutter_launcher_icons
 #
