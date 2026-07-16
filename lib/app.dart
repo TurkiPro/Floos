@@ -37,8 +37,8 @@ class FloosApp extends StatelessWidget {
               GlobalWidgetsLocalizations.delegate,
               GlobalCupertinoLocalizations.delegate,
             ],
-            theme: _buildTheme(Brightness.light, s.accent),
-            darkTheme: _buildTheme(Brightness.dark, s.accent),
+            theme: _buildTheme(Brightness.light, s.accent, s.fontChoice),
+            darkTheme: _buildTheme(Brightness.dark, s.accent, s.fontChoice),
             themeMode: s.themeMode,
             // The gate must wrap the Navigator (via builder:), not the home
             // route — otherwise every pushed screen (Settings, Statistics, a
@@ -199,7 +199,7 @@ class _UnlockScreen extends StatelessWidget {
   }
 }
 
-ThemeData _buildTheme(Brightness brightness, AppAccent accent) {
+ThemeData _buildTheme(Brightness brightness, AppAccent accent, AppFont font) {
   final isLight = brightness == Brightness.light;
   return ThemeData(
     brightness: brightness,
@@ -210,7 +210,7 @@ ThemeData _buildTheme(Brightness brightness, AppAccent accent) {
     // Card/tile/button radii set once globally so individual screens don't
     // repeat AppRadii values per widget.
     extensions: [categoryTileColors, AccentPalette(progress: accent.progress)],
-    textTheme: _appTextTheme(brightness),
+    textTheme: _appTextTheme(brightness, font),
     cardTheme: CardThemeData(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -242,14 +242,14 @@ ThemeData _buildTheme(Brightness brightness, AppAccent accent) {
   );
 }
 
-/// IBM Plex Sans Arabic as the primary font, Tajawal as fallback. Both are
-/// bundled assets (see pubspec `fonts:`) — the app must never fetch fonts, or
-/// anything, at runtime. `apply` sets the family + fallback on every slot,
-/// exactly what the previous per-slot loop did.
-TextTheme _appTextTheme(Brightness brightness) {
+/// The user-selected [AppFont] as the primary family, its own fallbacks behind
+/// it. All are bundled assets (see pubspec `fonts:`) — the app must never fetch
+/// fonts, or anything, at runtime. `apply` sets the family + fallback on every
+/// text-theme slot at once.
+TextTheme _appTextTheme(Brightness brightness, AppFont font) {
   final base = ThemeData(brightness: brightness).textTheme;
   return base.apply(
-    fontFamily: 'IBM Plex Sans Arabic',
-    fontFamilyFallback: const ['Tajawal'],
+    fontFamily: font.family,
+    fontFamilyFallback: font.fallback,
   );
 }

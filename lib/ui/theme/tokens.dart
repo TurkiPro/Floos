@@ -71,6 +71,26 @@ class AppShadows {
 /// harmonious set rather than random hues. Each carries its own [onPrimary]
 /// so a light accent (baby pink) still gets legible text on filled surfaces,
 /// and a brighter [progress] shade for progress bars. [green] is the default.
+/// The bundled UI font. All are SIL OFL 1.1 and ship as assets — the app
+/// fetches nothing at runtime. IBM Plex Sans Arabic is the shipped default;
+/// Cairo and Readex Pro are offered so the user can pick the look they like.
+enum AppFont {
+  plexArabic('IBM Plex Sans Arabic', 'الافتراضي', ['Tajawal']),
+  cairo('Cairo', 'Cairo', ['IBM Plex Sans Arabic', 'Tajawal']),
+  readexPro('Readex Pro', 'Readex Pro', ['IBM Plex Sans Arabic', 'Tajawal']);
+
+  const AppFont(this.family, this.label, this.fallback);
+
+  /// The bundled family name — must match a `family:` in pubspec `fonts:`.
+  final String family;
+
+  /// Shown in the settings font picker.
+  final String label;
+
+  /// Families to fall back to for any glyph the primary lacks.
+  final List<String> fallback;
+}
+
 enum AppAccent {
   green('أخضر', Color(0xFF0F6E56), Colors.white, Color(0xFF1D9E75)),
   teal('فيروزي', Color(0xFF0E7C6E), Colors.white, Color(0xFF17A594)),

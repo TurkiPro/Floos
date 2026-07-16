@@ -39,10 +39,12 @@ class AppSettings extends ChangeNotifier {
   static const _kSoundEnabled = 'soundEnabled';
   static const _kAppLockEnabled = 'appLockEnabled';
   static const _kBadgeWeeklyBudget = 'badgeWeeklyBudget';
+  static const _kFont = 'font';
 
   final SharedPreferences _prefs;
   ThemeMode _themeMode;
   AppAccent _accent;
+  AppFont _font;
   // Keys of the form "goalId:YYYY-MM" the user dismissed on the income-day
   // savings prompt, so it doesn't nag again that month for that goal.
   final Set<String> _skippedDeposits;
@@ -81,10 +83,12 @@ class AppSettings extends ChangeNotifier {
         ),
         _soundEnabled = _prefs.getBool(_kSoundEnabled) ?? true,
         _appLockEnabled = _prefs.getBool(_kAppLockEnabled) ?? false,
-        _badgeWeeklyBudget = _prefs.getBool(_kBadgeWeeklyBudget) ?? false;
+        _badgeWeeklyBudget = _prefs.getBool(_kBadgeWeeklyBudget) ?? false,
+        _font = _readFont(_prefs);
 
   ThemeMode get themeMode => _themeMode;
   AppAccent get accent => _accent;
+  AppFont get fontChoice => _font;
   bool get notificationsEnabled => _notificationsEnabled;
   ReminderCadence get reminderCadence => _reminderCadence;
   TimeOfDay get reminderTime => _reminderTime;
@@ -124,6 +128,13 @@ class AppSettings extends ChangeNotifier {
     if (accent == _accent) return;
     _accent = accent;
     _prefs.setString(_kAccent, accent.name);
+    notifyListeners();
+  }
+
+  void setFontChoice(AppFont font) {
+    if (font == _font) return;
+    _font = font;
+    _prefs.setString(_kFont, font.name);
     notifyListeners();
   }
 
@@ -202,6 +213,14 @@ class AppSettings extends ChangeNotifier {
     return AppAccent.values.firstWhere(
       (a) => a.name == name,
       orElse: () => AppAccent.green,
+    );
+  }
+
+  static AppFont _readFont(SharedPreferences prefs) {
+    final name = prefs.getString(_kFont);
+    return AppFont.values.firstWhere(
+      (f) => f.name == name,
+      orElse: () => AppFont.plexArabic,
     );
   }
 }

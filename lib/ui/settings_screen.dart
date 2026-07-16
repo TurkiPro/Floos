@@ -117,6 +117,20 @@ class SettingsScreen extends StatelessWidget {
             selected: {settings.themeMode},
             onSelectionChanged: (s) => settings.setThemeMode(s.first),
           ),
+          const SizedBox(height: AppSpacing.lg),
+          _sectionLabel(context, 'الخط'),
+          Wrap(
+            spacing: AppSpacing.sm,
+            children: [
+              for (final f in AppFont.values)
+                ChoiceChip(
+                  label: Text(f.label,
+                      style: TextStyle(fontFamily: f.family)),
+                  selected: settings.fontChoice == f,
+                  onSelected: (_) => settings.setFontChoice(f),
+                ),
+            ],
+          ),
           const SizedBox(height: AppSpacing.xl),
           _sectionLabel(context, 'لون التمييز'),
           const SizedBox(height: AppSpacing.sm),
