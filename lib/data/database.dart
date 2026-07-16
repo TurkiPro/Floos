@@ -571,6 +571,34 @@ class BudgetDao extends DatabaseAccessor<AppDatabase> with _$BudgetDaoMixin {
   Future<void> clearAll() => delete(categoryBudgets).go();
 }
 
+@DriftAccessor(tables: [WeeklyReflections])
+class WeeklyReflectionDao extends DatabaseAccessor<AppDatabase>
+    with _$WeeklyReflectionDaoMixin {
+  WeeklyReflectionDao(super.db);
+
+  Stream<List<WeeklyReflection>> watchAll() =>
+      select(weeklyReflections).watch();
+
+  /// Sets (or clears) the note for a week. At most one row per week: clear any
+  /// existing then insert, so callers don't juggle ids. An empty note deletes.
+  Future<void> setNote(DateTime weekStart, String note) async {
+    await transaction(() async {
+      await (delete(weeklyReflections)
+            ..where((w) => w.weekStart.equals(weekStart)))
+          .go();
+      final trimmed = note.trim();
+      if (trimmed.isNotEmpty) {
+        await into(weeklyReflections).insert(WeeklyReflectionsCompanion.insert(
+          weekStart: weekStart,
+          note: trimmed,
+        ));
+      }
+    });
+  }
+
+  Future<void> clearAll() => delete(weeklyReflections).go();
+}
+
 @DriftDatabase(
   tables: [
     Categories,
@@ -579,15 +607,23 @@ class BudgetDao extends DatabaseAccessor<AppDatabase> with _$BudgetDaoMixin {
     SavingsGoals,
     SavingsContributions,
     CategoryBudgets,
+    WeeklyReflections,
   ],
-  daos: [CategoryDao, TransactionDao, RecurrenceDao, SavingsDao, BudgetDao],
+  daos: [
+    CategoryDao,
+    TransactionDao,
+    RecurrenceDao,
+    SavingsDao,
+    BudgetDao,
+    WeeklyReflectionDao,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -652,6 +688,11 @@ class AppDatabase extends _$AppDatabase {
               'WHERE recurrence_rules.id = transactions.recurrence_id) '
               "WHERE recurrence_id IS NOT NULL AND (note IS NULL OR note = '')",
             );
+          }
+          // v10 adds the per-week reflection notes for the weekly performance
+          // view.
+          if (from < 10) {
+            await m.createTable(weeklyReflections);
           }
         },
         beforeOpen: (details) async {

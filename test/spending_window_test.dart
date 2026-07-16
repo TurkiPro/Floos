@@ -61,18 +61,19 @@ void main() {
   });
 
   group('adaptiveWeeklyBudget', () {
-    // now = Wed 2026-07-15, weekStart = Sat 2026-07-11.
-    // July Saturdays: 4, 11, 18, 25 => weeksElapsed = 1 (the 4th), weeksLeft = 3
-    // (this week + the 18th + the 25th).
+    // A 4-week cycle (8 July – 5 Aug) with now one whole week in => weeksElapsed
+    // = 1, weeksLeft = 3 (this week + two more).
+    final periodStart = DateTime(2026, 7, 8);
+    final periodEnd = DateTime(2026, 8, 5);
     final now = DateTime(2026, 7, 15);
-    final weekStart = DateTime(2026, 7, 11);
 
     double adaptive(double recommended, double spentBefore) =>
         adaptiveWeeklyBudget(
           recommended: recommended,
           spentBeforeThisWeek: spentBefore,
+          periodStart: periodStart,
+          periodEnd: periodEnd,
           now: now,
-          weekStart: weekStart,
         );
 
     test('returns the baseline when prior spend matches it exactly', () {

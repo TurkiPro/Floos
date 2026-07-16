@@ -92,6 +92,17 @@ class SavingsGoals extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
+/// One free-text reflection the user wrote about a given week's budget outcome
+/// (why they stayed on track, or why they overspent). Keyed by the week's start
+/// (a Saturday). At most one per week — the DAO upserts. Kept so the weekly
+/// performance view can show the user's own notes alongside each week.
+@DataClassName('WeeklyReflection')
+class WeeklyReflections extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  DateTimeColumn get weekStart => dateTime()();
+  TextColumn get note => text()();
+}
+
 @DataClassName('SavingsContribution')
 class SavingsContributions extends Table {
   IntColumn get id => integer().autoIncrement()();

@@ -1,3 +1,5 @@
+import 'recurrence_math.dart';
+
 /// The rolling spending window both the weekly-budget alert and the statistics
 /// screen derive their "recommended weekly spend" from: a 12-week (84-day)
 /// look-back, recommending all essentials plus 85% of the discretionary
@@ -5,6 +7,16 @@
 /// can never disagree.
 const spendingWindowDays = 84;
 const discretionaryFactor = 0.85;
+
+/// The start of the week containing [now], anchored on the salary day: weeks run
+/// from [periodStart] (the cycle start / payday) in whole 7-day blocks, not from
+/// a fixed weekday. So the first week of a cycle begins the day the salary lands.
+DateTime cycleWeekStart(DateTime periodStart, DateTime now) {
+  final start = dateOnly(periodStart);
+  final elapsedDays = dateOnly(now).difference(start).inDays;
+  final weeks = elapsedDays <= 0 ? 0 : elapsedDays ~/ 7;
+  return DateTime(start.year, start.month, start.day + 7 * weeks);
+}
 
 class WeeklySpend {
   /// All essentials + 85% of the discretionary average, per week.
@@ -37,41 +49,31 @@ WeeklySpend weeklySpend({
   );
 }
 
-/// Number of Saturdays (week starts) in [fromInclusive, toExclusive).
-int _saturdaysInRange(DateTime fromInclusive, DateTime toExclusive) {
-  var count = 0;
-  var d = DateTime(fromInclusive.year, fromInclusive.month, fromInclusive.day);
-  final end = DateTime(toExclusive.year, toExclusive.month, toExclusive.day);
-  while (d.isBefore(end)) {
-    if (d.weekday == DateTime.saturday) count++;
-    d = DateTime(d.year, d.month, d.day + 1);
-  }
-  return count;
-}
-
-/// The weekly budget, adapted to how the month has gone so far. [recommended] is
+/// The weekly budget, adapted to how the cycle has gone so far. [recommended] is
 /// the flat historical weekly baseline (B); [spentBeforeThisWeek] is this
-/// month's discretionary spending in the weeks *before* the current one.
+/// cycle's discretionary spending in the weeks *before* the current one. Weeks
+/// are the salary-day-anchored 7-day blocks of the cycle [periodStart,
+/// periodEnd).
 ///
-/// The month's surplus/deficit to date — what the baseline said you'd have
-/// spent by now (`B × weeksElapsed`) minus what you actually spent — is spread
-/// evenly across the weeks that remain (this week included). So overspending
-/// earlier lowers this week's budget and every week after it; a surplus raises
-/// them. When spending matches the baseline exactly, it returns B unchanged.
+/// The cycle's surplus/deficit to date — what the baseline said you'd have spent
+/// by now (`B × weeksElapsed`) minus what you actually spent — is spread evenly
+/// across the weeks that remain (this week included). So overspending earlier
+/// lowers this week's budget and every week after it; a surplus raises them.
+/// When spending matches the baseline exactly, it returns B unchanged.
 double adaptiveWeeklyBudget({
   required double recommended,
   required double spentBeforeThisWeek,
+  required DateTime periodStart,
+  required DateTime periodEnd,
   required DateTime now,
-  required DateTime weekStart,
 }) {
-  final monthStart = DateTime(now.year, now.month, 1);
-  final monthEnd = DateTime(now.year, now.month + 1, 1);
-  final weeksElapsed = _saturdaysInRange(monthStart, weekStart);
-  // The current week plus every later week start still inside the month.
-  final weeksLeft = 1 +
-      _saturdaysInRange(
-          DateTime(weekStart.year, weekStart.month, weekStart.day + 1),
-          monthEnd);
+  final start = dateOnly(periodStart);
+  final elapsedDays = dateOnly(now).difference(start).inDays;
+  final weeksElapsed = elapsedDays <= 0 ? 0 : elapsedDays ~/ 7;
+  final totalDays = dateOnly(periodEnd).difference(start).inDays;
+  final totalWeeks = totalDays <= 0 ? 1 : (totalDays / 7).ceil();
+  final left = totalWeeks - weeksElapsed;
+  final weeksLeft = left < 1 ? 1 : left;
   final carry = recommended * weeksElapsed - spentBeforeThisWeek;
   final adaptive = recommended + carry / weeksLeft;
   return adaptive < 0 ? 0 : adaptive;

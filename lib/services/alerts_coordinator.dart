@@ -1,6 +1,7 @@
 import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
+import '../domain/financial_period.dart';
 import '../domain/recurrence_math.dart';
 import '../domain/spending_window.dart';
 import 'badge_service.dart';
@@ -74,6 +75,10 @@ Future<DateTime?> _nextSalaryDate(AppDatabase db, DateTime now) async {
 /// been spent since the start of this week.
 Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
   final rows = await db.transactionDao.watchAllWithCategory().first;
+  final incomeRules = await db.recurrenceDao.watchByType(TxnType.income).first;
+  // Weeks are anchored on the salary day (the cycle start), so "this week" runs
+  // from the payday-aligned week boundary, not a fixed weekday.
+  final period = financialPeriod(incomeRules, now);
   final today = DateTime(now.year, now.month, now.day);
   // Exclusive upper bound: manual adds default to DateTime.now() (with a
   // time-of-day), so a row stamped today at 14:30 is after today-at-midnight
@@ -82,11 +87,8 @@ Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
   final tomorrow = DateTime(now.year, now.month, now.day + 1);
   final windowStart =
       DateTime(today.year, today.month, today.day - spendingWindowDays);
-  // Weeks here start on Saturday.
-  final daysSinceSaturday = (today.weekday + 1) % 7;
-  final weekStart =
-      DateTime(today.year, today.month, today.day - daysSinceSaturday);
-  final monthStart = DateTime(now.year, now.month, 1);
+  final weekStart = cycleWeekStart(period.start, now);
+  final cycleStart = dateOnly(period.start);
 
   var essentialWindow = 0.0, luxuryWindow = 0.0, spentThisWeek = 0.0;
   var spentBeforeThisWeek = 0.0;
@@ -106,9 +108,9 @@ Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
     if (!date.isBefore(weekStart) && date.isBefore(tomorrow)) {
       spentThisWeek += amount;
     }
-    // This month's discretionary spending in the weeks BEFORE the current one —
+    // This cycle's discretionary spending in the weeks BEFORE the current one —
     // drives the adaptive redistribution.
-    if (!date.isBefore(monthStart) && date.isBefore(weekStart)) {
+    if (!date.isBefore(cycleStart) && date.isBefore(weekStart)) {
       spentBeforeThisWeek += amount;
     }
     if (!date.isBefore(windowStart) && date.isBefore(tomorrow)) {
@@ -128,13 +130,14 @@ Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
     today: today,
   );
 
-  // Adapt the flat weekly baseline to the month so far: over/under-spending in
-  // earlier weeks lowers/raises what's budgeted for the rest of the month.
+  // Adapt the flat weekly baseline to the cycle so far: over/under-spending in
+  // earlier weeks lowers/raises what's budgeted for the rest of the cycle.
   final adaptive = adaptiveWeeklyBudget(
     recommended: window.recommended,
     spentBeforeThisWeek: spentBeforeThisWeek,
+    periodStart: period.start,
+    periodEnd: period.end,
     now: now,
-    weekStart: weekStart,
   );
 
   return WeeklyBudget(adaptive, spentThisWeek);

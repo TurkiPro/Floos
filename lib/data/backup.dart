@@ -42,6 +42,7 @@ Future<String> buildBackupJson(AppDatabase db) async {
   final goals = await db.select(db.savingsGoals).get();
   final contributions = await db.select(db.savingsContributions).get();
   final budgets = await db.select(db.categoryBudgets).get();
+  final reflections = await db.select(db.weeklyReflections).get();
 
   final map = {
     'version': backupFormatVersion,
@@ -126,6 +127,14 @@ Future<String> buildBackupJson(AppDatabase db) async {
           'amount': b.amount,
         },
     ],
+    'weeklyReflections': [
+      for (final w in reflections)
+        {
+          'id': w.id,
+          'weekStart': _ms(w.weekStart),
+          'note': w.note,
+        },
+    ],
   };
 
   return const JsonEncoder.withIndent('  ').convert(map);
@@ -192,6 +201,12 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
       ? (root['categoryBudgets'] as List).cast<Map<String, dynamic>>()
       : const <Map<String, dynamic>>[];
 
+  // Weekly reflections are read leniently too: a pre-v10 backup has no such
+  // section and must restore as "no reflections" rather than fail.
+  final reflectionRows = root['weeklyReflections'] is List
+      ? (root['weeklyReflections'] as List).cast<Map<String, dynamic>>()
+      : const <Map<String, dynamic>>[];
+
   // Everything in one transaction: any failure (bad row, dangling FK) rolls the
   // whole thing back and the pre-existing data survives.
   await db.transaction(() async {
@@ -199,6 +214,7 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
     // sub-categories before top-level for the self-reference. Budgets go first
     // — the category CASCADE would drop them anyway, but an explicit delete
     // keeps the wipe order self-documenting.
+    await db.delete(db.weeklyReflections).go();
     await db.delete(db.categoryBudgets).go();
     await db.delete(db.transactions).go();
     await db.delete(db.savingsContributions).go();
@@ -291,6 +307,17 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
             id: Value(b['id'] as int),
             categoryId: b['categoryId'] as int,
             amount: b['amount'] as double,
+          ));
+    }
+
+    // Weekly reflections stand alone (no foreign keys).
+    for (final w in reflectionRows) {
+      await db
+          .into(db.weeklyReflections)
+          .insert(WeeklyReflectionsCompanion.insert(
+            id: Value(w['id'] as int),
+            weekStart: _date(w['weekStart']),
+            note: w['note'] as String,
           ));
     }
   });

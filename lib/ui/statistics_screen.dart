@@ -5,14 +5,18 @@ import 'package:provider/provider.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
 import '../data/export.dart';
+import '../domain/budget_risk.dart';
 import '../domain/category_breakdown.dart';
 import '../domain/category_insights.dart';
 import '../domain/date_grouping.dart';
 import '../domain/financial_period.dart';
+import '../domain/spending_window.dart';
 import '../domain/statistics_summary.dart';
+import '../domain/weekly_series.dart';
 import 'behavior_screen.dart';
 import 'category_detail_screen.dart';
 import 'theme/tokens.dart';
+import 'weekly_performance_screen.dart';
 import 'widgets/category_icon_tile.dart';
 
 /// Spending analytics, all derived in a single pass over the transaction
@@ -94,44 +98,63 @@ class StatisticsScreen extends StatelessWidget {
                           byId: byId,
                           trends: trends,
                           periodTotal: s.spentThisMonth);
+                      final weeklySeries = weeklySpendSeries(
+                          rows: rows,
+                          anchorWeekStart: cycleWeekStart(period.start, now));
                       if (s.allExpenseCount == 0) {
                         return const Center(
                             child: Text('لا توجد بيانات كافية بعد'));
                       }
-                      return ListView(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        children: [
-                          _behaviorLinks(context),
-                          const SizedBox(height: AppSpacing.md),
-                          _thisMonthCard(context, s, money),
-                          const SizedBox(height: AppSpacing.md),
-                          _paceCard(context, s, money),
-                          const SizedBox(height: AppSpacing.md),
-                          _weeklyBudgetCard(context, s, money),
-                          const SizedBox(height: AppSpacing.md),
-                          _savingsRateCard(context, s, money),
-                          const SizedBox(height: AppSpacing.md),
-                          _essentialsCard(context, s, money),
-                          const SizedBox(height: AppSpacing.md),
-                          _quickFactsCard(context, s, money),
-                          const SizedBox(height: AppSpacing.md),
-                          if (cuts.isNotEmpty) ...[
-                            _whereToCutCard(context, cuts, breakdown, byId,
-                                trends, money, periodWeeks),
-                            const SizedBox(height: AppSpacing.md),
-                          ],
-                          _topCategoriesCard(
-                              context,
-                              breakdown,
-                              s.spentThisMonth,
-                              money,
-                              byId,
-                              trends,
-                              periodWeeks,
-                              periodLabel: 'هذا الشهر'),
-                          const SizedBox(height: AppSpacing.md),
-                          _trendCard(context, s, money),
-                        ],
+                      // Budgets feed the "on track to blow it" projections.
+                      return StreamBuilder<List<CategoryBudget>>(
+                        stream: db.budgetDao.watchAll(),
+                        builder: (context, budgetSnap) {
+                          final risks = budgetRisks(
+                              budgetSnap.data ?? const <CategoryBudget>[],
+                              rows,
+                              now);
+                          return ListView(
+                            padding: const EdgeInsets.all(AppSpacing.lg),
+                            children: [
+                              _behaviorLinks(context),
+                              const SizedBox(height: AppSpacing.md),
+                              _thisMonthCard(context, s, money),
+                              const SizedBox(height: AppSpacing.md),
+                              _paceCard(context, s, money),
+                              const SizedBox(height: AppSpacing.md),
+                              _weeklyBudgetCard(context, s, money),
+                              const SizedBox(height: AppSpacing.md),
+                              _weeklyChartCard(context, weeklySeries, money),
+                              const SizedBox(height: AppSpacing.md),
+                              _savingsRateCard(context, s, money),
+                              const SizedBox(height: AppSpacing.md),
+                              if (risks.isNotEmpty) ...[
+                                _budgetRiskCard(context, risks, byId, money),
+                                const SizedBox(height: AppSpacing.md),
+                              ],
+                              _essentialsCard(context, s, money),
+                              const SizedBox(height: AppSpacing.md),
+                              _quickFactsCard(context, s, money),
+                              const SizedBox(height: AppSpacing.md),
+                              if (cuts.isNotEmpty) ...[
+                                _whereToCutCard(context, cuts, breakdown, byId,
+                                    trends, money, periodWeeks),
+                                const SizedBox(height: AppSpacing.md),
+                              ],
+                              _topCategoriesCard(
+                                  context,
+                                  breakdown,
+                                  s.spentThisMonth,
+                                  money,
+                                  byId,
+                                  trends,
+                                  periodWeeks,
+                                  periodLabel: 'هذا الشهر'),
+                              const SizedBox(height: AppSpacing.md),
+                              _trendCard(context, s, money),
+                            ],
+                          );
+                        },
                       );
                     },
                   );
@@ -355,6 +378,34 @@ class StatisticsScreen extends StatelessWidget {
                 color: s.currentWeeklyPace > s.recommendedWeekly
                     ? Colors.red.shade400
                     : AppColors.income),
+          ),
+          if (s.weeklyReducedBySavings) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                Icon(Icons.savings_outlined, size: 16, color: scheme.primary),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Text(
+                    'خصمنا ما ادّخرته هذا الشهر (${money.format(s.monthSaved)} ⃁)، '
+                    'فالميزانية لا تفترض أنه متاح للصرف.',
+                    style: TextStyle(
+                        fontSize: AppTextSizes.label, color: scheme.primary),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              style: TextButton.styleFrom(padding: EdgeInsets.zero),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const WeeklyPerformanceScreen())),
+              icon: const Icon(Icons.timeline, size: 18),
+              label: const Text('عرض أدائي الأسبوعي'),
+            ),
           ),
         ],
       ),
@@ -656,6 +707,135 @@ class StatisticsScreen extends StatelessWidget {
             ),
           ),
           Icon(Icons.chevron_left, size: 18, color: scheme.onSurfaceVariant),
+        ],
+      ),
+    );
+  }
+
+  /// Compact money label for the tiny chart bars (1,234 -> "1.2k").
+  static String _compact(double v) {
+    if (v >= 1000) {
+      final k = v / 1000;
+      return '${k.toStringAsFixed(k >= 10 ? 0 : 1)}k';
+    }
+    return v.toStringAsFixed(0);
+  }
+
+  /// Bar-per-week spend for the last 12 weeks, so the rhythm shows, not just an
+  /// average. The current (rightmost) week is highlighted.
+  Widget _weeklyChartCard(
+      BuildContext context, List<WeekTotal> series, NumberFormat money) {
+    final scheme = Theme.of(context).colorScheme;
+    final maxVal = series.fold<double>(1, (m, e) => e.total > m ? e.total : m);
+    return _card(
+      context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _label(context, 'الإنفاق الأسبوعي (آخر ١٢ أسبوعًا)'),
+          const SizedBox(height: AppSpacing.md),
+          SizedBox(
+            height: 130,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (var i = 0; i < series.length; i++)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(_compact(series[i].total),
+                              style: const TextStyle(fontSize: 8),
+                              maxLines: 1,
+                              overflow: TextOverflow.visible,
+                              softWrap: false),
+                          const SizedBox(height: 2),
+                          Container(
+                            height: (series[i].total / maxVal * 80)
+                                .clamp(2, 80)
+                                .toDouble(),
+                            decoration: BoxDecoration(
+                              color: i == series.length - 1
+                                  ? scheme.primary
+                                  : scheme.primary.withValues(alpha: 0.55),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${series[i].weekStart.day}/${series[i].weekStart.month}',
+                            style: TextStyle(
+                                fontSize: 8, color: scheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Budgets projected to blow by month end, biggest overshoot first.
+  Widget _budgetRiskCard(BuildContext context, List<BudgetRisk> risks,
+      Map<int, Category> byId, NumberFormat money) {
+    final scheme = Theme.of(context).colorScheme;
+    return _card(
+      context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.warning_amber_rounded,
+                  size: 18, color: Colors.red.shade400),
+              const SizedBox(width: AppSpacing.xs),
+              _label(context, 'ميزانيات على وشك التجاوز'),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text('حسب وتيرتك، هذه متوقّع تجاوزها قبل نهاية الشهر',
+              style: TextStyle(
+                  fontSize: AppTextSizes.label,
+                  color: scheme.onSurfaceVariant)),
+          const SizedBox(height: AppSpacing.sm),
+          for (final risk in risks.take(4)) ...[
+            const Divider(height: AppSpacing.lg),
+            Row(
+              children: [
+                CategoryIconTile(
+                    iconKey: byId[risk.categoryId]?.iconKey ?? 'other',
+                    colorValue: byId[risk.categoryId]?.colorValue,
+                    size: 34),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(byId[risk.categoryId]?.name ?? '—',
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      Text(
+                        'متوقّع ${money.format(risk.projected)} من ميزانية '
+                        '${money.format(risk.budget)} ⃁',
+                        style: TextStyle(
+                            fontSize: AppTextSizes.label,
+                            color: scheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                Text('+${risk.overByPct.toStringAsFixed(0)}٪',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.red.shade400)),
+              ],
+            ),
+          ],
         ],
       ),
     );

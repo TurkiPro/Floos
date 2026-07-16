@@ -15,6 +15,16 @@ class StatisticsSummary {
   /// Percent change of the projected month total vs last month's total.
   final double projectedVsLastMonth;
   final double recommendedWeekly;
+
+  /// True when money set aside this month pulled the weekly budget below its
+  /// behaviour-based baseline — i.e. the budget no longer assumes the saved
+  /// amount is available to spend. Drives the note on the weekly-budget card.
+  final bool weeklyReducedBySavings;
+
+  /// The flat behaviour baseline (essentials + 85% of luxuries per week, before
+  /// the month's adapt/cap) — a stable per-week yardstick for the weekly
+  /// performance view.
+  final double weeklyBaseline;
   final double currentWeeklyPace;
   final double essentialThisMonth;
   final double luxuryThisMonth;
@@ -43,6 +53,8 @@ class StatisticsSummary {
     required this.lastMonthSpent,
     required this.projectedVsLastMonth,
     required this.recommendedWeekly,
+    required this.weeklyReducedBySavings,
+    required this.weeklyBaseline,
     required this.currentWeeklyPace,
     required this.essentialThisMonth,
     required this.luxuryThisMonth,
@@ -86,10 +98,9 @@ class StatisticsSummary {
         period.start.year, period.start.month, period.start.day - periodDays);
     final windowStart =
         DateTime(today.year, today.month, today.day - spendingWindowDays);
-    // Saturday-aligned week start, for the adaptive weekly budget.
-    final daysSinceSaturday = (today.weekday + 1) % 7;
-    final weekStart =
-        DateTime(today.year, today.month, today.day - daysSinceSaturday);
+    // Salary-day-anchored week start (weeks run from the cycle start), for the
+    // adaptive weekly budget and "spent before this week".
+    final weekStart = cycleWeekStart(period.start, now);
 
     var allExpenseCount = 0;
     var spentThisMonth = 0.0, lastMonthSpent = 0.0, monthIncome = 0.0;
@@ -192,8 +203,9 @@ class StatisticsSummary {
     final adaptiveWeekly = adaptiveWeeklyBudget(
       recommended: window.recommended,
       spentBeforeThisWeek: spentBeforeThisWeek,
+      periodStart: period.start,
+      periodEnd: period.end,
       now: now,
-      weekStart: weekStart,
     );
 
     // Average spend per weekday over the window: divide each weekday's total
@@ -226,6 +238,19 @@ class StatisticsSummary {
     final allowance = monthIncome > 0 ? unspentIncome / daysLeft : null;
     final savingsRate = monthIncome > 0 ? monthSaved / monthIncome : null;
 
+    // The weekly budget must not keep assuming money you've set aside is still
+    // spendable. Cap it by what income actually leaves for the rest of the month
+    // (which already subtracts savings); when that ceiling bites and there are
+    // savings behind it, flag it so the card can say so.
+    final incomeWeeklyCeiling =
+        allowance == null ? null : (allowance < 0 ? 0.0 : allowance * 7);
+    final cappedWeekly =
+        incomeWeeklyCeiling != null && incomeWeeklyCeiling < adaptiveWeekly
+            ? incomeWeeklyCeiling
+            : adaptiveWeekly;
+    final weeklyReducedBySavings =
+        monthSaved > 0 && cappedWeekly < adaptiveWeekly;
+
     final topCategories = byTop.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -244,7 +269,9 @@ class StatisticsSummary {
       projectedThisMonth: projected,
       lastMonthSpent: lastMonthSpent,
       projectedVsLastMonth: projectedVsLast,
-      recommendedWeekly: adaptiveWeekly,
+      recommendedWeekly: cappedWeekly,
+      weeklyReducedBySavings: weeklyReducedBySavings,
+      weeklyBaseline: window.recommended,
       currentWeeklyPace: window.pace,
       essentialThisMonth: essentialThisMonth,
       luxuryThisMonth: luxuryThisMonth,
