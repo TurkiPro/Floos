@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
@@ -9,6 +11,7 @@ import '../data/backup.dart';
 import '../data/database.dart';
 import '../data/dev_seed.dart';
 import '../data/export.dart';
+import '../data/pdf_export.dart';
 import '../services/alerts_coordinator.dart';
 import '../services/app_lock_service.dart';
 import '../services/notification_service.dart';
@@ -89,14 +92,8 @@ class SettingsScreen extends StatelessWidget {
               onTap: () => _push(context, const CategoryEditorScreen())),
           _navTile(context,
               icon: Icons.file_download_outlined,
-              label: 'تصدير CSV', onTap: () async {
-            final path = await exportTransactionsCsvToFile(db);
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('تم التصدير: $path')),
-              );
-            }
-          }),
+              label: 'تصدير الحركات',
+              onTap: () => _export(context, db)),
           const SizedBox(height: AppSpacing.lg),
           _sectionLabel(context, 'المظهر'),
           SegmentedButton<ThemeMode>(
@@ -361,24 +358,89 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  /// Lets the user pick a format, then hands the file to the OS share sheet so
+  /// they can save it anywhere (Files/iCloud/Drive) or send it to another app
+  /// (WhatsApp, mail, …) — not silently dropped into an app-private directory.
+  Future<void> _export(BuildContext context, AppDatabase db) async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.table_chart_outlined),
+              title: const Text('CSV (جدول بيانات)'),
+              subtitle: const Text('للتحليل في Excel أو Google Sheets'),
+              onTap: () => Navigator.of(context).pop('csv'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf_outlined),
+              title: const Text('PDF (كشف للطباعة أو المشاركة)'),
+              onTap: () => Navigator.of(context).pop('pdf'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final File file = choice == 'pdf'
+          ? await writeTransactionsPdf(db)
+          : File(await exportTransactionsCsvToFile(db));
+      await Share.shareXFiles([XFile(file.path)]);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('تعذّر التصدير: $e')));
+    }
+  }
+
   Future<void> _backup(BuildContext context, AppDatabase db) async {
+    final messenger = ScaffoldMessenger.of(context);
     try {
       final file = await writeBackupFile(db);
       await Share.shareXFiles([XFile(file.path)]);
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تعذّر إنشاء النسخة الاحتياطية')),
-        );
-      }
+    } catch (e) {
+      // Surface the actual reason instead of a generic "couldn't" — this is
+      // what turns a mystified user report into a fixable one.
+      messenger.showSnackBar(
+        SnackBar(content: Text('تعذّر إنشاء النسخة الاحتياطية: $e')),
+      );
     }
   }
 
   Future<void> _restore(BuildContext context, AppDatabase db) async {
-    const group = XTypeGroup(label: 'JSON', extensions: ['json']);
-    final picked = await openFile(acceptedTypeGroups: const [group]);
-    if (picked == null) return; // user cancelled
-    final json = await picked.readAsString();
+    final messenger = ScaffoldMessenger.of(context);
+    // Accept .json by both extension and the iOS uniform type, so the user's
+    // backup isn't greyed-out and unpickable in the Files sheet.
+    const group = XTypeGroup(
+      label: 'JSON',
+      extensions: ['json'],
+      uniformTypeIdentifiers: ['public.json'],
+    );
+    final XFile? picked;
+    try {
+      picked = await openFile(acceptedTypeGroups: const [group]);
+    } catch (e) {
+      messenger
+          .showSnackBar(SnackBar(content: Text('تعذّر فتح منتقي الملفات: $e')));
+      return;
+    }
+    if (picked == null) {
+      messenger.showSnackBar(const SnackBar(content: Text('لم تختر أي ملف.')));
+      return;
+    }
+    // readAsString on a security-scoped iOS file can throw; it used to run
+    // outside any try, so a failure here silently did nothing.
+    final String json;
+    try {
+      json = await picked.readAsString();
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('تعذّر قراءة الملف: $e')));
+      return;
+    }
     if (!context.mounted) return;
 
     final ok = await showDialog<bool>(
@@ -405,26 +467,19 @@ class SettingsScreen extends StatelessWidget {
 
     try {
       await restoreBackupJson(db, json);
-      if (!context.mounted) return;
-      await refreshAlerts(db, context.read<AppSettings>());
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تمت الاستعادة')),
+      if (context.mounted) {
+        await refreshAlerts(db, context.read<AppSettings>());
+      }
+      messenger.showSnackBar(const SnackBar(content: Text('تمت الاستعادة')));
+    } on BackupFormatException catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('ملف نسخة احتياطية غير صالح: ${e.message}')),
       );
-    } on BackupFormatException {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('ملف نسخة احتياطية غير صالح أو غير مدعوم')),
-        );
-      }
-    } catch (_) {
+    } catch (e) {
       // The restore runs in a transaction, so a mid-way failure rolls back.
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('فشلت الاستعادة — لم تتغير بياناتك.')),
-        );
-      }
+      messenger.showSnackBar(
+        SnackBar(content: Text('فشلت الاستعادة — لم تتغير بياناتك: $e')),
+      );
     }
   }
 

@@ -50,6 +50,9 @@ dependencies:
   # (just_audio has no bundled Windows impl, so the desktop dev build still
   # links — the chime is a mobile feature and no-ops on Windows.)
   just_audio: ^0.9.40
+  # Pure-Dart PDF generation for the "export as PDF" option (no native deps, so
+  # it never touches the Windows/iOS build the way an audio/print plugin would).
+  pdf: ^3.11.0
 
 dev_dependencies:
   flutter_test:
