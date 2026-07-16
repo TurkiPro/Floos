@@ -10,10 +10,11 @@ import 'package:floos/data/database.dart';
 /// thing the rest of the suite can't cover, because every other test starts at
 /// the current schema. Builds a pre-foreign-key v4 file (so it can hold an
 /// orphaned recurrence link, which enforcement would otherwise reject), then
-/// opens it through AppDatabase and asserts the v4→v5 and v5→v6 migrations
-/// preserve data and apply their changes.
+/// opens it through AppDatabase and asserts the whole v4→current migration
+/// chain (FK enforcement + SET NULL, the budgets table, the external-deposit
+/// column) preserves data and applies each change.
 void main() {
-  test('v4 database upgrades to v6, preserving data', () async {
+  test('v4 database upgrades to the current schema, preserving data', () async {
     final dir = Directory.systemTemp.createTempSync('floos_migration');
     addTearDown(() => dir.deleteSync(recursive: true));
     final path = '${dir.path}/floos.sqlite';
