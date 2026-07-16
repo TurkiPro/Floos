@@ -6,17 +6,20 @@ import '../domain/parse_amount.dart';
 import 'theme/tokens.dart';
 import 'widgets/picker_field.dart';
 
-/// Add a deposit to a savings goal. When [goalId] is null the sheet shows a
-/// goal picker (used from the savings screen's general "إيداع" action);
-/// otherwise it deposits straight into the given goal. Every deposit can be
-/// dated and annotated with a note.
+/// Add or edit a deposit to a savings goal. When [existing] is given the sheet
+/// opens in edit mode — prefilled, saving over the same row, with a delete
+/// action. Otherwise it's an add: when [goalId] is null it shows a goal picker
+/// (the savings screen's general "إيداع" action); otherwise it deposits straight
+/// into the given goal. Every deposit can be dated and annotated with a note.
 class AddContributionSheet extends StatefulWidget {
   final AppDatabase db;
   final int? goalId;
+  final SavingsContribution? existing;
   const AddContributionSheet({
     super.key,
     required this.db,
     this.goalId,
+    this.existing,
   });
 
   @override
@@ -33,7 +36,18 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
   @override
   void initState() {
     super.initState();
-    _goalId = widget.goalId;
+    final e = widget.existing;
+    if (e != null) {
+      _goalId = e.goalId;
+      _amountCtrl.text = e.amount == e.amount.roundToDouble()
+          ? e.amount.toInt().toString()
+          : e.amount.toString();
+      _date = e.date;
+      _noteCtrl.text = e.note ?? '';
+      _external = e.external;
+    } else {
+      _goalId = widget.goalId;
+    }
   }
 
   @override
@@ -51,14 +65,43 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
       );
       return;
     }
-    await widget.db.savingsDao.addContribution(
-      goalId: _goalId!,
-      amount: amount,
-      date: _date,
-      note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
-      external: _external,
-    );
+    final note = _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim();
+    final e = widget.existing;
+    if (e != null) {
+      await widget.db.savingsDao.updateContribution(
+        e.id,
+        goalId: _goalId!,
+        amount: amount,
+        date: _date,
+        note: note,
+        external: _external,
+      );
+    } else {
+      await widget.db.savingsDao.addContribution(
+        goalId: _goalId!,
+        amount: amount,
+        date: _date,
+        note: note,
+        external: _external,
+      );
+    }
     if (mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _delete() async {
+    final e = widget.existing;
+    if (e == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    await widget.db.savingsDao.deleteContribution(e.id);
+    navigator.pop();
+    messenger.showSnackBar(SnackBar(
+      content: const Text('تم حذف الإيداع'),
+      action: SnackBarAction(
+        label: 'تراجع',
+        onPressed: () => widget.db.savingsDao.restoreContribution(e),
+      ),
+    ));
   }
 
   @override
@@ -75,7 +118,8 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('إضافة إيداع', style: Theme.of(context).textTheme.titleMedium),
+            Text(widget.existing == null ? 'إضافة إيداع' : 'تعديل الإيداع',
+                style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: AppSpacing.lg),
             // Goal picker only when no goal was pre-selected.
             if (widget.goalId == null) ...[
@@ -151,6 +195,15 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
             ),
             const SizedBox(height: AppSpacing.lg),
             FilledButton(onPressed: _save, child: const Text('حفظ')),
+            if (widget.existing != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              TextButton.icon(
+                onPressed: _delete,
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                label: const Text('حذف الإيداع',
+                    style: TextStyle(color: Colors.red)),
+              ),
+            ],
           ],
         ),
       ),

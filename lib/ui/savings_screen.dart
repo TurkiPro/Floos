@@ -155,44 +155,57 @@ class _DepositRow extends StatelessWidget {
             ),
           ));
         },
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: scheme.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(AppRadii.tile),
+        // Tap to edit the deposit in place (amount, date, note, goal) — the
+        // reliable path to change or remove a deposit, with swipe as a shortcut.
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadii.tile),
+          onTap: () => showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            useSafeArea: true,
+            showDragHandle: true,
+            builder: (_) =>
+                AddContributionSheet(db: db, existing: contribution),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: scheme.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppRadii.tile),
+                ),
+                child: Icon(Icons.savings_outlined, color: scheme.primary),
               ),
-              child: Icon(Icons.savings_outlined, color: scheme.primary),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(goalName,
-                      style: const TextStyle(
-                          fontSize: AppTextSizes.row,
-                          fontWeight: FontWeight.w500)),
-                  if (note.isNotEmpty)
-                    Text(
-                      note,
-                      style: TextStyle(
-                          fontSize: AppTextSizes.label,
-                          color: scheme.onSurfaceVariant),
-                    ),
-                ],
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(goalName,
+                        style: const TextStyle(
+                            fontSize: AppTextSizes.row,
+                            fontWeight: FontWeight.w500)),
+                    if (note.isNotEmpty)
+                      Text(
+                        note,
+                        style: TextStyle(
+                            fontSize: AppTextSizes.label,
+                            color: scheme.onSurfaceVariant),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            Text(
-              '+${money.format(contribution.amount)} ⃁',
-              style: const TextStyle(
-                  color: AppColors.income,
-                  fontWeight: FontWeight.w600,
-                  fontSize: AppTextSizes.row),
-            ),
-          ],
+              Text(
+                '+${money.format(contribution.amount)} ⃁',
+                style: const TextStyle(
+                    color: AppColors.income,
+                    fontWeight: FontWeight.w600,
+                    fontSize: AppTextSizes.row),
+              ),
+            ],
+          ),
         ),
       ),
     );

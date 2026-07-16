@@ -125,6 +125,16 @@ class GoalDetailScreen extends StatelessWidget {
                         ));
                       },
                       child: ListTile(
+                        // Tap to edit the deposit in place (amount, date, note,
+                        // goal); the sheet also carries a delete action.
+                        onTap: () => showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          useSafeArea: true,
+                          showDragHandle: true,
+                          builder: (_) =>
+                              AddContributionSheet(db: db, existing: c),
+                        ),
                         title: Text('${money.format(c.amount)} ⃁'),
                         subtitle: Text([
                           dateFmt.format(c.date),

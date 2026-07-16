@@ -472,6 +472,28 @@ class SavingsDao extends DatabaseAccessor<AppDatabase> with _$SavingsDaoMixin {
     return (delete(savingsContributions)..where((c) => c.id.equals(id))).go();
   }
 
+  /// Edits a contribution in place — amount, date, note, which goal it belongs
+  /// to, and whether it's external — keeping its id so every derived total
+  /// (goal balance, home balance, savings rate) recomputes around the change.
+  Future<void> updateContribution(
+    int id, {
+    required int goalId,
+    required double amount,
+    required DateTime date,
+    String? note,
+    required bool external,
+  }) {
+    return (update(savingsContributions)..where((c) => c.id.equals(id))).write(
+      SavingsContributionsCompanion(
+        goalId: Value(goalId),
+        amount: Value(amount),
+        date: Value(date),
+        note: Value(note),
+        external: Value(external),
+      ),
+    );
+  }
+
   /// Re-inserts a just-deleted contribution with its original id — the undo
   /// path for swipe-to-delete, mirroring [TransactionDao.restore]. The id was
   /// freed by the delete moments earlier, so reusing it puts the row back in
