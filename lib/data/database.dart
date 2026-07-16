@@ -196,6 +196,16 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
     ));
   }
 
+  /// The day-only dates of transactions already generated from [ruleId] — the
+  /// dedup set the engine uses to backfill missing occurrences without ever
+  /// creating a duplicate.
+  Future<Set<DateTime>> generatedDatesForRule(int ruleId) async {
+    final rows = await (select(transactions)
+          ..where((t) => t.recurrenceId.equals(ruleId)))
+        .get();
+    return rows.map((t) => dateOnly(t.date)).toSet();
+  }
+
   /// Wipes all transactions -- used only by the dev data tools in Settings.
   Future<void> clearAll() => delete(transactions).go();
 

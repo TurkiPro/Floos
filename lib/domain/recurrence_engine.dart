@@ -15,6 +15,46 @@ class RecurrenceEngine {
   // and double-insert.
   static bool _running = false;
 
+  /// Reconciles ONE rule against its schedule: creates every occurrence from the
+  /// rule's start date up to today that doesn't already have a generated row,
+  /// then sets the marker to the last such occurrence. Deduping against the
+  /// existing rows means it never double-creates, so it's safe to call after a
+  /// create/edit even when some occurrences already exist — and it heals a rule
+  /// whose marker drifted ahead of a never-created occurrence (e.g. because an
+  /// earlier edit reset the marker to today and skipped the backfill).
+  ///
+  /// Unlike [catchUp] this scans from the START, so it will re-create an
+  /// occurrence the user deleted — which is why it runs only on an explicit
+  /// save, never on launch/resume.
+  Future<int> resync(int ruleId, {DateTime? asOf}) async {
+    final rule = await (db.select(db.recurrenceRules)
+          ..where((r) => r.id.equals(ruleId)))
+        .getSingleOrNull();
+    if (rule == null || !rule.active) return 0;
+    final until = dateOnly(asOf ?? DateTime.now());
+    final existing = await db.transactionDao.generatedDatesForRule(ruleId);
+    final occs = occurrencesBetween(
+      startDate: rule.startDate,
+      frequency: rule.frequency,
+      interval: rule.interval,
+      endDate: rule.endDate,
+      lastMaterialized: null, // scan from the start
+      until: until,
+    );
+    var created = 0;
+    await db.transaction(() async {
+      for (final date in occs) {
+        if (existing.contains(date)) continue;
+        await db.transactionDao.insertGenerated(rule, date);
+        created++;
+      }
+      if (occs.isNotEmpty) {
+        await db.recurrenceDao.setLastMaterialized(rule.id, occs.last);
+      }
+    });
+    return created;
+  }
+
   /// Generates any transactions due up to [asOf] (default: today) for every
   /// active rule, then advances each rule's marker. Returns how many were
   /// created. Wrapped in a DB transaction so a failure part-way commits nothing

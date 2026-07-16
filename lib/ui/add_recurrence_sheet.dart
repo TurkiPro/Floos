@@ -121,7 +121,7 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
     final normalizedInterval = interval < 1 ? 1 : interval;
     try {
       if (!_isEditing) {
-        await widget.db.recurrenceDao.add(
+        final id = await widget.db.recurrenceDao.add(
           title: title,
           amount: amount,
           categoryId: _categoryId!,
@@ -131,15 +131,17 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
           startDate: _startDate,
           endDate: _endDate,
         );
+        // Backfill every occurrence from the (possibly past) start date to now.
+        await RecurrenceEngine(widget.db).resync(id);
       } else {
         final old = widget.existingRule!;
-        // Never backfill under a schedule the rule didn't have yet: only reset
-        // the catch-up marker to today when the schedule itself changed
-        // (mirrors reactivate()'s existing philosophy). Cosmetic-only edits
-        // (amount/category/end date/etc) leave prior catch-up progress intact.
-        final scheduleChanged = old.frequency != _frequency ||
-            old.interval != normalizedInterval ||
-            dateOnly(old.startDate) != dateOnly(_startDate);
+        // A frequency/interval change restarts the schedule from today — never
+        // invent history under a shape the rule didn't have (mirrors
+        // reactivate()). A start-date or cosmetic change instead backfills any
+        // MISSING occurrences from the start via resync, which is also how a
+        // rule that failed to materialize is fixed by simply re-saving it.
+        final freqChanged =
+            old.frequency != _frequency || old.interval != normalizedInterval;
         await widget.db.recurrenceDao.editRule(
           id: old.id,
           title: title,
@@ -150,12 +152,14 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
           startDate: _startDate,
           endDate: _endDate,
           clearEndDate: _endDate == null && old.endDate != null,
-          resetMarkerToToday: scheduleChanged,
+          resetMarkerToToday: freqChanged,
         );
+        if (freqChanged) {
+          await RecurrenceEngine(widget.db).catchUp();
+        } else {
+          await RecurrenceEngine(widget.db).resync(old.id);
+        }
       }
-      // Catch up immediately so a rule whose start date is already in the past
-      // materializes its due occurrences now, instead of waiting for a relaunch.
-      await RecurrenceEngine(widget.db).catchUp();
     } catch (e) {
       // A failed save must say why instead of silently leaving the sheet open.
       if (mounted) {
