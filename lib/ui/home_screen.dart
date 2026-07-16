@@ -8,6 +8,7 @@ import '../data/enums.dart';
 import '../domain/calendar_format.dart';
 import '../domain/dashboard_summary.dart';
 import '../domain/date_grouping.dart';
+import '../domain/financial_period.dart';
 import '../domain/parse_amount.dart';
 import '../domain/recurrence_engine.dart';
 import '../domain/recurrence_math.dart';
@@ -101,60 +102,63 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ),
       ),
-      body: Column(
-        children: [
-          // The header's salary countdown comes from the recurring income
-          // rules, so it stays live as they're added/paused/edited.
-          StreamBuilder<List<RecurrenceRule>>(
-            stream: db.recurrenceDao.watchByType(TxnType.income),
-            builder: (context, snapshot) {
-              final rules = snapshot.data ?? const <RecurrenceRule>[];
-              return _HomeHeader(
+      // One income-rules stream feeds both the header's salary countdown and
+      // the salary-cycle financial period the dashboard figures are based on,
+      // so they stay live as rules are added/paused/edited.
+      body: StreamBuilder<List<RecurrenceRule>>(
+        stream: db.recurrenceDao.watchByType(TxnType.income),
+        builder: (context, rulesSnapshot) {
+          final incomeRules = rulesSnapshot.data ?? const <RecurrenceRule>[];
+          final now = DateTime.now();
+          final period = financialPeriod(incomeRules, now);
+          return Column(
+            children: [
+              _HomeHeader(
                 onSettings: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const SettingsScreen()),
                 ),
                 onStats: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const StatisticsScreen()),
                 ),
-                salaryHint: _salaryHint(rules, DateTime.now()),
-              );
-            },
-          ),
-          // Three live streams feed the dashboard: all transactions (balance +
-          // this month's income/spend + the expense list), all savings
-          // contributions (total + this month's saved), and the goals (the
-          // income-day deposit prompt).
-          Expanded(
-            child: StreamBuilder<List<TxnRow>>(
-              stream: db.transactionDao.watchAllWithCategory(),
-              builder: (context, txnSnapshot) {
-                final rows = txnSnapshot.data ?? const <TxnRow>[];
-                return StreamBuilder<List<SavingsContribution>>(
-                  stream: db.savingsDao.watchAllContributions(),
-                  builder: (context, savingsSnapshot) {
-                    final contributions =
-                        savingsSnapshot.data ?? const <SavingsContribution>[];
-                    return StreamBuilder<List<SavingsGoal>>(
-                      stream: db.savingsDao.watchGoals(),
-                      builder: (context, goalsSnapshot) {
-                        final goals =
-                            goalsSnapshot.data ?? const <SavingsGoal>[];
-                        final data = DashboardSummary.from(
-                            rows, contributions, DateTime.now());
-                        return _DashboardBody(
-                          data: data,
-                          money: money,
-                          goals: goals,
-                          contributions: contributions,
+                salaryHint: _salaryHint(incomeRules, now),
+              ),
+              // Three live streams feed the dashboard: all transactions (balance
+              // + the period's income/spend + the expense list), all savings
+              // contributions (total + the period's saved), and the goals (the
+              // income-day deposit prompt).
+              Expanded(
+                child: StreamBuilder<List<TxnRow>>(
+                  stream: db.transactionDao.watchAllWithCategory(),
+                  builder: (context, txnSnapshot) {
+                    final rows = txnSnapshot.data ?? const <TxnRow>[];
+                    return StreamBuilder<List<SavingsContribution>>(
+                      stream: db.savingsDao.watchAllContributions(),
+                      builder: (context, savingsSnapshot) {
+                        final contributions = savingsSnapshot.data ??
+                            const <SavingsContribution>[];
+                        return StreamBuilder<List<SavingsGoal>>(
+                          stream: db.savingsDao.watchGoals(),
+                          builder: (context, goalsSnapshot) {
+                            final goals =
+                                goalsSnapshot.data ?? const <SavingsGoal>[];
+                            final data = DashboardSummary.from(
+                                rows, contributions, period);
+                            return _DashboardBody(
+                              data: data,
+                              money: money,
+                              goals: goals,
+                              contributions: contributions,
+                            );
+                          },
                         );
                       },
                     );
                   },
-                );
-              },
-            ),
-          ),
-        ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

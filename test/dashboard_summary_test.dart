@@ -2,9 +2,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:floos/data/database.dart';
 import 'package:floos/data/enums.dart';
 import 'package:floos/domain/dashboard_summary.dart';
+import 'package:floos/domain/financial_period.dart';
 
-// A fixed "now" so the current-month split is deterministic.
-final now = DateTime(2026, 7, 15);
+// A fixed period (calendar July 2026) so the current-period split is
+// deterministic. The salary-cycle derivation itself is covered in
+// financial_period_test.dart.
+final july = FinancialPeriod(DateTime(2026, 7, 1), DateTime(2026, 8, 1));
 
 Category _cat(TxnType type) => Category(
       id: 1,
@@ -53,7 +56,7 @@ void main() {
         _contrib(50, DateTime(2026, 3, 10)),
       ];
 
-      final d = DashboardSummary.from(rows, contributions, now);
+      final d = DashboardSummary.from(rows, contributions, july);
 
       // 1500 income - 300 expense - 350 savings.
       expect(d.balance, 850);
@@ -72,7 +75,7 @@ void main() {
         _contrib(40, DateTime(2026, 6, 9)), // other month, ignored for month
       ];
 
-      final d = DashboardSummary.from(rows, contributions, now);
+      final d = DashboardSummary.from(rows, contributions, july);
 
       // monthIncome 1000 - monthSpent 200 - monthSaved 300.
       expect(d.monthRemaining, 500);
@@ -88,13 +91,13 @@ void main() {
         _income(1000, DateTime(2026, 6, 1)), // last month only
         _expense(50, DateTime(2026, 7, 4)),
       ];
-      final d = DashboardSummary.from(rows, const [], now);
+      final d = DashboardSummary.from(rows, const [], july);
       expect(d.incomeReceivedThisMonth, isFalse);
     });
 
     test('incomeReceivedThisMonth is true with income this month', () {
       final rows = [_income(1000, DateTime(2026, 7, 10))];
-      final d = DashboardSummary.from(rows, const [], now);
+      final d = DashboardSummary.from(rows, const [], july);
       expect(d.incomeReceivedThisMonth, isTrue);
     });
 
@@ -105,7 +108,7 @@ void main() {
         thisMonthExpense,
         _expense(77, DateTime(2026, 6, 15)), // other month excluded
       ];
-      final d = DashboardSummary.from(rows, const [], now);
+      final d = DashboardSummary.from(rows, const [], july);
       expect(d.monthExpenses, hasLength(1));
       expect(d.monthExpenses.single.txn.amount, 200);
       expect(d.monthExpenses.single.txn.type, TxnType.expense);
@@ -117,7 +120,7 @@ void main() {
         _contrib(200, DateTime(2026, 7, 2)), // internal: from income
         _contrib(5000, DateTime(2026, 7, 3), external: true), // pre-existing
       ];
-      final d = DashboardSummary.from(rows, contributions, now);
+      final d = DashboardSummary.from(rows, contributions, july);
       // Total saved counts both; balance only subtracts the internal 200.
       expect(d.savingsTotal, 5200);
       expect(d.balance, 1000 - 0 - 200); // 800, external not subtracted
@@ -127,7 +130,7 @@ void main() {
     });
 
     test('empty input yields all zeros and an empty month list', () {
-      final d = DashboardSummary.from(const [], const [], now);
+      final d = DashboardSummary.from(const [], const [], july);
       expect(d.balance, 0);
       expect(d.savingsTotal, 0);
       expect(d.monthRemaining, 0);

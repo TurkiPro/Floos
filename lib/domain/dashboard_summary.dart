@@ -1,5 +1,6 @@
 import '../data/database.dart'; // TxnRow, SavingsContribution
 import '../data/enums.dart'; // TxnType
+import 'financial_period.dart';
 
 /// Everything the home dashboard shows, computed once from the two streams.
 /// [balance] is money neither spent nor set aside: all income − all expenses
@@ -28,9 +29,11 @@ class DashboardSummary {
   factory DashboardSummary.from(
     List<TxnRow> rows,
     List<SavingsContribution> contributions,
-    DateTime now,
+    FinancialPeriod period,
   ) {
-    bool inMonth(DateTime d) => d.year == now.year && d.month == now.month;
+    // "This month" here means the current salary cycle (see FinancialPeriod),
+    // so the salary you were just paid counts toward the period you're in.
+    bool inMonth(DateTime d) => period.contains(d);
 
     double allIncome = 0, allExpense = 0, monthIncome = 0, monthSpent = 0;
     var incomeThisMonth = false;
@@ -53,7 +56,7 @@ class DashboardSummary {
     }
 
     // External deposits (money that already existed) count toward the total
-    // saved but never reduce the balance or this month's income split.
+    // saved but never reduce the balance or this period's income split.
     double allSaved = 0, internalSaved = 0, monthSaved = 0;
     for (final c in contributions) {
       allSaved += c.amount;
