@@ -123,15 +123,18 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: AppSpacing.xl),
           _sectionLabel(context, 'لون التمييز'),
           const SizedBox(height: AppSpacing.sm),
-          Wrap(
-            spacing: AppSpacing.lg,
-            runSpacing: AppSpacing.lg,
+          // Six equal Expanded slots keep every accent on a single row at any
+          // phone width — the old Wrap of fixed 56px circles spilled onto a
+          // second row on narrow screens.
+          Row(
             children: [
               for (final accent in AppAccent.values)
-                _AccentSwatch(
-                  accent: accent,
-                  selected: accent == settings.accent,
-                  onTap: () => settings.setAccent(accent),
+                Expanded(
+                  child: _AccentSwatch(
+                    accent: accent,
+                    selected: accent == settings.accent,
+                    onTap: () => settings.setAccent(accent),
+                  ),
                 ),
             ],
           ),
@@ -476,14 +479,17 @@ class _AccentSwatch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // Opaque hit-testing so the whole (wider) slot around the circle taps,
+    // not just the 44px disc itself.
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 56,
-            height: 56,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
               color: accent.primary,
               shape: BoxShape.circle,
@@ -491,11 +497,18 @@ class _AccentSwatch extends StatelessWidget {
                   ? Border.all(color: scheme.onSurface, width: 3)
                   : null,
             ),
-            child: selected ? Icon(Icons.check, color: accent.onPrimary) : null,
+            child: selected
+                ? Icon(Icons.check, size: 20, color: accent.onPrimary)
+                : null,
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(accent.label,
-              style: const TextStyle(fontSize: AppTextSizes.label)),
+          Text(
+            accent.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: AppTextSizes.label),
+          ),
         ],
       ),
     );
