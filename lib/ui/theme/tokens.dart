@@ -186,18 +186,15 @@ const categoryTileColors = CategoryTileColors({
   'investment': (Color(0xFFE3F0F5), Color(0xFF105B73)),
 });
 
-/// Tile colors for a category: the curated design-brief pair when the icon key
-/// is one of the 11 seeded ones, otherwise a pair derived from the category's
-/// own [colorValue] — pale tint background, readable foreground — so
-/// user-created categories and sub-categories carry the color the user picked
-/// instead of all falling back to the neutral "other" pair.
+/// Tile colors for a category: a pale-tint background + readable foreground
+/// derived from the category's own [colorValue]. Every category — top-level or
+/// sub, seeded or user-made — uses this one rule, so a parent and its
+/// sub-categories share a single consistent hue instead of some rows jumping to
+/// a different curated palette just because their icon key happens to be seeded.
 (Color bg, Color fg) categoryTilePair({
-  required String iconKey,
   required int? colorValue,
   required Brightness brightness,
 }) {
-  final curated = categoryTileColors.byIconKey[iconKey];
-  if (curated != null) return curated;
   if (colorValue == null) return categoryTileColors.byIconKey['other']!;
   final hsl = HSLColor.fromColor(Color(colorValue));
   if (brightness == Brightness.light) {

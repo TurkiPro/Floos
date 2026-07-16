@@ -26,7 +26,6 @@ class CategoryIconTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pair = categoryTilePair(
-      iconKey: iconKey,
       colorValue: colorValue,
       brightness: Theme.of(context).brightness,
     );
