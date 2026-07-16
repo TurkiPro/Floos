@@ -16,8 +16,14 @@
     <!-- Fingerprint / face unlock behind the app lock. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
 
+    <!-- The whole privacy promise is that the finance database never leaves the
+         device. allowBackup=false keeps floos.sqlite out of Google's cloud
+         device backup and out of device-to-device transfer; users get an
+         explicit, user-controlled backup file instead (see plans/016). -->
     <application
         android:label="فلوس"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -41,7 +41,12 @@ class FloosApp extends StatelessWidget {
             theme: _buildTheme(Brightness.light, s.accent),
             darkTheme: _buildTheme(Brightness.dark, s.accent),
             themeMode: s.themeMode,
-            home: const _LockGate(child: HomeScreen()),
+            // The gate must wrap the Navigator (via builder:), not the home
+            // route — otherwise every pushed screen (Settings, Statistics, a
+            // sheet) renders above the lock and bypasses it.
+            builder: (context, child) =>
+                _LockGate(child: child ?? const SizedBox.shrink()),
+            home: const HomeScreen(),
           ),
         ),
       ),
@@ -90,6 +95,8 @@ class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
         if (lockOn && mounted) {
+          // Drop the keyboard so it can't float above the cover.
+          FocusManager.instance.primaryFocus?.unfocus();
           setState(() {
             _obscured = true;
             _unlocked = false;
@@ -117,21 +124,48 @@ class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final lockOn = context.watch<AppSettings>().appLockEnabled;
+    // `_obscured` (backgrounded) shows the data-free cover; otherwise a locked
+    // app shows the interactive unlock screen. Either way the covering widget
+    // stacks OVER the child so the whole Navigator stays mounted underneath —
+    // locking must never destroy navigation state.
+    final covering = lockOn && (_obscured || !_unlocked);
 
-    // While backgrounded/inactive with the lock on, show an opaque cover with
-    // no data and no button — this is what the app-switcher snapshots.
-    if (lockOn && _obscured) {
-      final scheme = Theme.of(context).colorScheme;
-      return Scaffold(
-        body: Center(
-          child: Icon(Icons.lock_outline, size: 56, color: scheme.primary),
-        ),
-      );
-    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        widget.child,
+        if (covering)
+          _obscured
+              ? const _ObscureCover()
+              : _UnlockScreen(onUnlock: _maybeAuthenticate),
+      ],
+    );
+  }
+}
 
-    final locked = lockOn && !_unlocked;
-    if (!locked) return widget.child;
+/// The opaque, data-free cover shown while the app is backgrounded/inactive —
+/// this is what the OS app-switcher snapshots.
+class _ObscureCover extends StatelessWidget {
+  const _ObscureCover();
 
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      body: Center(
+        child: Icon(Icons.lock_outline, size: 56, color: scheme.primary),
+      ),
+    );
+  }
+}
+
+/// The interactive lock screen shown when the app is open but not yet unlocked.
+class _UnlockScreen extends StatelessWidget {
+  final VoidCallback onUnlock;
+  const _UnlockScreen({required this.onUnlock});
+
+  @override
+  Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       body: Center(
@@ -151,7 +185,7 @@ class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
             ),
             const SizedBox(height: AppSpacing.xl),
             FilledButton.icon(
-              onPressed: _maybeAuthenticate,
+              onPressed: onUnlock,
               icon: const Icon(Icons.lock_open),
               label: const Text('فتح'),
             ),
