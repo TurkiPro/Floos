@@ -27,7 +27,7 @@ void main() {
     expect(find.text('فلوس مقفل'), findsOneWidget);
 
     // The add-transaction bar must not be operable behind the lock.
-    await tester.tap(find.text('إضافة حركة'), warnIfMissed: false);
+    await tester.tap(find.text('إضافة عملية'), warnIfMissed: false);
     await tester.pumpAndSettle();
     expect(find.text('حفظ'), findsNothing,
         reason: 'no sheet opens behind lock');

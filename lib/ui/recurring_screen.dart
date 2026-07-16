@@ -186,7 +186,7 @@ class ObligationsScreen extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'لن يتم توليد حركات جديدة من هذا الالتزام. الحركات السابقة تبقى كما هي.',
+              'لن يتم توليد عمليات جديدة من هذا الالتزام. العمليات السابقة تبقى كما هي.',
               textAlign: TextAlign.center,
               style: TextStyle(
                   fontSize: AppTextSizes.label, color: scheme.onSurfaceVariant),

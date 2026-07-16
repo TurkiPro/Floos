@@ -201,12 +201,21 @@ class _UnlockScreen extends StatelessWidget {
 
 ThemeData _buildTheme(Brightness brightness, AppAccent accent, AppFont font) {
   final isLight = brightness == Brightness.light;
+  final scheme =
+      isLight ? AppColorSchemes.light(accent) : AppColorSchemes.dark(accent);
   return ThemeData(
     brightness: brightness,
     useMaterial3: true,
-    colorScheme:
-        isLight ? AppColorSchemes.light(accent) : AppColorSchemes.dark(accent),
+    colorScheme: scheme,
     scaffoldBackgroundColor: isLight ? AppColors.pageLight : AppColors.pageDark,
+    // Softer hairlines everywhere: the default M3 divider (outlineVariant) read
+    // as too heavy/jarring. A low-alpha wash of onSurface sits quietly over both
+    // the page and cards, in light and dark, so separators guide the eye without
+    // slicing the layout.
+    dividerTheme: DividerThemeData(
+      color: scheme.onSurface.withValues(alpha: 0.06),
+      thickness: 1,
+    ),
     // Card/tile/button radii set once globally so individual screens don't
     // repeat AppRadii values per widget.
     extensions: [categoryTileColors, AccentPalette(progress: accent.progress)],

@@ -80,7 +80,7 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
       builder: (context) => AlertDialog(
         title: Text(isIncome ? 'حذف الدخل المتكرر؟' : 'حذف القاعدة المتكررة؟'),
         content: const Text(
-            'لن يتم حذف الحركات التي تم إنشاؤها سابقًا، لكن لن يتم إنشاء المزيد منها.'),
+            'لن يتم حذف العمليات التي تم إنشاؤها سابقًا، لكن لن يتم إنشاء المزيد منها.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -325,7 +325,7 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
               Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.xs),
                 child: Text(
-                  'سيتم تسجيل ${_backfillCount()} حركة فائتة منذ تاريخ البدء عند الحفظ.',
+                  'سيتم تسجيل ${_backfillCount()} عملية فائتة منذ تاريخ البدء عند الحفظ.',
                   style: TextStyle(
                     fontSize: AppTextSizes.label,
                     color: Theme.of(context).colorScheme.primary,

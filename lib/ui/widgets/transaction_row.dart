@@ -48,7 +48,7 @@ class TransactionRow extends StatelessWidget {
           refreshAlerts(db, settings);
         });
         messenger.showSnackBar(SnackBar(
-          content: const Text('تم حذف الحركة'),
+          content: const Text('تم حذف العملية'),
           action: SnackBarAction(
             label: 'تراجع',
             onPressed: () {

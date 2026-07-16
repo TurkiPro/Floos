@@ -45,7 +45,7 @@ Future<File> writeTransactionsPdf(AppDatabase db) async {
       build: (context) => [
         pw.Header(
           level: 0,
-          child: pw.Text('فلوس — كشف الحركات',
+          child: pw.Text('فلوس — كشف العمليات',
               style: pw.TextStyle(font: bold, fontSize: 20)),
         ),
         pw.Text('تاريخ التصدير: ${dateFmt.format(DateTime.now())}'),

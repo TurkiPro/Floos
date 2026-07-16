@@ -92,7 +92,7 @@ class SettingsScreen extends StatelessWidget {
               onTap: () => _push(context, const CategoryEditorScreen())),
           _navTile(context,
               icon: Icons.file_download_outlined,
-              label: 'تصدير الحركات',
+              label: 'تصدير العمليات',
               onTap: () => _export(context, db)),
           const SizedBox(height: AppSpacing.lg),
           _sectionLabel(context, 'المظهر'),
@@ -124,8 +124,7 @@ class SettingsScreen extends StatelessWidget {
             children: [
               for (final f in AppFont.values)
                 ChoiceChip(
-                  label: Text(f.label,
-                      style: TextStyle(fontFamily: f.family)),
+                  label: Text(f.label, style: TextStyle(fontFamily: f.family)),
                   selected: settings.fontChoice == f,
                   onSelected: (_) => settings.setFontChoice(f),
                 ),
@@ -300,7 +299,7 @@ class SettingsScreen extends StatelessWidget {
                 const Divider(height: 1),
                 SwitchListTile(
                   secondary: const Icon(Icons.volume_up_outlined),
-                  title: const Text('صوت عند إضافة حركة'),
+                  title: const Text('صوت عند إضافة عملية'),
                   value: settings.soundEnabled,
                   onChanged: settings.setSoundEnabled,
                 ),
@@ -503,7 +502,7 @@ class SettingsScreen extends StatelessWidget {
       builder: (context) => AlertDialog(
         title: const Text('حذف كل البيانات؟'),
         content: const Text(
-            'سيتم حذف كل الحركات والأهداف والقواعد المتكررة. لا يمكن التراجع.'),
+            'سيتم حذف كل العمليات والأهداف والقواعد المتكررة. لا يمكن التراجع.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),

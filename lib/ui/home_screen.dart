@@ -95,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   builder: (_) => AddTransactionSheet(db: db),
                 ),
                 icon: const Icon(Icons.add),
-                label: const Text('إضافة حركة'),
+                label: const Text('إضافة عملية'),
               ),
             ),
           ),
@@ -181,11 +181,14 @@ String? _salaryHint(List<RecurrenceRule> incomeRules, DateTime now) {
   if (soonest == null) return null;
 
   final days = soonest.difference(today).inDays;
-  if (days <= 0) return 'الراتب اليوم';
-  if (days == 1) return 'الراتب غدًا';
-  if (days == 2) return 'الراتب بعد يومين';
-  if (days <= 10) return 'الراتب بعد $days أيام';
-  return 'الراتب بعد $days يومًا';
+  // A little personality: the emoji and tone warm up as payday approaches.
+  // Arabic plural grammar preserved (3–10 → أيام, 11+ → يومًا).
+  if (days <= 0) return '🎉 نزل الراتب اليوم!';
+  if (days == 1) return '🤑 الراتب غدًا!';
+  if (days == 2) return '⏳ الراتب بعد يومين';
+  if (days <= 6) return '🔥 باقي $days أيام على الراتب';
+  if (days <= 10) return '🗓️ الراتب بعد $days أيام';
+  return '⏳ الراتب بعد $days يومًا';
 }
 
 /// Stylised gradient header: accent gradient, the فلوس wordmark with a wallet

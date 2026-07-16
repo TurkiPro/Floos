@@ -53,7 +53,7 @@ class MonthDetailScreen extends StatelessWidget {
               if (rows.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
-                  child: Center(child: Text('لا توجد حركات في هذا الشهر')),
+                  child: Center(child: Text('لا توجد عمليات في هذا الشهر')),
                 )
               else
                 for (final group in groups) ...[

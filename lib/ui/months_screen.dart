@@ -24,7 +24,7 @@ class MonthsScreen extends StatelessWidget {
         builder: (context, snapshot) {
           final months = snapshot.data ?? const <MonthKey>[];
           if (months.isEmpty) {
-            return const Center(child: Text('لا توجد حركات بعد'));
+            return const Center(child: Text('لا توجد عمليات بعد'));
           }
           return ListView.builder(
             padding: const EdgeInsets.all(AppSpacing.lg),

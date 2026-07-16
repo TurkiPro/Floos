@@ -410,12 +410,12 @@ class StatisticsScreen extends StatelessWidget {
     final facts = <(IconData, String, String)>[
       (
         Icons.receipt_long,
-        'عدد الحركات',
+        'عدد العمليات',
         '${s.txnCountThisMonth}',
       ),
       (
         Icons.straighten,
-        'متوسط الحركة',
+        'متوسط العملية',
         '${money.format(s.avgTxnThisMonth)} ر.س',
       ),
       if (s.biggestExpense != null)

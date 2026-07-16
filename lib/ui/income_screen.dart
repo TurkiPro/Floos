@@ -133,7 +133,7 @@ class IncomeScreen extends StatelessWidget {
               if (rows.isEmpty) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
-                  child: Center(child: Text('لا توجد حركات دخل بعد')),
+                  child: Center(child: Text('لا توجد عمليات دخل بعد')),
                 );
               }
               final groups = groupByDay(rows, (r) => r.txn.date);
