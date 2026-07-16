@@ -89,6 +89,12 @@ Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
 
   for (final r in rows) {
     if (r.txn.type != TxnType.expense) continue;
+    // Fixed monthly obligations (rent, subscriptions, bills) are generated from
+    // a recurring rule and are planned, not discretionary day-to-day spending.
+    // They must not count against the weekly budget — neither eating this week's
+    // allowance when one lands this week, nor inflating the 12-week average the
+    // recommendation is built from. Anything with a recurrence link is excluded.
+    if (r.txn.recurrenceId != null) continue;
     final date = r.txn.date;
     final amount = r.txn.amount;
 

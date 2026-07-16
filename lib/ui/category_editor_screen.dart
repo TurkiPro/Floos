@@ -18,6 +18,8 @@ enum _CatAction { edit, addSub, archive, unarchive }
 
 class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
   bool _showArchived = false;
+  // Top-level categories start collapsed; ids the user has opened live here.
+  final Set<int> _expanded = <int>{};
 
   Future<void> _confirmArchive(
       BuildContext context, AppDatabase db, Category c) async {
@@ -139,15 +141,29 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
       itemBuilder: (context, i) {
         final top = tops[i];
         final children = active.where((c) => c.parentId == top.id).toList();
+        final expanded = _expanded.contains(top.id);
         return Card(
           margin: const EdgeInsets.only(bottom: AppSpacing.md),
           child: Column(
             children: [
-              _row(context, db, top, isSub: false),
-              for (final child in children) ...[
-                const Divider(height: 1, indent: AppSpacing.xxl),
-                _row(context, db, child, isSub: true),
-              ],
+              _row(context, db, top,
+                  isSub: false,
+                  subCount: children.length,
+                  expanded: expanded,
+                  onToggle: children.isEmpty
+                      ? null
+                      : () => setState(() {
+                            if (expanded) {
+                              _expanded.remove(top.id);
+                            } else {
+                              _expanded.add(top.id);
+                            }
+                          })),
+              if (expanded)
+                for (final child in children) ...[
+                  const Divider(height: 1, indent: AppSpacing.xxl),
+                  _row(context, db, child, isSub: true),
+                ],
             ],
           ),
         );
@@ -156,8 +172,22 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
   }
 
   Widget _row(BuildContext context, AppDatabase db, Category c,
-      {required bool isSub}) {
+      {required bool isSub,
+      int subCount = 0,
+      bool expanded = false,
+      VoidCallback? onToggle}) {
+    // A top-level row with sub-categories toggles them open/closed; tapping the
+    // body expands, the chevron mirrors the state. Sub rows and childless tops
+    // have no toggle.
+    final expenseKind = c.type == TxnType.expense
+        ? (c.kind == CategoryKind.essential ? 'أساسيات' : 'كماليات')
+        : null;
+    final subtitleText = [
+      if (expenseKind != null) expenseKind,
+      if (!isSub && subCount > 0) '$subCount تصنيفات فرعية',
+    ].join('  •  ');
     return ListTile(
+      onTap: onToggle,
       contentPadding: EdgeInsets.only(
         left: AppSpacing.md,
         right: isSub ? AppSpacing.xxl : AppSpacing.md,
@@ -165,35 +195,48 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
       leading: CategoryIconTile(
           iconKey: c.iconKey, colorValue: c.colorValue, size: isSub ? 32 : 40),
       title: Text(c.name),
-      subtitle: c.type == TxnType.expense
-          ? Text(c.kind == CategoryKind.essential ? 'أساسيات' : 'كماليات',
-              style: const TextStyle(fontSize: AppTextSizes.label))
-          : null,
-      trailing: PopupMenuButton<_CatAction>(
-        onSelected: (action) {
-          switch (action) {
-            case _CatAction.edit:
-              _openSheet(context, db, existing: c);
-              break;
-            case _CatAction.addSub:
-              _openSheet(context, db, parentId: c.id, fixedType: c.type);
-              break;
-            case _CatAction.archive:
-              _confirmArchive(context, db, c);
-              break;
-            case _CatAction.unarchive:
-              db.categoryDao.unarchive(c.id);
-              break;
-          }
-        },
-        itemBuilder: (context) => [
-          const PopupMenuItem(value: _CatAction.edit, child: Text('تعديل')),
-          if (!isSub)
-            const PopupMenuItem(
-                value: _CatAction.addSub, child: Text('إضافة تصنيف فرعي')),
-          const PopupMenuItem(value: _CatAction.archive, child: Text('أرشفة')),
+      subtitle: subtitleText.isEmpty
+          ? null
+          : Text(subtitleText,
+              style: const TextStyle(fontSize: AppTextSizes.label)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (onToggle != null)
+            Icon(expanded ? Icons.expand_less : Icons.expand_more,
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
+          _rowMenu(context, db, c, isSub: isSub),
         ],
       ),
+    );
+  }
+
+  Widget _rowMenu(BuildContext context, AppDatabase db, Category c,
+      {required bool isSub}) {
+    return PopupMenuButton<_CatAction>(
+      onSelected: (action) {
+        switch (action) {
+          case _CatAction.edit:
+            _openSheet(context, db, existing: c);
+            break;
+          case _CatAction.addSub:
+            _openSheet(context, db, parentId: c.id, fixedType: c.type);
+            break;
+          case _CatAction.archive:
+            _confirmArchive(context, db, c);
+            break;
+          case _CatAction.unarchive:
+            db.categoryDao.unarchive(c.id);
+            break;
+        }
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(value: _CatAction.edit, child: Text('تعديل')),
+        if (!isSub)
+          const PopupMenuItem(
+              value: _CatAction.addSub, child: Text('إضافة تصنيف فرعي')),
+        const PopupMenuItem(value: _CatAction.archive, child: Text('أرشفة')),
+      ],
     );
   }
 }

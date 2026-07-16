@@ -84,47 +84,73 @@ class ObligationsScreen extends StatelessWidget {
                 subtitle.write('\nمتوقفة');
               }
 
-              return Card(
-                margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
-                  isThreeLine: true,
-                  onTap: () => showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    useSafeArea: true,
-                    builder: (_) => AddRecurrenceSheet(db: db, existingRule: r),
+              return Dismissible(
+                key: ValueKey(r.id),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(AppRadii.card),
                   ),
-                  leading: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: scheme.primary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(AppRadii.tile),
+                  alignment: AlignmentDirectional.centerStart,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                  child: const Icon(Icons.delete, color: Colors.white),
+                ),
+                confirmDismiss: (_) => _confirmDelete(context, r.title),
+                onDismissed: (_) async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final settings = context.read<AppSettings>();
+                  await db.recurrenceDao.deleteById(r.id);
+                  await refreshAlerts(db, settings);
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('تم حذف الالتزام')),
+                  );
+                },
+                child: Card(
+                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
+                    isThreeLine: true,
+                    onTap: () => showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      useSafeArea: true,
+                      builder: (_) =>
+                          AddRecurrenceSheet(db: db, existingRule: r),
                     ),
-                    child: Icon(Icons.north_east, color: scheme.primary),
-                  ),
-                  title: Text(
-                    r.title,
-                    style: const TextStyle(
-                        fontSize: AppTextSizes.row,
-                        fontWeight: FontWeight.w500),
-                  ),
-                  subtitle: Text(subtitle.toString()),
-                  trailing: Switch(
-                    value: r.active,
-                    onChanged: (v) async {
-                      if (v) {
-                        await db.recurrenceDao.reactivate(r.id);
-                        await RecurrenceEngine(db).catchUp();
-                      } else {
-                        await db.recurrenceDao.pause(r.id);
-                      }
-                      if (context.mounted) {
-                        refreshAlerts(db, context.read<AppSettings>());
-                      }
-                    },
+                    leading: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: scheme.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppRadii.tile),
+                      ),
+                      child: Icon(Icons.north_east, color: scheme.primary),
+                    ),
+                    title: Text(
+                      r.title,
+                      style: const TextStyle(
+                          fontSize: AppTextSizes.row,
+                          fontWeight: FontWeight.w500),
+                    ),
+                    subtitle: Text(subtitle.toString()),
+                    trailing: Switch(
+                      value: r.active,
+                      onChanged: (v) async {
+                        if (v) {
+                          await db.recurrenceDao.reactivate(r.id);
+                          await RecurrenceEngine(db).catchUp();
+                        } else {
+                          await db.recurrenceDao.pause(r.id);
+                        }
+                        if (context.mounted) {
+                          refreshAlerts(db, context.read<AppSettings>());
+                        }
+                      },
+                    ),
                   ),
                 ),
               );
@@ -133,5 +159,53 @@ class ObligationsScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  /// A soft, in-context confirmation for a destructive swipe — a rounded sheet
+  /// that slides up from the bottom rather than a modal dialog thrown in the
+  /// user's face. Returns true only if they tap حذف.
+  Future<bool> _confirmDelete(BuildContext context, String name) async {
+    final scheme = Theme.of(context).colorScheme;
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Icon(Icons.delete_outline, size: 40, color: Colors.red),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'حذف «$name»؟',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: AppTextSizes.row, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'لن يتم توليد حركات جديدة من هذا الالتزام. الحركات السابقة تبقى كما هي.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: AppTextSizes.label, color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('حذف'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('إلغاء'),
+            ),
+          ],
+        ),
+      ),
+    );
+    return result ?? false;
   }
 }

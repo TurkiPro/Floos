@@ -127,6 +127,40 @@ void main() {
     expect(after.spentThisWeek, 200);
   });
 
+  test('recurring (monthly-obligation) expenses are excluded from the budget',
+      () async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    // A discretionary expense this week.
+    await db.transactionDao.add(
+      amount: 100,
+      categoryId: essentialCat,
+      type: TxnType.expense,
+      date: DateTime(2026, 7, 12),
+    );
+    final before = await computeWeeklyBudget(db, now);
+
+    // A recurring obligation (e.g. rent) that lands this week must not move
+    // either figure: it's generated from a rule, so it carries a recurrenceId.
+    final ruleId = await db.recurrenceDao.add(
+      title: 'إيجار',
+      amount: 3000,
+      categoryId: essentialCat,
+      type: TxnType.expense,
+      frequency: Frequency.monthly,
+      startDate: DateTime(2026, 7, 1),
+    );
+    final rule = (await db.recurrenceDao.activeRules())
+        .firstWhere((r) => r.id == ruleId);
+    await db.transactionDao.insertGenerated(rule, DateTime(2026, 7, 12));
+
+    final after = await computeWeeklyBudget(db, now);
+    expect(after.spentThisWeek, before.spentThisWeek);
+    expect(after.recommended, before.recommended);
+    expect(after.spentThisWeek, 100);
+  });
+
   test('remaining clamps to 0 when spent exceeds recommended', () async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);

@@ -77,7 +77,10 @@ class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAuthenticate());
+    // Deliberately does NOT auto-authenticate on launch. A locked app shows the
+    // unlock screen with a button; the user taps it to choose Face ID or their
+    // device passcode, rather than Face ID being forced in their face on every
+    // open. See _UnlockScreen.
   }
 
   @override
@@ -103,8 +106,9 @@ class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
         }
         break;
       case AppLifecycleState.resumed:
+        // Lift the privacy cover, but don't auto-authenticate — the unlock
+        // screen waits for the user to tap فتح.
         if (mounted) setState(() => _obscured = false);
-        _maybeAuthenticate();
         break;
       case AppLifecycleState.detached:
         break;
