@@ -92,93 +92,110 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.lg,
-        right: AppSpacing.lg,
-        top: AppSpacing.lg,
-        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.lg,
-      ),
-      child: SingleChildScrollView(
+      // Lift the whole sheet above the keyboard; the fields scroll while the
+      // save button below stays pinned, so it never hides behind the keyboard.
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SafeArea(
+        top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (_isEditing) ...[
-              Text('تعديل العملية',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.md),
-            ],
-            SegmentedButton<TxnType>(
-              segments: const [
-                ButtonSegment(value: TxnType.expense, label: Text('مصروف')),
-                ButtonSegment(value: TxnType.income, label: Text('دخل')),
-              ],
-              selected: {_type},
-              onSelectionChanged: (s) => setState(() {
-                _type = s.first;
-                _categoryId = null;
-              }),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Center(
-              child: IntrinsicWidth(
-                child: TextField(
-                  controller: _amountCtrl,
-                  autofocus: !_isEditing,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: AppTextSizes.heroMin,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  decoration: const InputDecoration(
-                    hintText: '0.00',
-                    suffixText: 'ر.س',
-                    border: InputBorder.none,
-                  ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_isEditing) ...[
+                      Text('تعديل العملية',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: AppSpacing.md),
+                    ],
+                    SegmentedButton<TxnType>(
+                      segments: const [
+                        ButtonSegment(
+                            value: TxnType.expense, label: Text('مصروف')),
+                        ButtonSegment(
+                            value: TxnType.income, label: Text('دخل')),
+                      ],
+                      selected: {_type},
+                      onSelectionChanged: (s) => setState(() {
+                        _type = s.first;
+                        _categoryId = null;
+                      }),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Center(
+                      child: IntrinsicWidth(
+                        child: TextField(
+                          controller: _amountCtrl,
+                          autofocus: !_isEditing,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: AppTextSizes.heroMin,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          decoration: const InputDecoration(
+                            hintText: '0.00',
+                            suffixText: 'ر.س',
+                            border: InputBorder.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    CategoryPicker(
+                      db: widget.db,
+                      type: _type,
+                      selectedId: _categoryId,
+                      onChanged: (id) => setState(() => _categoryId = id),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      children: [
+                        Expanded(
+                            child: Text(
+                                'التاريخ: ${DateFormat('yyyy-MM-dd').format(_date)}')),
+                        TextButton(
+                          onPressed: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: _date,
+                              firstDate: DateTime(2015),
+                              lastDate: DateTime(2100),
+                            );
+                            if (picked != null) setState(() => _date = picked);
+                          },
+                          child: const Text('تغيير'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    TextField(
+                      controller: _noteCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'ملاحظة (اختياري)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-            const SizedBox(height: AppSpacing.lg),
-            CategoryPicker(
-              db: widget.db,
-              type: _type,
-              selectedId: _categoryId,
-              onChanged: (id) => setState(() => _categoryId = id),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Expanded(
-                    child: Text(
-                        'التاريخ: ${DateFormat('yyyy-MM-dd').format(_date)}')),
-                TextButton(
-                  onPressed: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: _date,
-                      firstDate: DateTime(2015),
-                      lastDate: DateTime(2100),
-                    );
-                    if (picked != null) setState(() => _date = picked);
-                  },
-                  child: const Text('تغيير'),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextField(
-              controller: _noteCtrl,
-              decoration: const InputDecoration(
-                labelText: 'ملاحظة (اختياري)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            FilledButton(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.lg),
+              child: FilledButton(
                 onPressed: _save,
-                child: Text(_isEditing ? 'حفظ التعديلات' : 'حفظ')),
+                child: Text(_isEditing ? 'حفظ التعديلات' : 'حفظ'),
+              ),
+            ),
           ],
         ),
       ),
