@@ -20,6 +20,13 @@
 	     this purpose string is missing. -->
 	<key>NSFaceIDUsageDescription</key>
 	<string>يُستخدم Face ID لفتح تطبيق فلوس وحماية بياناتك المالية.</string>
+	<!-- Required only because the sound-playback library (just_audio, via
+	     audio_session) links against AVAudioSession, whose symbols reference the
+	     microphone. Apple's static scan then demands this key or rejects the
+	     upload (error 90683) — even though فلوس never records audio and never
+	     requests microphone access, so this string is never shown to a user. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>لا يستخدم فلوس الميكروفون ولا يسجّل أي صوت؛ هذا الوصف مطلوب بسبب مكتبة تشغيل نغمة تأكيد الحفظ.</string>
 	<!-- The app is Arabic-only and renders right-to-left. -->
 	<key>CFBundleLocalizations</key>
 	<array>

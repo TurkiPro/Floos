@@ -122,12 +122,20 @@ jobs:
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
 
+      # Same tag-or-pubspec fallback as the Android job: on a manual re-run there
+      # is no tag, so read the version from pubspec instead of naming the build
+      # after the branch ("main"), which TestFlight would reject.
       - name: Derive version
         id: version
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          echo "name=${TAG#v}" >> "$GITHUB_OUTPUT"
-          echo "code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            NAME="${GITHUB_REF_NAME#v}"
+          else
+            NAME=$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)
+          fi
+          echo "Version $NAME (build $GITHUB_RUN_NUMBER)"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
 
       # Without an Apple account we can still prove the iOS build compiles.
       - name: Build (unsigned)
