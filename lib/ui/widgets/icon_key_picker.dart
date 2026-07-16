@@ -10,11 +10,15 @@ import 'category_icon_tile.dart';
 class IconKeyPicker extends StatelessWidget {
   final String selectedKey;
   final ValueChanged<String> onChanged;
+  // The color currently chosen in the editor sheet, so a non-seed icon's
+  // preview tile matches what will be saved.
+  final int? colorValue;
 
   const IconKeyPicker({
     super.key,
     required this.selectedKey,
     required this.onChanged,
+    this.colorValue,
   });
 
   @override
@@ -46,6 +50,7 @@ class IconKeyPicker extends StatelessWidget {
                     onTap: () => onChanged(key),
                     child: CategoryIconTile(
                       iconKey: key,
+                      colorValue: colorValue,
                       size: 46,
                       selected: key == selectedKey,
                     ),

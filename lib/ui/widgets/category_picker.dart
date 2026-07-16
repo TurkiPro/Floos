@@ -79,6 +79,7 @@ class CategoryPicker extends StatelessWidget {
                       children: [
                         CategoryIconTile(
                           iconKey: c.iconKey,
+                          colorValue: c.colorValue,
                           size: 48,
                           selected: c.id == expandedTopId,
                         ),

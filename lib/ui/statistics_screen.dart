@@ -513,7 +513,10 @@ class StatisticsScreen extends StatelessWidget {
     final share = monthTotal > 0 ? entry.value / monthTotal : 0.0;
     return Row(
       children: [
-        CategoryIconTile(iconKey: cat?.iconKey ?? 'other', size: 34),
+        CategoryIconTile(
+            iconKey: cat?.iconKey ?? 'other',
+            colorValue: cat?.colorValue,
+            size: 34),
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Column(

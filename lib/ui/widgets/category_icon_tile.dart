@@ -9,21 +9,27 @@ import '../theme/tokens.dart';
 /// category grids, and the category editor list.
 class CategoryIconTile extends StatelessWidget {
   final String iconKey;
+  // Category.colorValue; null keeps the icon-key-only lookup (curated pairs or
+  // the neutral fallback). When set, non-seed icons tint from the user's color.
+  final int? colorValue;
   final double size;
   final bool selected;
 
   const CategoryIconTile({
     super.key,
     required this.iconKey,
+    this.colorValue,
     this.size = 40,
     this.selected = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final pair =
-        Theme.of(context).extension<CategoryTileColors>()?.byIconKey[iconKey] ??
-            categoryTileColors.byIconKey['other']!;
+    final pair = categoryTilePair(
+      iconKey: iconKey,
+      colorValue: colorValue,
+      brightness: Theme.of(context).brightness,
+    );
     return Container(
       width: size,
       height: size,

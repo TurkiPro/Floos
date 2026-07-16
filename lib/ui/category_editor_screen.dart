@@ -113,7 +113,8 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
       itemBuilder: (context, i) {
         final c = archived[i];
         return ListTile(
-          leading: CategoryIconTile(iconKey: c.iconKey),
+          leading:
+              CategoryIconTile(iconKey: c.iconKey, colorValue: c.colorValue),
           title: Text(c.name),
           trailing: IconButton(
             tooltip: 'إعادة تفعيل',
@@ -161,7 +162,8 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
         left: AppSpacing.md,
         right: isSub ? AppSpacing.xxl : AppSpacing.md,
       ),
-      leading: CategoryIconTile(iconKey: c.iconKey, size: isSub ? 32 : 40),
+      leading: CategoryIconTile(
+          iconKey: c.iconKey, colorValue: c.colorValue, size: isSub ? 32 : 40),
       title: Text(c.name),
       subtitle: c.type == TxnType.expense
           ? Text(c.kind == CategoryKind.essential ? 'أساسيات' : 'كماليات',

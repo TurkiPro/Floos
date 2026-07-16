@@ -163,7 +163,8 @@ class _BudgetTile extends StatelessWidget {
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Row(
             children: [
-              CategoryIconTile(iconKey: category.iconKey),
+              CategoryIconTile(
+                  iconKey: category.iconKey, colorValue: category.colorValue),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(

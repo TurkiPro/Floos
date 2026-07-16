@@ -165,3 +165,32 @@ const categoryTileColors = CategoryTileColors({
   'extra_income': (Color(0xFFEAF4F0), Color(0xFF0E6E52)),
   'investment': (Color(0xFFE3F0F5), Color(0xFF105B73)),
 });
+
+/// Tile colors for a category: the curated design-brief pair when the icon key
+/// is one of the 11 seeded ones, otherwise a pair derived from the category's
+/// own [colorValue] — pale tint background, readable foreground — so
+/// user-created categories and sub-categories carry the color the user picked
+/// instead of all falling back to the neutral "other" pair.
+(Color bg, Color fg) categoryTilePair({
+  required String iconKey,
+  required int? colorValue,
+  required Brightness brightness,
+}) {
+  final curated = categoryTileColors.byIconKey[iconKey];
+  if (curated != null) return curated;
+  if (colorValue == null) return categoryTileColors.byIconKey['other']!;
+  final hsl = HSLColor.fromColor(Color(colorValue));
+  if (brightness == Brightness.light) {
+    // Pale tint like the curated pairs (~93% lightness), deep saturated fg.
+    final bg = hsl
+        .withLightness(0.93)
+        .withSaturation(hsl.saturation.clamp(0.35, 0.75))
+        .toColor();
+    final fg = hsl.withLightness(0.28).toColor();
+    return (bg, fg);
+  }
+  // Dark mode: dim tint that reads on the dark card, brighter fg.
+  final bg = hsl.withLightness(0.16).toColor();
+  final fg = hsl.withLightness(0.72).toColor();
+  return (bg, fg);
+}

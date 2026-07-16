@@ -151,6 +151,7 @@ class _AddCategorySheetState extends State<AddCategorySheet> {
             const SizedBox(height: AppSpacing.sm),
             IconKeyPicker(
               selectedKey: _iconKey,
+              colorValue: _color.toARGB32(),
               onChanged: (key) => setState(() => _iconKey = key),
             ),
             const SizedBox(height: AppSpacing.lg),

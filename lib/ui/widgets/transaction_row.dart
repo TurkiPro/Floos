@@ -63,7 +63,9 @@ class TransactionRow extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: AppSpacing.sm),
         child: Row(
           children: [
-            CategoryIconTile(iconKey: row.category.iconKey),
+            CategoryIconTile(
+                iconKey: row.category.iconKey,
+                colorValue: row.category.colorValue),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
