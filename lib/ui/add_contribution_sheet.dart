@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../data/database.dart';
 import '../domain/parse_amount.dart';
 import 'theme/tokens.dart';
+import 'widgets/amount_input.dart';
 import 'widgets/picker_field.dart';
 
 /// Add or edit a deposit to a savings goal. When [existing] is given the sheet
@@ -39,9 +40,7 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
     final e = widget.existing;
     if (e != null) {
       _goalId = e.goalId;
-      _amountCtrl.text = e.amount == e.amount.roundToDouble()
-          ? e.amount.toInt().toString()
-          : e.amount.toString();
+      _amountCtrl.text = groupedAmount(e.amount);
       _date = e.date;
       _noteCtrl.text = e.note ?? '';
       _external = e.external;
@@ -150,6 +149,7 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
               autofocus: true,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: const [ThousandsInputFormatter()],
               decoration: const InputDecoration(
                 labelText: 'المبلغ',
                 suffixText: '⃁',

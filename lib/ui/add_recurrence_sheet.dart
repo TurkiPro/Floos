@@ -12,6 +12,7 @@ import '../domain/recurrence_math.dart'
     show dateOnly, nextOccurrence, occurrencesBetween;
 import 'recurring_screen.dart' show frequencyLabelAr;
 import 'theme/tokens.dart';
+import 'widgets/amount_input.dart';
 import 'widgets/category_picker.dart';
 import 'widgets/picker_field.dart';
 
@@ -58,7 +59,7 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
       _type = rule.type;
       _frequency = rule.frequency;
       _titleCtrl.text = rule.title;
-      _amountCtrl.text = rule.amount.toString();
+      _amountCtrl.text = groupedAmount(rule.amount);
       _intervalCtrl.text = rule.interval.toString();
       _startDate = rule.startDate;
       _endDate = rule.endDate;
@@ -330,6 +331,7 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
               controller: _amountCtrl,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: const [ThousandsInputFormatter()],
               decoration: const InputDecoration(
                 labelText: 'المبلغ',
                 suffixText: '⃁',

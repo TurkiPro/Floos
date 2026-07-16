@@ -3,9 +3,10 @@ import 'package:floos/domain/parse_amount.dart';
 
 void main() {
   group('parseAmount', () {
-    test('Western digits, with historic comma-as-decimal', () {
+    test('Western digits, comma as thousands separator', () {
       expect(parseAmount('12.50'), 12.5);
-      expect(parseAmount('12,50'), 12.5);
+      expect(parseAmount('1,000'), 1000);
+      expect(parseAmount('1,234.56'), 1234.56);
       expect(parseAmount('1000'), 1000);
     });
 

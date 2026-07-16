@@ -9,6 +9,7 @@ import '../domain/budget_advisor.dart';
 import '../domain/budget_progress.dart';
 import '../domain/parse_amount.dart';
 import 'theme/tokens.dart';
+import 'widgets/amount_input.dart';
 import 'widgets/category_icon_tile.dart';
 
 /// Set a monthly spending budget per top-level expense category and watch this
@@ -162,7 +163,7 @@ class BudgetsScreen extends StatelessWidget {
   Future<void> _editBudget(BuildContext context, AppDatabase db, Category cat,
       double? current) async {
     final ctrl = TextEditingController(
-        text: current == null ? '' : current.toStringAsFixed(0));
+        text: current == null ? '' : groupedAmount(current));
     final result = await showDialog<_BudgetEdit>(
       context: context,
       builder: (context) => AlertDialog(
@@ -171,6 +172,7 @@ class BudgetsScreen extends StatelessWidget {
           controller: ctrl,
           autofocus: true,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: const [ThousandsInputFormatter()],
           decoration: const InputDecoration(
             labelText: 'المبلغ الشهري',
             suffixText: '⃁',

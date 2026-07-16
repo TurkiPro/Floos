@@ -9,6 +9,7 @@ import '../domain/parse_amount.dart';
 import '../services/alerts_coordinator.dart';
 import '../services/sound_service.dart';
 import 'theme/tokens.dart';
+import 'widgets/amount_input.dart';
 import 'widgets/category_picker.dart';
 
 class AddTransactionSheet extends StatefulWidget {
@@ -37,7 +38,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     final e = widget.existing;
     if (e != null) {
       _type = e.type;
-      _amountCtrl.text = e.amount.toString();
+      _amountCtrl.text = groupedAmount(e.amount);
       _noteCtrl.text = e.note ?? '';
       _date = e.date;
       _categoryId = e.categoryId;
@@ -137,6 +138,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                         autofocus: !_isEditing,
                         keyboardType: const TextInputType.numberWithOptions(
                             decimal: true),
+                        inputFormatters: const [ThousandsInputFormatter()],
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: AppTextSizes.heroMin,
@@ -157,44 +159,54 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                     selectedId: _categoryId,
                     onChanged: (id) => setState(() => _categoryId = id),
                   ),
-                  const SizedBox(height: AppSpacing.md),
-                  Row(
-                    children: [
-                      Expanded(
-                          child: Text(
-                              'التاريخ: ${DateFormat('yyyy-MM-dd').format(_date)}')),
-                      TextButton(
-                        onPressed: () async {
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: _date,
-                            firstDate: DateTime(2015),
-                            lastDate: DateTime(2100),
-                          );
-                          if (picked != null) setState(() => _date = picked);
-                        },
-                        child: const Text('تغيير'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  TextField(
-                    controller: _noteCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'ملاحظة (اختياري)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
                 ],
               ),
             ),
           ),
+          // Date, note and the save button are pinned below the scroll area, so
+          // the date can never end up hidden under the button when the keyboard
+          // is up and the category picker fills the space above.
           Padding(
             padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm,
                 AppSpacing.lg, AppSpacing.lg + safeBottom),
-            child: FilledButton(
-              onPressed: _save,
-              child: Text(_isEditing ? 'حفظ التعديلات' : 'حفظ'),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                        child: Text(
+                            'التاريخ: ${DateFormat('yyyy-MM-dd').format(_date)}')),
+                    TextButton(
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _date,
+                          firstDate: DateTime(2015),
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked != null) setState(() => _date = picked);
+                      },
+                      child: const Text('تغيير'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  controller: _noteCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'ملاحظة (اختياري)',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                FilledButton(
+                  onPressed: _save,
+                  child: Text(_isEditing ? 'حفظ التعديلات' : 'حفظ'),
+                ),
+              ],
             ),
           ),
         ],

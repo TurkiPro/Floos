@@ -10,6 +10,7 @@ import '../domain/recurrence_engine.dart';
 import '../services/alerts_coordinator.dart';
 import '../services/sound_service.dart';
 import 'theme/tokens.dart';
+import 'widgets/amount_input.dart';
 import 'widgets/category_picker.dart';
 
 /// Dedicated income-only add sheet. Every income added here is independently
@@ -115,6 +116,7 @@ class _AddIncomeSheetState extends State<AddIncomeSheet> {
               autofocus: true,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: const [ThousandsInputFormatter()],
               decoration: const InputDecoration(
                 labelText: 'المبلغ',
                 suffixText: '⃁',

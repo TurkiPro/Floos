@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../data/database.dart';
 import '../domain/parse_amount.dart';
 import 'theme/tokens.dart';
+import 'widgets/amount_input.dart';
 
 class AddGoalSheet extends StatefulWidget {
   final AppDatabase db;
@@ -73,6 +74,7 @@ class _AddGoalSheetState extends State<AddGoalSheet> {
               controller: _targetCtrl,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: const [ThousandsInputFormatter()],
               decoration: const InputDecoration(
                 labelText: 'المبلغ المستهدف',
                 suffixText: '⃁',
