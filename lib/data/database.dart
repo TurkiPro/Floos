@@ -148,6 +148,24 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
     return (delete(transactions)..where((t) => t.id.equals(id))).go();
   }
 
+  /// Re-inserts a just-deleted transaction with its original id and links —
+  /// the undo path for swipe-to-delete. Safe because the id was freed by the
+  /// delete moments earlier; keeping it preserves the recurrenceId link and
+  /// list position, and the rule's marker never moved so catch-up can't
+  /// double-create.
+  Future<void> restore(Txn txn) {
+    return into(transactions).insert(TransactionsCompanion.insert(
+      id: Value(txn.id),
+      amount: txn.amount,
+      categoryId: txn.categoryId,
+      type: txn.type,
+      date: txn.date,
+      note: Value(txn.note),
+      recurrenceId: Value(txn.recurrenceId),
+      createdAt: Value(txn.createdAt),
+    ));
+  }
+
   /// Wipes all transactions -- used only by the dev data tools in Settings.
   Future<void> clearAll() => delete(transactions).go();
 
