@@ -69,10 +69,17 @@ Future<DateTime?> _nextSalaryDate(AppDatabase db, DateTime now) async {
 Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
   final rows = await db.transactionDao.watchAllWithCategory().first;
   final today = DateTime(now.year, now.month, now.day);
-  final windowStart = today.subtract(const Duration(days: spendingWindowDays));
+  // Exclusive upper bound: manual adds default to DateTime.now() (with a
+  // time-of-day), so a row stamped today at 14:30 is after today-at-midnight
+  // and a midnight upper bound would drop it. Constructor arithmetic (not
+  // Duration) keeps the window boundaries DST-safe.
+  final tomorrow = DateTime(now.year, now.month, now.day + 1);
+  final windowStart =
+      DateTime(today.year, today.month, today.day - spendingWindowDays);
   // Weeks here start on Saturday.
   final daysSinceSaturday = (today.weekday + 1) % 7;
-  final weekStart = today.subtract(Duration(days: daysSinceSaturday));
+  final weekStart =
+      DateTime(today.year, today.month, today.day - daysSinceSaturday);
 
   var essentialWindow = 0.0, luxuryWindow = 0.0, spentThisWeek = 0.0;
   DateTime? earliest;
@@ -82,10 +89,10 @@ Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
     final date = r.txn.date;
     final amount = r.txn.amount;
 
-    if (!date.isBefore(weekStart) && !date.isAfter(today)) {
+    if (!date.isBefore(weekStart) && date.isBefore(tomorrow)) {
       spentThisWeek += amount;
     }
-    if (!date.isBefore(windowStart) && !date.isAfter(today)) {
+    if (!date.isBefore(windowStart) && date.isBefore(tomorrow)) {
       if (r.category.kind == CategoryKind.luxury) {
         luxuryWindow += amount;
       } else {

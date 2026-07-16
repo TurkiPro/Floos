@@ -81,6 +81,25 @@ void main() {
     expect(budget.spentThisWeek, 0);
   });
 
+  test('a transaction stamped today with a time of day still counts', () async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    // now is 2026-07-15 (midnight). A manual add defaults to DateTime.now()
+    // with a time — this must count toward this week and the window, not be
+    // dropped for being "after" today-at-midnight.
+    await db.transactionDao.add(
+      amount: 150,
+      categoryId: essentialCat,
+      type: TxnType.expense,
+      date: DateTime(2026, 7, 15, 14, 30),
+    );
+
+    final budget = await computeWeeklyBudget(db, now);
+    expect(budget.spentThisWeek, 150);
+    expect(budget.recommended, greaterThan(0));
+  });
+
   test('income rows are ignored', () async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);

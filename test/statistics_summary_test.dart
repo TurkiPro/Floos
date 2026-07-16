@@ -146,6 +146,18 @@ void main() {
       expect(s.biggestExpense?.txn.amount, 210);
     });
 
+    test('a timed today-transaction counts in the pace window', () {
+      // now is 2026-07-15 midnight; a manual add is timestamped mid-afternoon.
+      final s = StatisticsSummary.from(
+        [_expense(300, DateTime(2026, 7, 15, 14, 30))],
+        const [],
+        now,
+      );
+      expect(s.currentWeeklyPace, greaterThan(0),
+          reason: 'today with a time-of-day is inside the window');
+      expect(s.spentThisMonth, 300);
+    });
+
     test('monthlyTrend has 6 entries, oldest -> newest, ending this month', () {
       final s = StatisticsSummary.from(
           [_expense(10, DateTime(2026, 7, 1))], const [], now);

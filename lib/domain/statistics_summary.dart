@@ -69,10 +69,14 @@ class StatisticsSummary {
     DateTime now,
   ) {
     final today = DateTime(now.year, now.month, now.day);
+    // Exclusive upper bound so rows stamped today with a time-of-day (manual
+    // adds default to DateTime.now(), not midnight) still count. Constructor
+    // arithmetic keeps the window DST-safe.
+    final tomorrow = DateTime(now.year, now.month, now.day + 1);
     final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
     final dayOfMonth = now.day;
     final windowStart =
-        today.subtract(const Duration(days: spendingWindowDays));
+        DateTime(today.year, today.month, today.day - spendingWindowDays);
     final lastMonth = DateTime(now.year, now.month - 1, 1);
 
     var allExpenseCount = 0;
@@ -124,7 +128,7 @@ class StatisticsSummary {
         }
       }
 
-      if (!date.isBefore(windowStart) && !date.isAfter(today)) {
+      if (!date.isBefore(windowStart) && date.isBefore(tomorrow)) {
         if (kind == CategoryKind.luxury) {
           luxuryWindow += amount;
         } else {
@@ -241,7 +245,7 @@ class StatisticsSummary {
     final end = DateTime(to.year, to.month, to.day);
     while (!d.isAfter(end)) {
       if (d.weekday == weekday) count++;
-      d = d.add(const Duration(days: 1));
+      d = DateTime(d.year, d.month, d.day + 1);
     }
     return count;
   }

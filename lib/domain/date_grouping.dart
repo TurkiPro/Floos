@@ -9,8 +9,10 @@ import 'package:intl/intl.dart';
 /// `initializeDateFormatting('ar')`, so a locale-tagged DateFormat would
 /// throw at the first date older than yesterday.
 String dayLabel(DateTime day, {required DateTime today}) {
-  final d = DateTime(day.year, day.month, day.day);
-  final t = DateTime(today.year, today.month, today.day);
+  // UTC midnights so a 23/25-hour local day (DST) can't make inDays truncate
+  // and mislabel yesterday as اليوم.
+  final d = DateTime.utc(day.year, day.month, day.day);
+  final t = DateTime.utc(today.year, today.month, today.day);
   final diff = t.difference(d).inDays;
   if (diff == 0) return 'اليوم';
   if (diff == 1) return 'أمس';
@@ -105,8 +107,10 @@ String dayNameForWeekday(int weekday) => _arabicDayNames[weekday - 1];
 /// Weekday + day-of-month + Arabic month, prefixed with اليوم/أمس when it
 /// applies, e.g. "اليوم • الجمعة، 3 يوليو" or "الأربعاء، 1 يوليو".
 String dayFullLabel(DateTime day, {required DateTime today}) {
-  final d = DateTime(day.year, day.month, day.day);
-  final t = DateTime(today.year, today.month, today.day);
+  // UTC midnights so a 23/25-hour local day (DST) can't make inDays truncate
+  // and mislabel yesterday as اليوم.
+  final d = DateTime.utc(day.year, day.month, day.day);
+  final t = DateTime.utc(today.year, today.month, today.day);
   final diff = t.difference(d).inDays;
   final base = '${dayName(d)}، ${d.day} ${_arabicMonthNames[d.month - 1]}';
   if (diff == 0) return 'اليوم • $base';

@@ -37,8 +37,10 @@ String dayFullLabelFor(
   if (!hijri) return dayFullLabel(day, today: today);
 
   final d = DateTime(day.year, day.month, day.day);
-  final t = DateTime(today.year, today.month, today.day);
-  final diff = t.difference(d).inDays;
+  // UTC midnights for the day-difference so a DST day can't truncate inDays.
+  final diff = DateTime.utc(today.year, today.month, today.day)
+      .difference(DateTime.utc(day.year, day.month, day.day))
+      .inDays;
   final h = HijriCalendar.fromDate(d);
   final base = '${dayName(d)}، ${h.hDay} ${_hijriMonths[h.hMonth - 1]}';
   if (diff == 0) return 'اليوم • $base';

@@ -113,11 +113,17 @@ class NotificationService {
           );
           break;
         case ReminderCadence.weekly:
+          // Anchored to a fixed weekday: reschedule() runs on every
+          // launch/resume, and an anchor of "today-or-tomorrow" + weekly
+          // matching would re-arm the reminder to fire within 24h every time
+          // — i.e. daily. Sunday avoids stacking on the Saturday budget alert
+          // and the Friday stats nudge.
           await _scheduleRepeating(
             id: _idReminder,
             title: 'سجّل مصاريف أسبوعك',
             body: 'خصّص دقيقة لتحديث مصاريف هذا الأسبوع.',
-            when: _nextInstanceOfTime(time.hour, time.minute),
+            when:
+                _nextInstanceOfWeekday(DateTime.sunday, time.hour, time.minute),
             match: DateTimeComponents.dayOfWeekAndTime,
           );
           break;
