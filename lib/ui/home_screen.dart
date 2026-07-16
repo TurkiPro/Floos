@@ -458,41 +458,44 @@ class _DashboardBody extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: _TopCard(
-                  label: 'الرصيد',
-                  value: data.balance,
-                  money: money,
-                  icon: Icons.account_balance_wallet_outlined,
-                  valueColor: scheme.primary,
-                  emphasized: true,
-                  hint: 'الدخل',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const IncomeScreen()),
-                  ),
+        // No IntrinsicHeight/stretch: the hero value uses a FittedBox, whose
+        // *intrinsic* height is the unscaled number — measuring it would reserve
+        // that full height while it renders scaled-down, leaving a dead band
+        // under each card. Content-sizing keeps the two cards tight and equal
+        // (identical layout) on every screen size.
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _TopCard(
+                label: 'الرصيد',
+                value: data.balance,
+                money: money,
+                icon: Icons.account_balance_wallet_outlined,
+                valueColor: scheme.primary,
+                emphasized: true,
+                hint: 'الدخل',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const IncomeScreen()),
                 ),
               ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: _TopCard(
-                  label: 'المدخرات',
-                  value: data.savingsTotal,
-                  money: money,
-                  icon: Icons.savings_outlined,
-                  valueColor: scheme.onSurface,
-                  emphasized: false,
-                  hint: 'الأهداف',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SavingsScreen()),
-                  ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _TopCard(
+                label: 'المدخرات',
+                value: data.savingsTotal,
+                money: money,
+                icon: Icons.savings_outlined,
+                valueColor: scheme.onSurface,
+                emphasized: false,
+                hint: 'الأهداف',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SavingsScreen()),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
         const SizedBox(height: AppSpacing.md),
         _MonthStatsCard(data: data, money: money),
