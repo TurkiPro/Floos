@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import '../app_settings.dart';
 import '../data/database.dart';
 import '../domain/calendar_format.dart';
+import '../domain/category_breakdown.dart';
 import '../domain/period_summary.dart';
+import 'category_detail_screen.dart';
 import 'theme/tokens.dart';
 
 /// Which period the behaviour breakdown groups by.
@@ -13,7 +15,9 @@ enum BehaviorScope { monthly, yearly }
 
 /// Income vs spending vs savings vs what was left, one row per period.
 /// Used for both the per-month and per-year views -- the only difference is
-/// how the rows are aggregated and labelled.
+/// how the rows are aggregated and labelled. Each period expands to show its
+/// top spending categories (with per-category averages) and drills into any
+/// category's transactions.
 class BehaviorScreen extends StatelessWidget {
   final BehaviorScope scope;
   const BehaviorScreen({super.key, required this.scope});
@@ -29,32 +33,52 @@ class BehaviorScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(monthly ? 'سلوك كل شهر' : 'سلوك كل سنة'),
       ),
-      body: StreamBuilder<List<TxnRow>>(
-        stream: db.transactionDao.watchAllWithCategory(),
-        builder: (context, txnSnap) {
-          final rows = txnSnap.data ?? const <TxnRow>[];
-          return StreamBuilder<List<SavingsContribution>>(
-            stream: db.savingsDao.watchAllContributions(),
-            builder: (context, contribSnap) {
-              final contributions =
-                  contribSnap.data ?? const <SavingsContribution>[];
-              final periods = monthly
-                  ? monthlySummaries(rows, contributions)
-                  : yearlySummaries(rows, contributions);
-              if (periods.isEmpty) {
-                return const Center(child: Text('لا توجد بيانات بعد'));
-              }
-              return ListView.builder(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                itemCount: periods.length,
-                itemBuilder: (context, i) => Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                  child: _PeriodCard(
-                    period: periods[i],
-                    money: money,
-                    hijri: hijri,
-                  ),
-                ),
+      body: StreamBuilder<List<Category>>(
+        stream: db.categoryDao.watchAll(),
+        builder: (context, catSnap) {
+          final byId = {
+            for (final c in (catSnap.data ?? const <Category>[])) c.id: c
+          };
+          return StreamBuilder<List<TxnRow>>(
+            stream: db.transactionDao.watchAllWithCategory(),
+            builder: (context, txnSnap) {
+              final rows = txnSnap.data ?? const <TxnRow>[];
+              return StreamBuilder<List<SavingsContribution>>(
+                stream: db.savingsDao.watchAllContributions(),
+                builder: (context, contribSnap) {
+                  final contributions =
+                      contribSnap.data ?? const <SavingsContribution>[];
+                  final periods = monthly
+                      ? monthlySummaries(rows, contributions)
+                      : yearlySummaries(rows, contributions);
+                  if (periods.isEmpty) {
+                    return const Center(child: Text('لا توجد بيانات بعد'));
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    itemCount: periods.length,
+                    itemBuilder: (context, i) {
+                      final p = periods[i];
+                      // This period's transactions, for its category breakdown.
+                      final periodRows = rows.where((r) {
+                        final d = r.txn.date;
+                        return monthly
+                            ? (d.year == p.year && d.month == p.month)
+                            : d.year == p.year;
+                      }).toList();
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                        child: _PeriodCard(
+                          period: p,
+                          periodRows: periodRows,
+                          byId: byId,
+                          money: money,
+                          hijri: hijri,
+                        ),
+                      );
+                    },
+                  );
+                },
               );
             },
           );
@@ -64,22 +88,39 @@ class BehaviorScreen extends StatelessWidget {
   }
 }
 
-class _PeriodCard extends StatelessWidget {
+class _PeriodCard extends StatefulWidget {
   final PeriodSummary period;
+  final List<TxnRow> periodRows;
+  final Map<int, Category> byId;
   final NumberFormat money;
   final bool hijri;
   const _PeriodCard({
     required this.period,
+    required this.periodRows,
+    required this.byId,
     required this.money,
     required this.hijri,
   });
 
   @override
+  State<_PeriodCard> createState() => _PeriodCardState();
+}
+
+class _PeriodCardState extends State<_PeriodCard> {
+  bool _expanded = false;
+
+  static const _spentColor = Color(0xFFE8A13A);
+  static const _luxury = Color(0xFFE8A13A);
+
+  @override
   Widget build(BuildContext context) {
+    final period = widget.period;
+    final money = widget.money;
     final scheme = Theme.of(context).colorScheme;
     final key = period.monthKey;
-    final title =
-        key == null ? '${period.year}' : monthLabelFor(key, hijri: hijri);
+    final title = key == null
+        ? '${period.year}'
+        : monthLabelFor(key, hijri: widget.hijri);
 
     // The bar shows how the income was split: spent / saved / left over.
     final income = period.income;
@@ -87,6 +128,8 @@ class _PeriodCard extends StatelessWidget {
     final savedPct = income > 0 ? (period.saved / income).clamp(0.0, 1.0) : 0.0;
     final leftPct = (1 - spentPct - savedPct).clamp(0.0, 1.0);
     final rate = period.savingsRate;
+
+    final breakdown = categoryBreakdown(widget.periodRows);
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -155,13 +198,39 @@ class _PeriodCard extends StatelessWidget {
               ),
             ],
           ),
+          if (breakdown.isNotEmpty) ...[
+            const Divider(height: AppSpacing.xl),
+            InkWell(
+              borderRadius: BorderRadius.circular(AppRadii.tile),
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text('أكثر الفئات إنفاقًا',
+                          style: TextStyle(
+                              fontSize: AppTextSizes.label,
+                              fontWeight: FontWeight.w600,
+                              color: scheme.onSurfaceVariant)),
+                    ),
+                    Icon(_expanded ? Icons.expand_less : Icons.expand_more,
+                        color: scheme.onSurfaceVariant),
+                  ],
+                ),
+              ),
+            ),
+            if (_expanded)
+              for (final stat in breakdown.take(5)) ...[
+                const SizedBox(height: AppSpacing.sm),
+                categoryStatRow(context, stat, period.spent, money, widget.byId,
+                    periodLabel: title),
+              ],
+          ],
         ],
       ),
     );
   }
-
-  static const _spentColor = Color(0xFFE8A13A);
-  static const _luxury = Color(0xFFE8A13A);
 
   Widget _stat(BuildContext context, String label, double value, Color color) {
     final scheme = Theme.of(context).colorScheme;
@@ -178,7 +247,7 @@ class _PeriodCard extends StatelessWidget {
             fit: BoxFit.scaleDown,
             alignment: AlignmentDirectional.centerStart,
             child: Text(
-              money.format(value),
+              widget.money.format(value),
               style: TextStyle(
                   fontSize: AppTextSizes.label,
                   fontWeight: FontWeight.w700,

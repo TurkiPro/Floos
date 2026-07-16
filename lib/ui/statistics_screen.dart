@@ -5,12 +5,13 @@ import 'package:provider/provider.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
 import '../data/export.dart';
+import '../domain/category_breakdown.dart';
 import '../domain/date_grouping.dart';
 import '../domain/financial_period.dart';
 import '../domain/statistics_summary.dart';
 import 'behavior_screen.dart';
+import 'category_detail_screen.dart';
 import 'theme/tokens.dart';
-import 'widgets/category_icon_tile.dart';
 
 /// Spending analytics, all derived in a single pass over the transaction
 /// stream (no per-frame DB queries), so it stays cheap even as history grows.
@@ -64,10 +65,16 @@ class StatisticsScreen extends StatelessWidget {
                       final incomeRules =
                           rulesSnap.data ?? const <RecurrenceRule>[];
                       final now = DateTime.now();
+                      final period = financialPeriod(incomeRules, now);
                       // Stats follow the salary cycle too (same period as the
                       // home dashboard), not the calendar month.
-                      final s = StatisticsSummary.from(rows, contributions, now,
-                          financialPeriod(incomeRules, now));
+                      final s = StatisticsSummary.from(
+                          rows, contributions, now, period);
+                      // Per-category slices of this period's spend, for the
+                      // top-categories card and its drill-downs.
+                      final breakdown = categoryBreakdown(rows
+                          .where((r) => period.contains(r.txn.date))
+                          .toList());
                       if (s.allExpenseCount == 0) {
                         return const Center(
                             child: Text('لا توجد بيانات كافية بعد'));
@@ -89,7 +96,9 @@ class StatisticsScreen extends StatelessWidget {
                           const SizedBox(height: AppSpacing.md),
                           _quickFactsCard(context, s, money),
                           const SizedBox(height: AppSpacing.md),
-                          _topCategoriesCard(context, s, money, byId),
+                          _topCategoriesCard(
+                              context, breakdown, s.spentThisMonth, money, byId,
+                              periodLabel: 'هذا الشهر'),
                           const SizedBox(height: AppSpacing.md),
                           _trendCard(context, s, money),
                         ],
@@ -492,8 +501,9 @@ class StatisticsScreen extends StatelessWidget {
     );
   }
 
-  Widget _topCategoriesCard(BuildContext context, StatisticsSummary s,
-      NumberFormat money, Map<int, Category> byId) {
+  Widget _topCategoriesCard(BuildContext context, List<CategoryStat> breakdown,
+      double monthTotal, NumberFormat money, Map<int, Category> byId,
+      {required String periodLabel}) {
     final scheme = Theme.of(context).colorScheme;
     return _card(
       context,
@@ -501,63 +511,23 @@ class StatisticsScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _label(context, 'أكثر الفئات إنفاقًا (هذا الشهر)'),
+          const SizedBox(height: AppSpacing.xs),
+          Text('اضغط فئة لعرض عملياتها',
+              style: TextStyle(
+                  fontSize: AppTextSizes.label,
+                  color: scheme.onSurfaceVariant)),
           const SizedBox(height: AppSpacing.md),
-          if (s.topCategories.isEmpty)
+          if (breakdown.isEmpty)
             Text('لا يوجد إنفاق هذا الشهر',
                 style: TextStyle(color: scheme.onSurfaceVariant))
           else
-            for (final entry in s.topCategories) ...[
-              _categoryRow(context, entry, s.spentThisMonth, money, byId),
+            for (final stat in breakdown.take(5)) ...[
+              categoryStatRow(context, stat, monthTotal, money, byId,
+                  periodLabel: periodLabel),
               const SizedBox(height: AppSpacing.sm),
             ],
         ],
       ),
-    );
-  }
-
-  Widget _categoryRow(BuildContext context, MapEntry<int, double> entry,
-      double monthTotal, NumberFormat money, Map<int, Category> byId) {
-    final scheme = Theme.of(context).colorScheme;
-    final cat = byId[entry.key];
-    final share = monthTotal > 0 ? entry.value / monthTotal : 0.0;
-    return Row(
-      children: [
-        CategoryIconTile(
-            iconKey: cat?.iconKey ?? 'other',
-            colorValue: cat?.colorValue,
-            size: 34),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(child: Text(cat?.name ?? '—')),
-                  Text('${(share * 100).toStringAsFixed(0)}٪  ',
-                      style: TextStyle(
-                          fontSize: AppTextSizes.label,
-                          color: scheme.onSurfaceVariant)),
-                  Text('${money.format(entry.value)} ⃁',
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppRadii.chip),
-                child: LinearProgressIndicator(
-                  value: share,
-                  minHeight: 5,
-                  backgroundColor:
-                      scheme.onSurfaceVariant.withValues(alpha: 0.12),
-                  valueColor: AlwaysStoppedAnimation(
-                      Theme.of(context).extension<AccentPalette>()!.progress),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 
