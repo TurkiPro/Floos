@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../data/database.dart';
+import '../domain/parse_amount.dart';
 import 'theme/tokens.dart';
 
 class AddGoalSheet extends StatefulWidget {
@@ -26,7 +27,7 @@ class _AddGoalSheetState extends State<AddGoalSheet> {
 
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
-    final target = double.tryParse(_targetCtrl.text.replaceAll(',', '.'));
+    final target = parseAmount(_targetCtrl.text);
     if (name.isEmpty || target == null || target <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('أدخل اسمًا ومبلغ هدف صحيح')),

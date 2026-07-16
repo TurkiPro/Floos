@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
+import '../domain/parse_amount.dart';
 import '../services/alerts_coordinator.dart';
 import '../services/sound_service.dart';
 import 'theme/tokens.dart';
@@ -33,7 +34,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   }
 
   Future<void> _save() async {
-    final amount = double.tryParse(_amountCtrl.text.replaceAll(',', '.'));
+    final amount = parseAmount(_amountCtrl.text);
     if (amount == null || amount <= 0 || _categoryId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('أدخل مبلغًا صحيحًا واختر فئة')),

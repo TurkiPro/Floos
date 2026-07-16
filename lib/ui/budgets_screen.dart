@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
 import '../domain/budget_progress.dart';
+import '../domain/parse_amount.dart';
 import 'theme/tokens.dart';
 import 'widgets/category_icon_tile.dart';
 
@@ -106,7 +107,7 @@ class BudgetsScreen extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () {
-              final amount = double.tryParse(ctrl.text.replaceAll(',', '.'));
+              final amount = parseAmount(ctrl.text);
               Navigator.of(context).pop(_BudgetEdit.save(amount));
             },
             child: const Text('حفظ'),

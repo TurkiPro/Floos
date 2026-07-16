@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
+import '../domain/parse_amount.dart';
 import '../domain/recurrence_engine.dart';
 import '../services/alerts_coordinator.dart';
 import '../services/sound_service.dart';
@@ -42,7 +43,7 @@ class _AddIncomeSheetState extends State<AddIncomeSheet> {
 
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
-    final amount = double.tryParse(_amountCtrl.text.replaceAll(',', '.'));
+    final amount = parseAmount(_amountCtrl.text);
     if (name.isEmpty || amount == null || amount <= 0 || _categoryId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('أدخل اسمًا ومبلغًا صحيحًا واختر فئة')),

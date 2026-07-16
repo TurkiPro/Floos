@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
+import '../domain/parse_amount.dart';
 import '../domain/recurrence_engine.dart';
 import '../services/alerts_coordinator.dart';
 import '../domain/recurrence_math.dart' show dateOnly, occurrencesBetween;
@@ -102,8 +103,8 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
   }
 
   Future<void> _save() async {
-    final amount = double.tryParse(_amountCtrl.text.replaceAll(',', '.'));
-    final interval = int.tryParse(_intervalCtrl.text) ?? 1;
+    final amount = parseAmount(_amountCtrl.text);
+    final interval = parseCount(_intervalCtrl.text) ?? 1;
     final title = _titleCtrl.text.trim();
     if (title.isEmpty || amount == null || amount <= 0 || _categoryId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -169,7 +170,7 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
   /// field can't be mistaken for a day-of-month. For monthly/yearly it also
   /// spells out which day the day-of-month is taken from (the start date).
   String _scheduleSummary() {
-    final n = int.tryParse(_intervalCtrl.text) ?? 1;
+    final n = parseCount(_intervalCtrl.text) ?? 1;
     final every = n > 1 ? 'كل $n ' : 'كل ';
     final unit = switch (_frequency) {
       Frequency.daily => n > 1 ? 'أيام' : 'يوم',
@@ -191,7 +192,7 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
   /// today/future start or when editing (edits don't backfill retroactively).
   int _backfillCount() {
     if (_isEditing) return 0;
-    final n = int.tryParse(_intervalCtrl.text) ?? 1;
+    final n = parseCount(_intervalCtrl.text) ?? 1;
     final today = dateOnly(DateTime.now());
     if (!dateOnly(_startDate).isBefore(today)) return 0;
     return occurrencesBetween(

@@ -8,6 +8,7 @@ import '../data/enums.dart';
 import '../domain/calendar_format.dart';
 import '../domain/dashboard_summary.dart';
 import '../domain/date_grouping.dart';
+import '../domain/parse_amount.dart';
 import '../domain/recurrence_engine.dart';
 import '../domain/recurrence_math.dart';
 import '../domain/savings_math.dart';
@@ -717,8 +718,7 @@ class _SavingsPromptCard extends StatelessWidget {
             child: const Text('إلغاء'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context)
-                .pop(double.tryParse(ctrl.text.replaceAll(',', '.'))),
+            onPressed: () => Navigator.of(context).pop(parseAmount(ctrl.text)),
             child: const Text('إيداع'),
           ),
         ],

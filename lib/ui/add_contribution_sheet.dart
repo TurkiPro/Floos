@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../data/database.dart';
+import '../domain/parse_amount.dart';
 import 'theme/tokens.dart';
 import 'widgets/picker_field.dart';
 
@@ -43,7 +44,7 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
   }
 
   Future<void> _save() async {
-    final amount = double.tryParse(_amountCtrl.text.replaceAll(',', '.'));
+    final amount = parseAmount(_amountCtrl.text);
     if (_goalId == null || amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('اختر هدفًا وأدخل مبلغًا صحيحًا')),
