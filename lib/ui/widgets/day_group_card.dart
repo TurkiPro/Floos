@@ -54,7 +54,11 @@ class DayGroupCard extends StatelessWidget {
       totalText: totalText,
       totalColor: totalColor,
       children: [
-        ...group.value.map((r) => TransactionRow(row: r, money: money)),
+        // Key each row by its transaction id so deleting one removes *its*
+        // widget instead of leaving a neighbour holding the finished
+        // swipe-to-delete state (a stuck red panel until the app restarts).
+        ...group.value.map((r) =>
+            TransactionRow(key: ValueKey(r.txn.id), row: r, money: money)),
       ],
     );
   }

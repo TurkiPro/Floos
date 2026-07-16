@@ -102,6 +102,7 @@ class SavingsScreen extends StatelessWidget {
                         children: [
                           for (final c in day.value)
                             _DepositRow(
+                              key: ValueKey(c.id),
                               contribution: c,
                               goalName: byId[c.goalId]?.name ?? '—',
                               money: money,
@@ -128,6 +129,7 @@ class _DepositRow extends StatelessWidget {
   final String goalName;
   final NumberFormat money;
   const _DepositRow({
+    super.key,
     required this.contribution,
     required this.goalName,
     required this.money,

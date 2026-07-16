@@ -142,6 +142,7 @@ class ObligationsScreen extends StatelessWidget {
       subtitle.write('  •  متوقفة');
     }
     return Padding(
+      key: ValueKey(r.id),
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: SwipeToDelete(
         borderRadius: BorderRadius.circular(AppRadii.card),

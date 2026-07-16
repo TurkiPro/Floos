@@ -57,7 +57,11 @@ class MonthDetailScreen extends StatelessWidget {
                 )
               else
                 for (final group in groups) ...[
-                  DayGroupCard(group: group, money: money, today: now),
+                  DayGroupCard(
+                      key: ValueKey(group.key),
+                      group: group,
+                      money: money,
+                      today: now),
                   const SizedBox(height: AppSpacing.md),
                 ],
             ],

@@ -123,7 +123,8 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
             onSelectionChanged: (s) => setState(() => _sort = s.first),
           ),
           const SizedBox(height: AppSpacing.md),
-          for (final r in rows) TransactionRow(row: r, money: money),
+          for (final r in rows)
+            TransactionRow(key: ValueKey(r.txn.id), row: r, money: money),
         ],
       ),
     );

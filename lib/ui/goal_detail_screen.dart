@@ -110,6 +110,9 @@ class GoalDetailScreen extends StatelessWidget {
                     // the goal total and the home balance are SUMs over this
                     // ledger, so they correct themselves the instant it's gone.
                     return SwipeToDelete(
+                      // Keyed by contribution id so a delete removes this row,
+                      // not a neighbour left holding the finished swipe state.
+                      key: ValueKey(c.id),
                       borderRadius: BorderRadius.zero,
                       onDelete: () {
                         final messenger = ScaffoldMessenger.of(context);
