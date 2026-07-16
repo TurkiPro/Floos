@@ -172,13 +172,12 @@ class _MainRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = selected
-        ? categoryTilePair(
-            iconKey: category.iconKey,
-            colorValue: category.colorValue,
-            brightness: Theme.of(context).brightness,
-          ).$1
-        : null;
+    final scheme = Theme.of(context).colorScheme;
+    // A translucent wash of the category's own colour — reads over both the
+    // dark and light card while keeping the icon and text fully visible. (An
+    // opaque pale tile fill made white dark-mode text disappear.)
+    final bg =
+        selected ? Color(category.colorValue).withValues(alpha: 0.20) : null;
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -202,6 +201,8 @@ class _MainRow extends StatelessWidget {
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500),
               ),
             ),
+            if (selected)
+              Icon(Icons.check, size: 16, color: scheme.onSurfaceVariant),
           ],
         ),
       ),
