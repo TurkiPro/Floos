@@ -248,6 +248,14 @@ ThemeData _buildTheme(Brightness brightness, AppAccent accent, AppFont font) {
         ),
       ),
     ),
+    // A fixed dark snackbar in both themes, with white text and a bright accent
+    // action. The M3 default flips the background to a light surface in dark
+    // mode, where the "تراجع"/undo label washed out to near-invisible.
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: const Color(0xFF2E2E33),
+      contentTextStyle: const TextStyle(color: Colors.white),
+      actionTextColor: accent.progress,
+    ),
   );
 }
 
