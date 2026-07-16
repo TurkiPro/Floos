@@ -92,4 +92,9 @@ class SavingsContributions extends Table {
   RealColumn get amount => real()();
   DateTimeColumn get date => dateTime()();
   TextColumn get note => text().nullable()();
+  // External deposits are money that already existed (a gift, prior savings),
+  // not set aside from tracked income. They count toward a goal's total but
+  // are excluded from the running balance and the savings rate — otherwise
+  // they'd wrongly subtract from income the user never recorded.
+  BoolColumn get external => boolean().withDefault(const Constant(false))();
 }

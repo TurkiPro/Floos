@@ -34,8 +34,10 @@ TxnRow _income(double amount, DateTime date) =>
 TxnRow _expense(double amount, DateTime date) =>
     _txn(TxnType.expense, amount, date);
 
-SavingsContribution _contrib(double amount, DateTime date) =>
-    SavingsContribution(id: 1, goalId: 1, amount: amount, date: date);
+SavingsContribution _contrib(double amount, DateTime date,
+        {bool external = false}) =>
+    SavingsContribution(
+        id: 1, goalId: 1, amount: amount, date: date, external: external);
 
 void main() {
   group('DashboardSummary.from', () {
@@ -107,6 +109,21 @@ void main() {
       expect(d.monthExpenses, hasLength(1));
       expect(d.monthExpenses.single.txn.amount, 200);
       expect(d.monthExpenses.single.txn.type, TxnType.expense);
+    });
+
+    test('external deposits add to the total but not reduce the balance', () {
+      final rows = [_income(1000, DateTime(2026, 7, 1))];
+      final contributions = [
+        _contrib(200, DateTime(2026, 7, 2)), // internal: from income
+        _contrib(5000, DateTime(2026, 7, 3), external: true), // pre-existing
+      ];
+      final d = DashboardSummary.from(rows, contributions, now);
+      // Total saved counts both; balance only subtracts the internal 200.
+      expect(d.savingsTotal, 5200);
+      expect(d.balance, 1000 - 0 - 200); // 800, external not subtracted
+      // This month's split counts only the income-derived deposit.
+      expect(d.monthSaved, 200);
+      expect(d.monthRemaining, 1000 - 0 - 200);
     });
 
     test('empty input yields all zeros and an empty month list', () {

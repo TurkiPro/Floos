@@ -27,6 +27,7 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
   final _noteCtrl = TextEditingController();
   DateTime _date = DateTime.now();
   int? _goalId;
+  bool _external = false;
 
   @override
   void initState() {
@@ -54,6 +55,7 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
       amount: amount,
       date: _date,
       note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+      external: _external,
     );
     if (mounted) Navigator.of(context).pop();
   }
@@ -136,6 +138,15 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
                 labelText: 'ملاحظة / المصدر (اختياري)',
                 border: OutlineInputBorder(),
               ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _external,
+              onChanged: (v) => setState(() => _external = v),
+              title: const Text('إيداع خارجي (لا يُخصم من الرصيد)'),
+              subtitle: const Text(
+                  'مبلغ موجود مسبقًا أو هدية — يُضاف للهدف دون التأثير على رصيدك.'),
             ),
             const SizedBox(height: AppSpacing.lg),
             FilledButton(onPressed: _save, child: const Text('حفظ')),

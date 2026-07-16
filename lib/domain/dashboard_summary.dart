@@ -52,14 +52,18 @@ class DashboardSummary {
       }
     }
 
-    double allSaved = 0, monthSaved = 0;
+    // External deposits (money that already existed) count toward the total
+    // saved but never reduce the balance or this month's income split.
+    double allSaved = 0, internalSaved = 0, monthSaved = 0;
     for (final c in contributions) {
       allSaved += c.amount;
+      if (c.external) continue;
+      internalSaved += c.amount;
       if (inMonth(c.date)) monthSaved += c.amount;
     }
 
     return DashboardSummary(
-      balance: allIncome - allExpense - allSaved,
+      balance: allIncome - allExpense - internalSaved,
       savingsTotal: allSaved,
       monthRemaining: monthIncome - monthSpent - monthSaved,
       monthSpent: monthSpent,

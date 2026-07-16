@@ -43,7 +43,8 @@ void main() {
       CREATE TABLE savings_goals (
         id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
         target_amount REAL NOT NULL, target_date INTEGER,
-        archived INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
+        archived INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE savings_contributions (
         id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
         goal_id INTEGER NOT NULL REFERENCES savings_goals(id),
@@ -89,6 +90,16 @@ void main() {
     await db.budgetDao.setBudget(1, 500);
     final budgets = await db.budgetDao.getAll();
     expect(budgets.single.amount, 500);
+
+    // The v6→v7 column exists: a savings goal + an external contribution.
+    final goalId = await db.savingsDao.addGoal(name: 'هدف', targetAmount: 1000);
+    await db.savingsDao.addContribution(
+        goalId: goalId, amount: 50, date: DateTime(2026, 7, 1));
+    await db.savingsDao.addContribution(
+        goalId: goalId, amount: 70, date: DateTime(2026, 7, 2), external: true);
+    final contribs = await db.savingsDao.watchContributions(goalId).first;
+    expect(
+        contribs.map((c) => c.external).toList(), containsAll([true, false]));
 
     // Post-migration ON DELETE SET NULL is in effect.
     await db.recurrenceDao.deleteById(1);

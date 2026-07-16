@@ -49,6 +49,8 @@ List<PeriodSummary> monthlySummaries(
     }
   }
   for (final c in contributions) {
+    // External deposits (pre-existing money) aren't income saved in a period.
+    if (c.external) continue;
     final k = MonthKey(year: c.date.year, month: c.date.month);
     saved[k] = (saved[k] ?? 0) + c.amount;
   }
@@ -86,6 +88,7 @@ List<PeriodSummary> yearlySummaries(
     }
   }
   for (final c in contributions) {
+    if (c.external) continue;
     saved[c.date.year] = (saved[c.date.year] ?? 0) + c.amount;
   }
 

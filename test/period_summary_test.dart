@@ -31,8 +31,10 @@ TxnRow _income(double amount, DateTime date) =>
 TxnRow _expense(double amount, DateTime date) =>
     _txn(TxnType.expense, amount, date);
 
-SavingsContribution _contrib(double amount, DateTime date) =>
-    SavingsContribution(id: 1, goalId: 1, amount: amount, date: date);
+SavingsContribution _contrib(double amount, DateTime date,
+        {bool external = false}) =>
+    SavingsContribution(
+        id: 1, goalId: 1, amount: amount, date: date, external: external);
 
 void main() {
   group('monthlySummaries', () {

@@ -138,9 +138,12 @@ class StatisticsSummary {
       }
     }
 
+    // External deposits are money that already existed, so they don't count
+    // as income saved this month (excluded from the savings rate and the
+    // daily-allowance calculation below).
     var monthSaved = 0.0;
     for (final c in contributions) {
-      if (inThisMonth(c.date)) monthSaved += c.amount;
+      if (!c.external && inThisMonth(c.date)) monthSaved += c.amount;
     }
 
     final dailyAvg = dayOfMonth > 0 ? spentThisMonth / dayOfMonth : 0.0;

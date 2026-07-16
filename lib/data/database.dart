@@ -368,6 +368,7 @@ class SavingsDao extends DatabaseAccessor<AppDatabase> with _$SavingsDaoMixin {
     required double amount,
     required DateTime date,
     String? note,
+    bool external = false,
   }) {
     return into(savingsContributions)
         .insert(SavingsContributionsCompanion.insert(
@@ -375,6 +376,7 @@ class SavingsDao extends DatabaseAccessor<AppDatabase> with _$SavingsDaoMixin {
       amount: amount,
       date: date,
       note: Value(note),
+      external: Value(external),
     ));
   }
 
@@ -454,7 +456,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -494,6 +496,11 @@ class AppDatabase extends _$AppDatabase {
           // v6 adds user-set monthly budgets per category.
           if (from < 6) {
             await m.createTable(categoryBudgets);
+          }
+          // v7 marks contributions that came from outside tracked income.
+          if (from < 7) {
+            await m.addColumn(
+                savingsContributions, savingsContributions.external);
           }
         },
         beforeOpen: (details) async {

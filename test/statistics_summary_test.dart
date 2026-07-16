@@ -45,8 +45,10 @@ TxnRow _expense(double amount, DateTime date,
 TxnRow _income(double amount, DateTime date) =>
     _row(_cat(id: 9, type: TxnType.income), amount, date);
 
-SavingsContribution _contrib(double amount, DateTime date) =>
-    SavingsContribution(id: 1, goalId: 1, amount: amount, date: date);
+SavingsContribution _contrib(double amount, DateTime date,
+        {bool external = false}) =>
+    SavingsContribution(
+        id: 1, goalId: 1, amount: amount, date: date, external: external);
 
 void main() {
   group('StatisticsSummary.from', () {
@@ -102,6 +104,19 @@ void main() {
         now,
       );
       expect(noIncome.savingsRate, isNull);
+    });
+
+    test('external deposits are excluded from the savings rate', () {
+      final rows = [_income(2000, DateTime(2026, 7, 1))];
+      final s = StatisticsSummary.from(
+        rows,
+        [
+          _contrib(400, DateTime(2026, 7, 2)), // internal -> counts
+          _contrib(5000, DateTime(2026, 7, 3), external: true), // ignored
+        ],
+        now,
+      );
+      expect(s.savingsRate, closeTo(0.2, 1e-9)); // 400 / 2000, external ignored
     });
 
     test('topCategories rolls sub-category spend up to the parent id', () {
