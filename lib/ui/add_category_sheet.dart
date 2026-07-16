@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../data/database.dart';
 import '../data/enums.dart';
+import 'icon_picker_screen.dart';
 import 'icon_registry.dart';
 import 'theme/tokens.dart';
+import 'widgets/category_icon_tile.dart';
 import 'widgets/color_swatch_picker.dart';
-import 'widgets/icon_key_picker.dart';
 
 /// Create/edit a category or sub-category.
 /// - [existingCategory] set => edit mode (name/icon/color/kind only).
@@ -58,6 +59,26 @@ class _AddCategorySheetState extends State<AddCategorySheet> {
   void dispose() {
     _nameCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickIcon() async {
+    // Drop the name field's keyboard before pushing the picker, so it opens on
+    // a clean, full-height screen.
+    FocusScope.of(context).unfocus();
+    final result = await Navigator.of(context).push<(String, Color)>(
+      MaterialPageRoute(
+        builder: (_) => IconPickerScreen(
+          initialIconKey: _iconKey,
+          initialColor: _color,
+        ),
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() {
+        _iconKey = result.$1;
+        _color = result.$2;
+      });
+    }
   }
 
   Future<void> _save() async {
@@ -147,19 +168,33 @@ class _AddCategorySheetState extends State<AddCategorySheet> {
               ),
               const SizedBox(height: AppSpacing.lg),
             ],
-            Text('الأيقونة', style: Theme.of(context).textTheme.labelMedium),
+            Text('الأيقونة واللون',
+                style: Theme.of(context).textTheme.labelMedium),
             const SizedBox(height: AppSpacing.sm),
-            IconKeyPicker(
-              selectedKey: _iconKey,
-              colorValue: _color.toARGB32(),
-              onChanged: (key) => setState(() => _iconKey = key),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text('اللون', style: Theme.of(context).textTheme.labelMedium),
-            const SizedBox(height: AppSpacing.sm),
-            ColorSwatchPicker(
-              selected: _color,
-              onChanged: (color) => setState(() => _color = color),
+            // A button, not a cramped inline grid: it shows the current choice
+            // and opens the full icon picker (search + emoji + colour).
+            InkWell(
+              onTap: _pickIcon,
+              borderRadius: BorderRadius.circular(AppRadii.tile),
+              child: Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant),
+                  borderRadius: BorderRadius.circular(AppRadii.tile),
+                ),
+                child: Row(
+                  children: [
+                    CategoryIconTile(
+                        iconKey: _iconKey,
+                        colorValue: _color.toARGB32(),
+                        size: 48),
+                    const SizedBox(width: AppSpacing.md),
+                    const Expanded(child: Text('اختر الأيقونة واللون')),
+                    const Icon(Icons.chevron_left),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: AppSpacing.lg),
             FilledButton(

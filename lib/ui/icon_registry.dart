@@ -358,6 +358,14 @@ const Map<String, IconData> _icons = {
 
 IconData iconForKey(String key) => _icons[key] ?? Icons.category;
 
+/// Emoji icons are stored as "emoji:🍕" so any category can use an emoji the
+/// user picks from their keyboard, alongside the built-in Material icons. It's
+/// just a string, so it survives backup/restore and CSV/PDF export unchanged.
+const emojiKeyPrefix = 'emoji:';
+bool isEmojiIconKey(String key) => key.startsWith(emojiKeyPrefix);
+String emojiFromKey(String key) => key.substring(emojiKeyPrefix.length);
+String emojiIconKey(String emoji) => '$emojiKeyPrefix$emoji';
+
 /// Flat list of every icon key, in group order. Used where a non-grouped
 /// list is enough.
 final List<String> availableIconKeys = [

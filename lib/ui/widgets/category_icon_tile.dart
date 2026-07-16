@@ -33,6 +33,7 @@ class CategoryIconTile extends StatelessWidget {
     return Container(
       width: size,
       height: size,
+      alignment: Alignment.center,
       decoration: BoxDecoration(
         color: pair.$1,
         borderRadius: BorderRadius.circular(AppRadii.tile),
@@ -40,7 +41,11 @@ class CategoryIconTile extends StatelessWidget {
             ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
             : null,
       ),
-      child: Icon(iconForKey(iconKey), color: pair.$2, size: size * 0.5),
+      // An emoji icon renders as text (it carries its own colours); a built-in
+      // key renders as a tinted Material glyph.
+      child: isEmojiIconKey(iconKey)
+          ? Text(emojiFromKey(iconKey), style: TextStyle(fontSize: size * 0.5))
+          : Icon(iconForKey(iconKey), color: pair.$2, size: size * 0.5),
     );
   }
 }
