@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
 import '../domain/recurrence_engine.dart';
-import '../domain/recurrence_math.dart' show dateOnly;
+import '../domain/recurrence_math.dart' show dateOnly, occurrencesBetween;
 import 'recurring_screen.dart' show frequencyLabelAr;
 import 'theme/tokens.dart';
 import 'widgets/category_picker.dart';
@@ -106,42 +106,52 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
       return;
     }
     final normalizedInterval = interval < 1 ? 1 : interval;
-    if (!_isEditing) {
-      await widget.db.recurrenceDao.add(
-        title: title,
-        amount: amount,
-        categoryId: _categoryId!,
-        type: _type,
-        frequency: _frequency,
-        interval: normalizedInterval,
-        startDate: _startDate,
-        endDate: _endDate,
-      );
-    } else {
-      final old = widget.existingRule!;
-      // Never backfill under a schedule the rule didn't have yet: only reset
-      // the catch-up marker to today when the schedule itself changed
-      // (mirrors reactivate()'s existing philosophy). Cosmetic-only edits
-      // (amount/category/end date/etc) leave prior catch-up progress intact.
-      final scheduleChanged = old.frequency != _frequency ||
-          old.interval != normalizedInterval ||
-          dateOnly(old.startDate) != dateOnly(_startDate);
-      await widget.db.recurrenceDao.editRule(
-        id: old.id,
-        title: title,
-        amount: amount,
-        categoryId: _categoryId!,
-        frequency: _frequency,
-        interval: normalizedInterval,
-        startDate: _startDate,
-        endDate: _endDate,
-        clearEndDate: _endDate == null && old.endDate != null,
-        resetMarkerToToday: scheduleChanged,
-      );
+    try {
+      if (!_isEditing) {
+        await widget.db.recurrenceDao.add(
+          title: title,
+          amount: amount,
+          categoryId: _categoryId!,
+          type: _type,
+          frequency: _frequency,
+          interval: normalizedInterval,
+          startDate: _startDate,
+          endDate: _endDate,
+        );
+      } else {
+        final old = widget.existingRule!;
+        // Never backfill under a schedule the rule didn't have yet: only reset
+        // the catch-up marker to today when the schedule itself changed
+        // (mirrors reactivate()'s existing philosophy). Cosmetic-only edits
+        // (amount/category/end date/etc) leave prior catch-up progress intact.
+        final scheduleChanged = old.frequency != _frequency ||
+            old.interval != normalizedInterval ||
+            dateOnly(old.startDate) != dateOnly(_startDate);
+        await widget.db.recurrenceDao.editRule(
+          id: old.id,
+          title: title,
+          amount: amount,
+          categoryId: _categoryId!,
+          frequency: _frequency,
+          interval: normalizedInterval,
+          startDate: _startDate,
+          endDate: _endDate,
+          clearEndDate: _endDate == null && old.endDate != null,
+          resetMarkerToToday: scheduleChanged,
+        );
+      }
+      // Catch up immediately so a rule whose start date is already in the past
+      // materializes its due occurrences now, instead of waiting for a relaunch.
+      await RecurrenceEngine(widget.db).catchUp();
+    } catch (e) {
+      // A failed save must say why instead of silently leaving the sheet open.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذّر الحفظ: $e')),
+        );
+      }
+      return;
     }
-    // Catch up immediately so a rule whose start date is already in the past
-    // materializes its due occurrences now, instead of waiting for a relaunch.
-    await RecurrenceEngine(widget.db).catchUp();
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -164,6 +174,23 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
       buf.write('، ${_startDate.day}/${_startDate.month}');
     }
     return buf.toString();
+  }
+
+  /// How many occurrences catch-up will create immediately on save — the
+  /// occurrences from the (past) start date up to today. Zero for a
+  /// today/future start or when editing (edits don't backfill retroactively).
+  int _backfillCount() {
+    if (_isEditing) return 0;
+    final n = int.tryParse(_intervalCtrl.text) ?? 1;
+    final today = dateOnly(DateTime.now());
+    if (!dateOnly(_startDate).isBefore(today)) return 0;
+    return occurrencesBetween(
+      startDate: _startDate,
+      frequency: _frequency,
+      interval: n < 1 ? 1 : n,
+      endDate: _endDate,
+      until: today,
+    ).length;
   }
 
   @override
@@ -280,17 +307,17 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
               ],
             ),
             // Creating a rule with a past start date backfills the missed
-            // occurrences on save (the engine catches up from the start date),
-            // so make that discoverable instead of surprising.
-            if (!_isEditing &&
-                dateOnly(_startDate).isBefore(dateOnly(DateTime.now())))
+            // occurrences on save. Show exactly how many will be created, so
+            // "add the past ones" is concrete and reassuring rather than a
+            // surprise.
+            if (_backfillCount() > 0)
               Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.xs),
                 child: Text(
-                  'تاريخ البدء في الماضي — سيتم تسجيل الحركات الفائتة عند الحفظ.',
+                  'سيتم تسجيل ${_backfillCount()} حركة فائتة منذ تاريخ البدء عند الحفظ.',
                   style: TextStyle(
                     fontSize: AppTextSizes.label,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),
