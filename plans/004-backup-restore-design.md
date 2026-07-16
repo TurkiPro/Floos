@@ -126,9 +126,9 @@ toggled mid-restore — ordering is the mechanism, not toggling.)
   match. A shipped app needs a forward path — a v1 file imported into a later
   schema. Decide whether the importer migrates old files or refuses them with a
   clear message.
-- **Delivery / dependencies**: a real feature needs a file picker + share sheet
-  (`file_picker`, `share_plus`) and a Settings entry with the Replace
-  confirmation. None are in the spike.
+- **Delivery / dependencies**: ANSWERED (plan 016). Shipped with `share_plus`
+  (hand the file to the OS share sheet) and `file_selector` (pick a file to
+  restore), plus two Settings tiles and the Replace confirmation dialog.
 - **Very large databases**: the current implementation holds the whole DB in
   memory as JSON. Fine for personal-finance volumes; revisit only if that
   assumption breaks.

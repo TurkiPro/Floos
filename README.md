@@ -46,6 +46,12 @@ new reader is most likely to "fix" without realizing they were deliberate.
   engine is the sole writer of generated transactions. A missed or
   silently-failing notification can't corrupt anything.
 
+- **Backup & restore stay on-device.** Settings writes a full-fidelity JSON of
+  the whole database ([backup.dart](lib/data/backup.dart)) and hands it to the
+  OS share sheet — the file goes to the user's own Files/iCloud/Drive, never a
+  server we run. Restore replaces the database wholesale behind an explicit
+  confirmation, inside a transaction that rolls back on any bad input.
+
 Categories are user-editable (icon + color + type), nest into sub-categories,
 and ship with a detailed Arabic default set so the app isn't empty on first
 launch.
@@ -142,7 +148,7 @@ list and the step-by-step store-submission guide are in
 
 - Editing/skipping a single recurrence occurrence (an exceptions table) —
   transactions already carry `recurrenceId` to make this possible later.
-- Backup to the **user's own** iCloud/Google Drive + import. Running our own
-  server stays out of scope on purpose: it would make us the custodian of
-  everyone's financial data for no real user benefit. Local-first keeps the data
-  in the user's custody.
+- Cloud *sync*. Running our own server stays out of scope on purpose: it would
+  make us the custodian of everyone's financial data for no real user benefit.
+  Local-first keeps the data in the user's custody. (One-tap **backup & restore**
+  now ships — see below — which covers device migration without a server.)

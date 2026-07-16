@@ -1,8 +1,11 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../app_settings.dart';
+import '../data/backup.dart';
 import '../data/database.dart';
 import '../data/dev_seed.dart';
 import '../data/export.dart';
@@ -299,6 +302,14 @@ class SettingsScreen extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xl),
           _sectionLabel(context, 'البيانات'),
+          _navTile(context,
+              icon: Icons.backup_outlined,
+              label: 'نسخة احتياطية',
+              onTap: () => _backup(context, db)),
+          _navTile(context,
+              icon: Icons.restore_outlined,
+              label: 'استعادة نسخة احتياطية',
+              onTap: () => _restore(context, db)),
           // Deleting everything is a real user-facing feature, not a dev tool:
           // the published privacy policy promises exactly this control
           // ("الإعدادات ← حذف كل البيانات"), so it ships in release too.
@@ -327,6 +338,73 @@ class SettingsScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _backup(BuildContext context, AppDatabase db) async {
+    try {
+      final file = await writeBackupFile(db);
+      await Share.shareXFiles([XFile(file.path)]);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذّر إنشاء النسخة الاحتياطية')),
+        );
+      }
+    }
+  }
+
+  Future<void> _restore(BuildContext context, AppDatabase db) async {
+    const group = XTypeGroup(label: 'JSON', extensions: ['json']);
+    final picked = await openFile(acceptedTypeGroups: const [group]);
+    if (picked == null) return; // user cancelled
+    final json = await picked.readAsString();
+    if (!context.mounted) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('استعادة النسخة الاحتياطية؟'),
+        content: const Text(
+            'سيتم حذف كل البيانات الحالية واستبدالها بمحتوى النسخة الاحتياطية. '
+            'لا يمكن التراجع. (الملف غير مشفّر — احتفظ به في مكان آمن.)'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('استعادة'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    try {
+      await restoreBackupJson(db, json);
+      if (!context.mounted) return;
+      await refreshAlerts(db, context.read<AppSettings>());
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تمت الاستعادة')),
+      );
+    } on BackupFormatException {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('ملف نسخة احتياطية غير صالح أو غير مدعوم')),
+        );
+      }
+    } catch (_) {
+      // The restore runs in a transaction, so a mid-way failure rolls back.
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('فشلت الاستعادة — لم تتغير بياناتك.')),
+        );
+      }
+    }
   }
 
   Future<void> _confirmClear(BuildContext context, AppDatabase db) async {

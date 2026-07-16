@@ -1,6 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:drift/drift.dart';
+import 'package:intl/intl.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import 'database.dart';
 import 'enums.dart';
@@ -120,6 +124,19 @@ Future<String> buildBackupJson(AppDatabase db) async {
   };
 
   return const JsonEncoder.withIndent('  ').convert(map);
+}
+
+/// Writes the backup JSON to the app documents directory and returns the file.
+/// The caller hands it to the OS share sheet — where it goes from there (Files,
+/// iCloud, Drive, AirDrop) is the user's choice and custody. Mirrors
+/// export.dart's exportTransactionsCsvToFile.
+Future<File> writeBackupFile(AppDatabase db) async {
+  final json = await buildBackupJson(db);
+  final dir = await getApplicationDocumentsDirectory();
+  final stamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+  final file = File(p.join(dir.path, 'floos_backup_$stamp.json'));
+  await file.writeAsString(json);
+  return file;
 }
 
 /// Thrown when a backup file can't be parsed or fails validation. The database
