@@ -79,7 +79,8 @@ class _AddIncomeSheetState extends State<AddIncomeSheet> {
     }
     if (!mounted) return;
     final settings = context.read<AppSettings>();
-    SoundService.playSaved(enabled: settings.soundEnabled);
+    SoundService.playSaved(
+        enabled: settings.soundEnabled, type: TxnType.income);
     // A recurring income rule feeds the salary-day alert; re-arm it now.
     if (_recurring) refreshAlerts(widget.db, settings);
     Navigator.of(context).pop();

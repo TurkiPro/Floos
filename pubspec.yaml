@@ -46,6 +46,10 @@ dependencies:
   share_plus: ^10.0.0
   # System file-open dialog for picking a backup file to restore.
   file_selector: ^1.0.3
+  # Plays the short income/expense confirmation chimes bundled in assets.
+  # (just_audio has no bundled Windows impl, so the desktop dev build still
+  # links — the chime is a mobile feature and no-ops on Windows.)
+  just_audio: ^0.9.40
 
 dev_dependencies:
   flutter_test:
@@ -87,6 +91,10 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  assets:
+    # Short confirmation chimes: in_short on income, out_short on expense.
+    - assets/sound_effects/in_short.m4a
+    - assets/sound_effects/out_short.m4a
   # Bundled so the app fetches nothing at runtime (the privacy promise). Both
   # families are SIL OFL 1.1; license text ships alongside in assets/fonts/.
   fonts:

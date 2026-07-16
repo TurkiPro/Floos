@@ -68,6 +68,10 @@ class NotificationService {
     }
   }
 
+  // presentBadge:false + no badgeNumber => a reminder never touches the app
+  // icon badge. The badge is owned solely by BadgeService (the weekly-budget
+  // figure), so notifications can't bundle a count into it. On Android the
+  // channel is set to not show a badge dot for the same reason.
   static NotificationDetails get _details => const NotificationDetails(
         android: AndroidNotificationDetails(
           'floos_alerts',
@@ -75,9 +79,10 @@ class NotificationService {
           channelDescription: 'تذكيرات تسجيل المصاريف وتنبيهات الميزانية',
           importance: Importance.defaultImportance,
           priority: Priority.defaultPriority,
+          channelShowBadge: false,
         ),
-        iOS: DarwinNotificationDetails(),
-        macOS: DarwinNotificationDetails(),
+        iOS: DarwinNotificationDetails(presentBadge: false),
+        macOS: DarwinNotificationDetails(presentBadge: false),
       );
 
   /// Rebuilds the whole schedule from the current settings. Called on launch

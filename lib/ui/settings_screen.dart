@@ -240,6 +240,24 @@ class SettingsScreen extends StatelessWidget {
                       'بدلًا من عدد الإشعارات، يظهر المتبقي من ميزانية الأسبوع'),
                   value: settings.badgeWeeklyBudget,
                   onChanged: (v) async {
+                    if (v) {
+                      // iOS only shows an app-icon badge if notification
+                      // authorization (incl. the badge option) was granted —
+                      // request it here, since the user may want the badge
+                      // without the reminder notifications.
+                      final granted =
+                          await NotificationService.requestPermission();
+                      if (!granted) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text(
+                                    'الشارة تحتاج إذن الإشعارات — فعّله من إعدادات الجهاز.')),
+                          );
+                        }
+                        return;
+                      }
+                    }
                     settings.setBadgeWeeklyBudget(v);
                     await refreshAlerts(db, settings);
                   },

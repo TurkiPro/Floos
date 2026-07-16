@@ -50,7 +50,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     );
     if (!mounted) return;
     final settings = context.read<AppSettings>();
-    SoundService.playSaved(enabled: settings.soundEnabled);
+    SoundService.playSaved(enabled: settings.soundEnabled, type: _type);
     // Keeps the weekly-budget badge in step with the new spending.
     refreshAlerts(widget.db, settings);
     Navigator.of(context).pop();
