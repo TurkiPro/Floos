@@ -10,6 +10,7 @@ import '../domain/recurrence_math.dart';
 import '../services/alerts_coordinator.dart';
 import 'add_recurrence_sheet.dart';
 import 'theme/tokens.dart';
+import 'widgets/swipe_to_delete.dart';
 
 String frequencyLabelAr(Frequency f) {
   switch (f) {
@@ -140,68 +141,61 @@ class ObligationsScreen extends StatelessWidget {
     } else if (!r.active) {
       subtitle.write('  •  متوقفة');
     }
-    return Dismissible(
-      key: ValueKey(r.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-        decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(AppRadii.card),
-        ),
-        alignment: AlignmentDirectional.centerStart,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-        child: const Icon(Icons.delete, color: Colors.white),
-      ),
-      confirmDismiss: (_) => _confirmDelete(context, r.title),
-      onDismissed: (_) async {
-        final messenger = ScaffoldMessenger.of(context);
-        final settings = context.read<AppSettings>();
-        await db.recurrenceDao.deleteById(r.id);
-        await refreshAlerts(db, settings);
-        messenger.showSnackBar(
-          const SnackBar(content: Text('تم حذف الالتزام')),
-        );
-      },
-      child: Card(
-        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-        child: ListTile(
-          dense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          onTap: () => showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            useSafeArea: true,
-            showDragHandle: true,
-            builder: (_) => AddRecurrenceSheet(db: db, existingRule: r),
-          ),
-          leading: Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: scheme.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppRadii.tile),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: SwipeToDelete(
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        confirm: () => _confirmDelete(context, r.title),
+        onDelete: () async {
+          final messenger = ScaffoldMessenger.of(context);
+          final settings = context.read<AppSettings>();
+          await db.recurrenceDao.deleteById(r.id);
+          await refreshAlerts(db, settings);
+          messenger.showSnackBar(
+            const SnackBar(content: Text('تم حذف الالتزام')),
+          );
+        },
+        child: Card(
+          margin: EdgeInsets.zero,
+          child: ListTile(
+            dense: true,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            onTap: () => showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              useSafeArea: true,
+              showDragHandle: true,
+              builder: (_) => AddRecurrenceSheet(db: db, existingRule: r),
             ),
-            child: Icon(Icons.north_east, size: 18, color: scheme.primary),
-          ),
-          title: Text(r.title,
-              style: const TextStyle(
-                  fontSize: AppTextSizes.label, fontWeight: FontWeight.w600)),
-          subtitle: Text(subtitle.toString(),
-              style: const TextStyle(fontSize: AppTextSizes.label)),
-          trailing: Switch(
-            value: r.active,
-            onChanged: (v) async {
-              if (v) {
-                await db.recurrenceDao.reactivate(r.id);
-                await RecurrenceEngine(db).catchUp();
-              } else {
-                await db.recurrenceDao.pause(r.id);
-              }
-              if (context.mounted) {
-                refreshAlerts(db, context.read<AppSettings>());
-              }
-            },
+            leading: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: scheme.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppRadii.tile),
+              ),
+              child: Icon(Icons.north_east, size: 18, color: scheme.primary),
+            ),
+            title: Text(r.title,
+                style: const TextStyle(
+                    fontSize: AppTextSizes.label, fontWeight: FontWeight.w600)),
+            subtitle: Text(subtitle.toString(),
+                style: const TextStyle(fontSize: AppTextSizes.label)),
+            trailing: Switch(
+              value: r.active,
+              onChanged: (v) async {
+                if (v) {
+                  await db.recurrenceDao.reactivate(r.id);
+                  await RecurrenceEngine(db).catchUp();
+                } else {
+                  await db.recurrenceDao.pause(r.id);
+                }
+                if (context.mounted) {
+                  refreshAlerts(db, context.read<AppSettings>());
+                }
+              },
+            ),
           ),
         ),
       ),

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../data/database.dart';
 import 'add_contribution_sheet.dart';
 import 'theme/tokens.dart';
+import 'widgets/swipe_to_delete.dart';
 
 class GoalDetailScreen extends StatelessWidget {
   final SavingsGoal goal;
@@ -108,19 +109,9 @@ class GoalDetailScreen extends StatelessWidget {
                     // removed elsewhere. Deleting the row is all that's needed —
                     // the goal total and the home balance are SUMs over this
                     // ledger, so they correct themselves the instant it's gone.
-                    return Dismissible(
-                      key: ValueKey(c.id),
-                      direction: DismissDirection.endToStart,
-                      background: Container(
-                        color: Colors.red.withValues(alpha: 0.85),
-                        alignment: AlignmentDirectional.centerStart,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg),
-                        child: const Icon(Icons.delete, color: Colors.white),
-                      ),
-                      onDismissed: (_) {
-                        // Capture before the async gap — the row unmounts on
-                        // dismissal, so context can't be touched afterwards.
+                    return SwipeToDelete(
+                      borderRadius: BorderRadius.zero,
+                      onDelete: () {
                         final messenger = ScaffoldMessenger.of(context);
                         final deleted = c;
                         db.savingsDao.deleteContribution(deleted.id);

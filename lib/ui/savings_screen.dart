@@ -10,6 +10,7 @@ import 'add_goal_sheet.dart';
 import 'goal_detail_screen.dart';
 import 'theme/tokens.dart';
 import 'widgets/day_section.dart';
+import 'widgets/swipe_to_delete.dart';
 
 class SavingsScreen extends StatelessWidget {
   const SavingsScreen({super.key});
@@ -139,33 +140,21 @@ class _DepositRow extends StatelessWidget {
     final note = contribution.note ?? '';
     // Swipe-to-delete with undo, same as the transaction list and the goal
     // detail screen — a deposit is removable wherever it's shown.
-    return Dismissible(
-      key: ValueKey('deposit-${contribution.id}'),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-        decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(AppRadii.card),
-        ),
-        alignment: AlignmentDirectional.centerStart,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-        child: const Icon(Icons.delete, color: Colors.white),
-      ),
-      onDismissed: (_) {
-        final messenger = ScaffoldMessenger.of(context);
-        final deleted = contribution;
-        db.savingsDao.deleteContribution(deleted.id);
-        messenger.showSnackBar(SnackBar(
-          content: const Text('تم حذف الإيداع'),
-          action: SnackBarAction(
-            label: 'تراجع',
-            onPressed: () => db.savingsDao.restoreContribution(deleted),
-          ),
-        ));
-      },
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: SwipeToDelete(
+        onDelete: () {
+          final messenger = ScaffoldMessenger.of(context);
+          final deleted = contribution;
+          db.savingsDao.deleteContribution(deleted.id);
+          messenger.showSnackBar(SnackBar(
+            content: const Text('تم حذف الإيداع'),
+            action: SnackBarAction(
+              label: 'تراجع',
+              onPressed: () => db.savingsDao.restoreContribution(deleted),
+            ),
+          ));
+        },
         child: Row(
           children: [
             Container(
