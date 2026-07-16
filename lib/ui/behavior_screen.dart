@@ -121,6 +121,10 @@ class _PeriodCardState extends State<_PeriodCard> {
     final title = key == null
         ? '${period.year}'
         : monthLabelFor(key, hijri: widget.hijri);
+    final periodWeeks = period.month == null
+        ? DateTime(period.year + 1).difference(DateTime(period.year)).inDays /
+            7.0
+        : DateTime(period.year, period.month! + 1, 0).day / 7.0;
 
     // The bar shows how the income was split: spent / saved / left over.
     final income = period.income;
@@ -224,7 +228,7 @@ class _PeriodCardState extends State<_PeriodCard> {
               for (final stat in breakdown.take(5)) ...[
                 const SizedBox(height: AppSpacing.sm),
                 categoryStatRow(context, stat, period.spent, money, widget.byId,
-                    periodLabel: title),
+                    periodLabel: title, periodWeeks: periodWeeks),
               ],
           ],
         ],

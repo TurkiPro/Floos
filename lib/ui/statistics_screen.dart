@@ -6,12 +6,14 @@ import '../data/database.dart';
 import '../data/enums.dart';
 import '../data/export.dart';
 import '../domain/category_breakdown.dart';
+import '../domain/category_insights.dart';
 import '../domain/date_grouping.dart';
 import '../domain/financial_period.dart';
 import '../domain/statistics_summary.dart';
 import 'behavior_screen.dart';
 import 'category_detail_screen.dart';
 import 'theme/tokens.dart';
+import 'widgets/category_icon_tile.dart';
 
 /// Spending analytics, all derived in a single pass over the transaction
 /// stream (no per-frame DB queries), so it stays cheap even as history grows.
@@ -75,6 +77,23 @@ class StatisticsScreen extends StatelessWidget {
                       final breakdown = categoryBreakdown(rows
                           .where((r) => period.contains(r.txn.date))
                           .toList());
+                      final periodWeeks =
+                          period.end.difference(period.start).inDays / 7.0;
+                      final thisCycleTotals = {
+                        for (final st in breakdown) st.categoryId: st.total
+                      };
+                      // How each top category compares to the user's own norm,
+                      // and which are worth trimming.
+                      final trends = categoryTrends(
+                          rows: rows,
+                          incomeRules: incomeRules,
+                          now: now,
+                          thisCycleTotals: thisCycleTotals);
+                      final cuts = cutSuggestions(
+                          breakdown: breakdown,
+                          byId: byId,
+                          trends: trends,
+                          periodTotal: s.spentThisMonth);
                       if (s.allExpenseCount == 0) {
                         return const Center(
                             child: Text('لا توجد بيانات كافية بعد'));
@@ -96,8 +115,19 @@ class StatisticsScreen extends StatelessWidget {
                           const SizedBox(height: AppSpacing.md),
                           _quickFactsCard(context, s, money),
                           const SizedBox(height: AppSpacing.md),
+                          if (cuts.isNotEmpty) ...[
+                            _whereToCutCard(context, cuts, breakdown, byId,
+                                trends, money, periodWeeks),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
                           _topCategoriesCard(
-                              context, breakdown, s.spentThisMonth, money, byId,
+                              context,
+                              breakdown,
+                              s.spentThisMonth,
+                              money,
+                              byId,
+                              trends,
+                              periodWeeks,
                               periodLabel: 'هذا الشهر'),
                           const SizedBox(height: AppSpacing.md),
                           _trendCard(context, s, money),
@@ -501,8 +531,14 @@ class StatisticsScreen extends StatelessWidget {
     );
   }
 
-  Widget _topCategoriesCard(BuildContext context, List<CategoryStat> breakdown,
-      double monthTotal, NumberFormat money, Map<int, Category> byId,
+  Widget _topCategoriesCard(
+      BuildContext context,
+      List<CategoryStat> breakdown,
+      double monthTotal,
+      NumberFormat money,
+      Map<int, Category> byId,
+      Map<int, CategoryTrend> trends,
+      double periodWeeks,
       {required String periodLabel}) {
     final scheme = Theme.of(context).colorScheme;
     return _card(
@@ -523,9 +559,103 @@ class StatisticsScreen extends StatelessWidget {
           else
             for (final stat in breakdown.take(5)) ...[
               categoryStatRow(context, stat, monthTotal, money, byId,
-                  periodLabel: periodLabel),
+                  periodLabel: periodLabel,
+                  periodWeeks: periodWeeks,
+                  trend: trends[stat.categoryId]),
               const SizedBox(height: AppSpacing.sm),
             ],
+        ],
+      ),
+    );
+  }
+
+  /// "أين تقلّل؟" — the categories most worth trimming (discretionary, rising,
+  /// or a big share), each with a short reason and a tap into its transactions.
+  Widget _whereToCutCard(
+      BuildContext context,
+      List<CutSuggestion> cuts,
+      List<CategoryStat> breakdown,
+      Map<int, Category> byId,
+      Map<int, CategoryTrend> trends,
+      NumberFormat money,
+      double periodWeeks) {
+    final scheme = Theme.of(context).colorScheme;
+    final statById = {for (final st in breakdown) st.categoryId: st};
+    return _card(
+      context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.content_cut, size: 18, color: _luxuryColor),
+              const SizedBox(width: AppSpacing.xs),
+              _label(context, 'أين تقلّل؟'),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text('فئات يُنصح بتقليل الإنفاق فيها',
+              style: TextStyle(
+                  fontSize: AppTextSizes.label,
+                  color: scheme.onSurfaceVariant)),
+          const SizedBox(height: AppSpacing.md),
+          for (final cut in cuts) ...[
+            _cutRow(context, cut, statById[cut.categoryId], byId, money,
+                periodWeeks),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _cutRow(BuildContext context, CutSuggestion cut, CategoryStat? stat,
+      Map<int, Category> byId, NumberFormat money, double periodWeeks) {
+    final scheme = Theme.of(context).colorScheme;
+    final cat = byId[cut.categoryId];
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadii.tile),
+      onTap: (cat == null || stat == null)
+          ? null
+          : () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => CategoryDetailScreen(
+                  category: cat,
+                  transactions: stat.transactions,
+                  periodLabel: 'هذا الشهر',
+                  periodWeeks: periodWeeks,
+                ),
+              )),
+      child: Row(
+        children: [
+          CategoryIconTile(
+              iconKey: cat?.iconKey ?? 'other',
+              colorValue: cat?.colorValue,
+              size: 34),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                        child: Text(cat?.name ?? '—',
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w600))),
+                    if (stat != null)
+                      Text('${money.format(stat.total)} ⃁',
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(cut.reason,
+                    style: TextStyle(
+                        fontSize: AppTextSizes.label,
+                        color: scheme.onSurfaceVariant)),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_left, size: 18, color: scheme.onSurfaceVariant),
         ],
       ),
     );
