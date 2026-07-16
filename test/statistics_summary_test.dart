@@ -1,10 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:floos/data/database.dart';
 import 'package:floos/data/enums.dart';
+import 'package:floos/domain/financial_period.dart';
 import 'package:floos/domain/statistics_summary.dart';
 
-// A fixed "now" so month/window math is deterministic.
+// A fixed "now" so month/window math is deterministic. Stats also take a
+// FinancialPeriod now; a calendar-July period keeps these expectations, since
+// its day counts (15 elapsed, 31 total) match the old calendar-month math.
 final now = DateTime(2026, 7, 15);
+final july = FinancialPeriod(DateTime(2026, 7, 1), DateTime(2026, 8, 1));
 
 Category _cat({
   int id = 1,
@@ -55,7 +59,7 @@ void main() {
     test('allExpenseCount is zero for income-only input (drives empty state)',
         () {
       final s = StatisticsSummary.from(
-          [_income(1000, DateTime(2026, 7, 1))], const [], now);
+          [_income(1000, DateTime(2026, 7, 1))], const [], now, july);
       expect(s.allExpenseCount, 0);
     });
 
@@ -66,7 +70,7 @@ void main() {
         // last month, excluded from this-month figures:
         _expense(999, DateTime(2026, 6, 10), kind: CategoryKind.essential),
       ];
-      final s = StatisticsSummary.from(rows, const [], now);
+      final s = StatisticsSummary.from(rows, const [], now, july);
       expect(s.spentThisMonth, 320);
       expect(s.essentialThisMonth, 200);
       expect(s.luxuryThisMonth, 120);
@@ -75,7 +79,7 @@ void main() {
 
     test('daily average and projection use the day of month', () {
       final rows = [_expense(150, DateTime(2026, 7, 5))]; // now.day == 15
-      final s = StatisticsSummary.from(rows, const [], now);
+      final s = StatisticsSummary.from(rows, const [], now, july);
       expect(s.dailyAvgThisMonth, closeTo(150 / 15, 1e-9));
       // July has 31 days.
       expect(s.projectedThisMonth, closeTo(150 / 15 * 31, 1e-9));
@@ -83,7 +87,7 @@ void main() {
 
     test('projectedVsLastMonth is 0 when last month had no spend', () {
       final rows = [_expense(150, DateTime(2026, 7, 5))];
-      final s = StatisticsSummary.from(rows, const [], now);
+      final s = StatisticsSummary.from(rows, const [], now, july);
       expect(s.projectedVsLastMonth, 0);
     });
 
@@ -95,6 +99,7 @@ void main() {
         ],
         [_contrib(500, DateTime(2026, 7, 3))],
         now,
+        july,
       );
       expect(withIncome.savingsRate, closeTo(0.25, 1e-9));
 
@@ -102,6 +107,7 @@ void main() {
         [_expense(100, DateTime(2026, 7, 2))],
         [_contrib(500, DateTime(2026, 7, 3))],
         now,
+        july,
       );
       expect(noIncome.savingsRate, isNull);
     });
@@ -115,6 +121,7 @@ void main() {
           _contrib(5000, DateTime(2026, 7, 3), external: true), // ignored
         ],
         now,
+        july,
       );
       expect(s.savingsRate, closeTo(0.2, 1e-9)); // 400 / 2000, external ignored
     });
@@ -127,7 +134,7 @@ void main() {
         // a top-level category (id 2):
         _expense(70, DateTime(2026, 7, 6), id: 2),
       ];
-      final s = StatisticsSummary.from(rows, const [], now);
+      final s = StatisticsSummary.from(rows, const [], now, july);
       // Parent 1 aggregates 150, ranks above category 2's 70.
       expect(s.topCategories.first.key, 1);
       expect(s.topCategories.first.value, 150);
@@ -142,7 +149,7 @@ void main() {
         _expense(80, DateTime(2026, 7, 2)),
         _expense(210, DateTime(2026, 7, 3)),
       ];
-      final s = StatisticsSummary.from(rows, const [], now);
+      final s = StatisticsSummary.from(rows, const [], now, july);
       expect(s.biggestExpense?.txn.amount, 210);
     });
 
@@ -152,6 +159,7 @@ void main() {
         [_expense(300, DateTime(2026, 7, 15, 14, 30))],
         const [],
         now,
+        july,
       );
       expect(s.currentWeeklyPace, greaterThan(0),
           reason: 'today with a time-of-day is inside the window');
@@ -160,7 +168,7 @@ void main() {
 
     test('monthlyTrend has 6 entries, oldest -> newest, ending this month', () {
       final s = StatisticsSummary.from(
-          [_expense(10, DateTime(2026, 7, 1))], const [], now);
+          [_expense(10, DateTime(2026, 7, 1))], const [], now, july);
       expect(s.monthlyTrend, hasLength(6));
       expect(s.monthlyTrend.last.key.year, 2026);
       expect(s.monthlyTrend.last.key.month, 7);

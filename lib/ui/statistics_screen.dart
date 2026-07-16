@@ -3,8 +3,10 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../data/database.dart';
+import '../data/enums.dart';
 import '../data/export.dart';
 import '../domain/date_grouping.dart';
+import '../domain/financial_period.dart';
 import '../domain/statistics_summary.dart';
 import 'behavior_screen.dart';
 import 'theme/tokens.dart';
@@ -56,33 +58,43 @@ class StatisticsScreen extends StatelessWidget {
                 builder: (context, contribSnap) {
                   final contributions =
                       contribSnap.data ?? const <SavingsContribution>[];
-                  final s = StatisticsSummary.from(
-                      rows, contributions, DateTime.now());
-                  if (s.allExpenseCount == 0) {
-                    return const Center(
-                        child: Text('لا توجد بيانات كافية بعد'));
-                  }
-                  return ListView(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
-                    children: [
-                      _behaviorLinks(context),
-                      const SizedBox(height: AppSpacing.md),
-                      _thisMonthCard(context, s, money),
-                      const SizedBox(height: AppSpacing.md),
-                      _paceCard(context, s, money),
-                      const SizedBox(height: AppSpacing.md),
-                      _weeklyBudgetCard(context, s, money),
-                      const SizedBox(height: AppSpacing.md),
-                      _savingsRateCard(context, s, money),
-                      const SizedBox(height: AppSpacing.md),
-                      _essentialsCard(context, s, money),
-                      const SizedBox(height: AppSpacing.md),
-                      _quickFactsCard(context, s, money),
-                      const SizedBox(height: AppSpacing.md),
-                      _topCategoriesCard(context, s, money, byId),
-                      const SizedBox(height: AppSpacing.md),
-                      _trendCard(context, s, money),
-                    ],
+                  return StreamBuilder<List<RecurrenceRule>>(
+                    stream: db.recurrenceDao.watchByType(TxnType.income),
+                    builder: (context, rulesSnap) {
+                      final incomeRules =
+                          rulesSnap.data ?? const <RecurrenceRule>[];
+                      final now = DateTime.now();
+                      // Stats follow the salary cycle too (same period as the
+                      // home dashboard), not the calendar month.
+                      final s = StatisticsSummary.from(rows, contributions, now,
+                          financialPeriod(incomeRules, now));
+                      if (s.allExpenseCount == 0) {
+                        return const Center(
+                            child: Text('لا توجد بيانات كافية بعد'));
+                      }
+                      return ListView(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        children: [
+                          _behaviorLinks(context),
+                          const SizedBox(height: AppSpacing.md),
+                          _thisMonthCard(context, s, money),
+                          const SizedBox(height: AppSpacing.md),
+                          _paceCard(context, s, money),
+                          const SizedBox(height: AppSpacing.md),
+                          _weeklyBudgetCard(context, s, money),
+                          const SizedBox(height: AppSpacing.md),
+                          _savingsRateCard(context, s, money),
+                          const SizedBox(height: AppSpacing.md),
+                          _essentialsCard(context, s, money),
+                          const SizedBox(height: AppSpacing.md),
+                          _quickFactsCard(context, s, money),
+                          const SizedBox(height: AppSpacing.md),
+                          _topCategoriesCard(context, s, money, byId),
+                          const SizedBox(height: AppSpacing.md),
+                          _trendCard(context, s, money),
+                        ],
+                      );
+                    },
                   );
                 },
               );

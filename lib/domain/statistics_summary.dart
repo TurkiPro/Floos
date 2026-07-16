@@ -1,6 +1,7 @@
 import '../data/database.dart';
 import '../data/enums.dart';
 import 'date_grouping.dart';
+import 'financial_period.dart';
 import 'spending_window.dart';
 
 /// All statistics, computed once in a single pass over the transactions.
@@ -67,17 +68,24 @@ class StatisticsSummary {
     List<TxnRow> rows,
     List<SavingsContribution> contributions,
     DateTime now,
+    FinancialPeriod period,
   ) {
     final today = DateTime(now.year, now.month, now.day);
     // Exclusive upper bound so rows stamped today with a time-of-day (manual
     // adds default to DateTime.now(), not midnight) still count. Constructor
     // arithmetic keeps the window DST-safe.
     final tomorrow = DateTime(now.year, now.month, now.day + 1);
-    final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
-    final dayOfMonth = now.day;
+    // "This month" is the current salary cycle (see FinancialPeriod): its
+    // length, how far into it we are, and how much of it remains.
+    final periodDays = period.end.difference(period.start).inDays;
+    final daysElapsed =
+        (today.difference(period.start).inDays + 1).clamp(1, periodDays);
+    final daysLeft = period.end.difference(today).inDays.clamp(1, periodDays);
+    // The previous cycle (same length) for the "vs last month" comparison.
+    final prevStart = DateTime(
+        period.start.year, period.start.month, period.start.day - periodDays);
     final windowStart =
         DateTime(today.year, today.month, today.day - spendingWindowDays);
-    final lastMonth = DateTime(now.year, now.month - 1, 1);
     // Saturday-aligned week start, for the adaptive weekly budget.
     final daysSinceSaturday = (today.weekday + 1) % 7;
     final weekStart =
@@ -93,10 +101,10 @@ class StatisticsSummary {
     TxnRow? biggestExpense;
     final byTop = <int, double>{};
     final byMonth = <MonthKey, double>{};
-    final byDayThisMonth = <int, double>{};
+    final byDayThisMonth = <DateTime, double>{};
     final weekdayTotals = <int, double>{};
 
-    bool inThisMonth(DateTime d) => d.year == now.year && d.month == now.month;
+    bool inThisMonth(DateTime d) => period.contains(d);
 
     for (final r in rows) {
       final date = r.txn.date;
@@ -113,14 +121,15 @@ class StatisticsSummary {
       final mk = MonthKey(year: date.year, month: date.month);
       byMonth[mk] = (byMonth[mk] ?? 0) + amount;
 
-      if (date.year == lastMonth.year && date.month == lastMonth.month) {
+      if (!date.isBefore(prevStart) && date.isBefore(period.start)) {
         lastMonthSpent += amount;
       }
 
       if (inThisMonth(date)) {
         spentThisMonth += amount;
         txnCountThisMonth++;
-        byDayThisMonth[date.day] = (byDayThisMonth[date.day] ?? 0) + amount;
+        final d0 = DateTime(date.year, date.month, date.day);
+        byDayThisMonth[d0] = (byDayThisMonth[d0] ?? 0) + amount;
         if (kind == CategoryKind.luxury) {
           luxuryThisMonth += amount;
         } else {
@@ -164,8 +173,8 @@ class StatisticsSummary {
       if (!c.external && inThisMonth(c.date)) monthSaved += c.amount;
     }
 
-    final dailyAvg = dayOfMonth > 0 ? spentThisMonth / dayOfMonth : 0.0;
-    final projected = dailyAvg * daysInMonth;
+    final dailyAvg = spentThisMonth / daysElapsed;
+    final projected = dailyAvg * periodDays;
     final projectedVsLast = lastMonthSpent > 0
         ? (projected - lastMonthSpent) / lastMonthSpent * 100
         : 0.0;
@@ -208,12 +217,11 @@ class StatisticsSummary {
     byDayThisMonth.forEach((day, amount) {
       if (amount > highestDayAmount) {
         highestDayAmount = amount;
-        highestDay = DateTime(now.year, now.month, day);
+        highestDay = day;
       }
     });
-    final noSpendDays = dayOfMonth - byDayThisMonth.length;
+    final noSpendDays = daysElapsed - byDayThisMonth.length;
 
-    final daysLeft = (daysInMonth - dayOfMonth + 1).clamp(1, daysInMonth);
     final unspentIncome = monthIncome - spentThisMonth - monthSaved;
     final allowance = monthIncome > 0 ? unspentIncome / daysLeft : null;
     final savingsRate = monthIncome > 0 ? monthSaved / monthIncome : null;
@@ -245,7 +253,7 @@ class StatisticsSummary {
       savingsRate: savingsRate,
       dailyAllowanceRemaining: allowance,
       daysLeftInMonth: daysLeft,
-      daysElapsed: dayOfMonth,
+      daysElapsed: daysElapsed,
       txnCountThisMonth: txnCountThisMonth,
       avgTxnThisMonth:
           txnCountThisMonth > 0 ? spentThisMonth / txnCountThisMonth : 0,
