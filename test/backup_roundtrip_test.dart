@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -5,9 +7,10 @@ import 'package:floos/data/backup.dart';
 import 'package:floos/data/database.dart';
 import 'package:floos/data/enums.dart';
 
-/// Seeds a known set across all five tables, including the FK links that a
+/// Seeds a known set across every table, including the FK links that a
 /// faithful backup must preserve: a sub-category under a parent, a transaction
-/// generated from a rule, and a contribution against a goal.
+/// generated from a rule, a contribution against a goal (one external), and a
+/// category budget.
 Future<
     ({
       int subCategoryId,
@@ -48,6 +51,14 @@ Future<
     date: DateTime(2026, 2, 3),
     note: 'إيداع',
   );
+  await db.savingsDao.addContribution(
+    goalId: goalId,
+    amount: 500,
+    date: DateTime(2026, 2, 4),
+    external: true,
+  );
+
+  await db.budgetDao.setBudget(1, 2500);
 
   return (
     subCategoryId: subId,
@@ -86,8 +97,63 @@ void main() {
     final rules = await target.recurrenceDao.activeRules();
     expect(rules.any((r) => r.id == ids.ruleId && r.title == 'اشتراك'), isTrue);
 
+    // Both contributions restored (2000 internal + 500 external).
     final total = await target.savingsDao.watchTotal(ids.goalId).first;
-    expect(total, 2000);
+    expect(total, 2500);
+    final contribs =
+        await target.savingsDao.watchContributions(ids.goalId).first;
+    expect(contribs.where((c) => c.external).map((c) => c.amount), [500]);
+
+    // The category budget survived the roundtrip.
+    final budgets = await target.budgetDao.getAll();
+    expect(budgets.single.categoryId, 1);
+    expect(budgets.single.amount, 2500);
+  });
+
+  test('a pre-v6 file without a budgets section restores with zero budgets',
+      () async {
+    final source = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(source.close);
+    await _seed(source);
+    // Strip the categoryBudgets section, simulating an old five-section file.
+    final map =
+        jsonDecode(await buildBackupJson(source)) as Map<String, dynamic>;
+    map.remove('categoryBudgets');
+    final legacyJson = jsonEncode(map);
+
+    final target = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(target.close);
+    await target.budgetDao.setBudget(1, 999); // a budget that must be wiped
+
+    await restoreBackupJson(target, legacyJson); // must not throw
+    expect(await target.budgetDao.getAll(), isEmpty);
+  });
+
+  test('a corrupt row rolls the whole restore back, data intact', () async {
+    final source = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(source.close);
+    await _seed(source);
+    final map =
+        jsonDecode(await buildBackupJson(source)) as Map<String, dynamic>;
+    // Corrupt one transaction's amount to a non-double.
+    (map['transactions'] as List).first['amount'] = 'not a number';
+    final corruptJson = jsonEncode(map);
+
+    final target = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(target.close);
+    await target.transactionDao.add(
+      amount: 777,
+      categoryId: 1,
+      type: TxnType.expense,
+      date: DateTime(2025, 1, 1),
+    );
+
+    await expectLater(
+        restoreBackupJson(target, corruptJson), throwsA(anything));
+    // The pre-existing 777 transaction is fully intact (transaction rollback).
+    final txns = await target.transactionDao.watchRecent().first;
+    expect(txns, hasLength(1));
+    expect(txns.single.txn.amount, 777);
   });
 
   test('restore replaces existing data wholesale', () async {

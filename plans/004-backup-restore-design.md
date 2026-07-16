@@ -51,10 +51,21 @@ Example (trimmed to one row per table):
      "targetDate": 1798761600000, "archived": false, "createdAt": 1767225600000}
   ],
   "savingsContributions": [
-    {"id": 1, "goalId": 1, "amount": 2000.0, "date": 1770076800000, "note": "إيداع"}
+    {"id": 1, "goalId": 1, "amount": 2000.0, "date": 1770076800000, "note": "إيداع", "external": false}
+  ],
+  "categoryBudgets": [
+    {"id": 1, "categoryId": 1, "amount": 2500.0}
   ]
 }
 ```
+
+**Schema drift since the spike:** the format now also carries
+`categoryBudgets` (schema v6) and the `external` flag on contributions (v7).
+Both are read leniently on restore — a pre-v6 file with no `categoryBudgets`
+section restores with zero budgets, and a pre-v7 contribution without
+`external` defaults to `false` — so older spike files still restore. Standing
+rule: every schema migration that adds a table or column must update
+`lib/data/backup.dart` and `test/backup_roundtrip_test.dart` in the same change.
 
 ## 2. Restore semantics — **Replace** (chosen)
 

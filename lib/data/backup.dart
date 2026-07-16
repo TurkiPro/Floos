@@ -37,6 +37,7 @@ Future<String> buildBackupJson(AppDatabase db) async {
   final txns = await db.select(db.transactions).get();
   final goals = await db.select(db.savingsGoals).get();
   final contributions = await db.select(db.savingsContributions).get();
+  final budgets = await db.select(db.categoryBudgets).get();
 
   final map = {
     'version': backupFormatVersion,
@@ -105,6 +106,15 @@ Future<String> buildBackupJson(AppDatabase db) async {
           'amount': c.amount,
           'date': _ms(c.date),
           'note': c.note,
+          'external': c.external,
+        },
+    ],
+    'categoryBudgets': [
+      for (final b in budgets)
+        {
+          'id': b.id,
+          'categoryId': b.categoryId,
+          'amount': b.amount,
         },
     ],
   };
@@ -154,11 +164,20 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
   List<Map<String, dynamic>> rowsOf(String key) =>
       (root[key] as List).cast<Map<String, dynamic>>();
 
+  // categoryBudgets is read leniently: a pre-v6 backup file has no such section
+  // and must restore as "no budgets" rather than fail validation.
+  final budgetRows = root['categoryBudgets'] is List
+      ? (root['categoryBudgets'] as List).cast<Map<String, dynamic>>()
+      : const <Map<String, dynamic>>[];
+
   // Everything in one transaction: any failure (bad row, dangling FK) rolls the
   // whole thing back and the pre-existing data survives.
   await db.transaction(() async {
     // Wipe children before parents so FK enforcement is satisfied; delete
-    // sub-categories before top-level for the self-reference.
+    // sub-categories before top-level for the self-reference. Budgets go first
+    // — the category CASCADE would drop them anyway, but an explicit delete
+    // keeps the wipe order self-documenting.
+    await db.delete(db.categoryBudgets).go();
     await db.delete(db.transactions).go();
     await db.delete(db.savingsContributions).go();
     await db.delete(db.recurrenceRules).go();
@@ -235,6 +254,17 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
             amount: c['amount'] as double,
             date: _date(c['date']),
             note: Value(c['note'] as String?),
+            // Lenient: pre-v7 files have no external flag (default false).
+            external: Value(c['external'] as bool? ?? false),
+          ));
+    }
+
+    // Budgets reference categories, so insert them after the categories loop.
+    for (final b in budgetRows) {
+      await db.into(db.categoryBudgets).insert(CategoryBudgetsCompanion.insert(
+            id: Value(b['id'] as int),
+            categoryId: b['categoryId'] as int,
+            amount: b['amount'] as double,
           ));
     }
   });
