@@ -398,6 +398,27 @@ class SavingsDao extends DatabaseAccessor<AppDatabase> with _$SavingsDaoMixin {
     ));
   }
 
+  Future<void> deleteContribution(int id) {
+    return (delete(savingsContributions)..where((c) => c.id.equals(id))).go();
+  }
+
+  /// Re-inserts a just-deleted contribution with its original id — the undo
+  /// path for swipe-to-delete, mirroring [TransactionDao.restore]. The id was
+  /// freed by the delete moments earlier, so reusing it puts the row back in
+  /// the same place and every derived total (balance, goal progress, savings
+  /// rate) recomputes to exactly what it was.
+  Future<void> restoreContribution(SavingsContribution c) {
+    return into(savingsContributions)
+        .insert(SavingsContributionsCompanion.insert(
+      id: Value(c.id),
+      goalId: c.goalId,
+      amount: c.amount,
+      date: c.date,
+      note: Value(c.note),
+      external: Value(c.external),
+    ));
+  }
+
   Stream<List<SavingsContribution>> watchContributions(int goalId) {
     return (select(savingsContributions)
           ..where((c) => c.goalId.equals(goalId))

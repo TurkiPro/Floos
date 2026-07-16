@@ -103,12 +103,42 @@ class GoalDetailScreen extends StatelessWidget {
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, i) {
                     final c = contributions[i];
-                    return ListTile(
-                      title: Text('${money.format(c.amount)} ر.س'),
-                      subtitle: Text([
-                        dateFmt.format(c.date),
-                        if ((c.note ?? '').isNotEmpty) c.note!,
-                      ].join('  •  ')),
+                    // Swipe-to-delete with undo, matching how transactions are
+                    // removed elsewhere. Deleting the row is all that's needed —
+                    // the goal total and the home balance are SUMs over this
+                    // ledger, so they correct themselves the instant it's gone.
+                    return Dismissible(
+                      key: ValueKey(c.id),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        color: Colors.red.withValues(alpha: 0.85),
+                        alignment: AlignmentDirectional.centerStart,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.lg),
+                        child: const Icon(Icons.delete, color: Colors.white),
+                      ),
+                      onDismissed: (_) {
+                        // Capture before the async gap — the row unmounts on
+                        // dismissal, so context can't be touched afterwards.
+                        final messenger = ScaffoldMessenger.of(context);
+                        final deleted = c;
+                        db.savingsDao.deleteContribution(deleted.id);
+                        messenger.showSnackBar(SnackBar(
+                          content: const Text('تم حذف الإيداع'),
+                          action: SnackBarAction(
+                            label: 'تراجع',
+                            onPressed: () =>
+                                db.savingsDao.restoreContribution(deleted),
+                          ),
+                        ));
+                      },
+                      child: ListTile(
+                        title: Text('${money.format(c.amount)} ر.س'),
+                        subtitle: Text([
+                          dateFmt.format(c.date),
+                          if ((c.note ?? '').isNotEmpty) c.note!,
+                        ].join('  •  ')),
+                      ),
                     );
                   },
                 );
