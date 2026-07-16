@@ -1,14 +1,15 @@
 # فلوس (Floos)
 
 An Arabic-first, offline-first personal finance app for iOS and Android, built
-in Flutter. Track expenses, income, recurring commitments and savings goals,
-with statistics that explain your spending — no accounts, no network, no
+in Flutter. Track expenses, income, recurring commitments, budgets and savings
+goals, with statistics that explain your spending — no accounts, no network, no
 tracking. Every byte stays in a local SQLite file on the device.
 
 - **Bundle / app ID:** `com.turkisecurity.floos`
 - **Privacy policy:** <https://floos.turkisecurity.com/privacy.html>
-- **Status:** shipping. v1.0.0 is built and signed by CI and uploaded to
-  TestFlight / Play internal testing from a version tag.
+- **Status:** shipping. Built and signed by CI and uploaded to TestFlight / Play
+  internal testing from a version tag. The repository is public, so GitHub
+  Actions (including the macOS iOS build) runs at no cost.
 
 ---
 
@@ -27,11 +28,32 @@ new reader is most likely to "fix" without realizing they were deliberate.
   [recurrence_math_test.dart](test/recurrence_math_test.dart). This one decision
   handles recurring salary, weekly expenses and monthly bills together.
 
+- **"This month" is the salary cycle, not the calendar month.** The dashboard
+  and statistics measure the period from one payday to the next
+  ([financial_period.dart](lib/domain/financial_period.dart)), anchored on the
+  largest active recurring income. So the salary you were just paid counts toward
+  the period you're living in, and a bill dated late last month still falls inside
+  it. Falls back to the calendar month when there's no recurring income yet.
+
 - **Savings is a ledger, not a stored balance.** A goal's current amount is
   always `SUM(contributions)`, never a mutable field that can drift out of sync.
   The derived monthly-deposit math lives in
   [savings_math.dart](lib/domain/savings_math.dart) and recomputes whenever you
   deposit, skip a month, or change the target.
+
+- **Budgets advise from your own data, not a questionnaire.** The budgets page
+  ([budget_advisor.dart](lib/domain/budget_advisor.dart)) proposes a monthly cap
+  per category you can apply with one tap. Once a category has spending across
+  completed cycles, its suggestion is the median of that spend; before any history
+  exists, categories are seeded from known recurring income via a 50/30/20 split,
+  scaled by an optional مقتصد/متوازن/مريح lifestyle chip that retires itself as
+  soon as real data takes over. No location questions, no cost-of-living dataset.
+
+- **Amounts use the Saudi Riyal sign (U+20C1).** The currency mark is the single
+  code point `⃁`, not the older `ر.س` text. It renders through the platform's
+  font fallback (the bundled Arabic families don't carry this 2025 code point
+  yet), so on a device whose system font lacks it the mark can fall back to a box
+  — bundle a font that includes U+20C1 if that ever shows up on a target device.
 
 - **Reactive lists.** The UI reads drift `.watch()` streams, so any insert —
   including ones the recurrence engine generates — refreshes the screen with no
@@ -40,7 +62,9 @@ new reader is most likely to "fix" without realizing they were deliberate.
 - **Local-first, no backend.** There is no networking code anywhere in the app.
   This is a privacy stance and a security one: we never become the custodian of
   anyone's financial data. It's also why the data-safety declarations are
-  "nothing collected" rather than a list of mitigations.
+  "nothing collected" rather than a list of mitigations. (A stocks/portfolio page
+  was considered and deliberately parked because it would have required the first
+  network call — see "Not in v1".)
 
 - **Notifications never create data.** Reminders only *remind*; the recurrence
   engine is the sole writer of generated transactions. A missed or
@@ -54,7 +78,9 @@ new reader is most likely to "fix" without realizing they were deliberate.
 
 Categories are user-editable (icon + color + type), nest into sub-categories,
 and ship with a detailed Arabic default set so the app isn't empty on first
-launch.
+launch. Rows are removed with a custom swipe-to-delete
+([swipe_to_delete.dart](lib/ui/widgets/swipe_to_delete.dart)) — a solid panel
+wipes across the entry with undo.
 
 ---
 
@@ -81,21 +107,31 @@ behind `kDebugMode` and never ships to users.
 ```
 lib/
   main.dart                 entry point; init services, run catch-up, launch
-  app.dart                  MaterialApp, Arabic RTL, accent-driven theme
-  app_settings.dart         all UI prefs (theme, accent, calendar, alerts, lock)
+  app.dart                  MaterialApp, Arabic RTL, accent-driven theme, app lock
+  app_settings.dart         all UI prefs (theme, accent, font, calendar, alerts,
+                            lock, budget lifestyle)
   data/
-    enums.dart              TxnType, Frequency
+    enums.dart              TxnType, Frequency, CategoryKind
     tables.dart             drift table definitions
-    database.dart           AppDatabase + DAOs + schema migrations (v4)
+    database.dart           AppDatabase + DAOs + schema migrations (v9)
     dev_seed.dart           six-month demo data (debug-only)
+    backup.dart             full-database JSON backup + restore
     export.dart             analysis-friendly CSV export (UTF-8 BOM)
+    pdf_export.dart         pure-Dart PDF statement (no native deps)
   domain/                   pure, unit-tested logic
     recurrence_math.dart    occurrence date math
-    recurrence_engine.dart  launch/resume catch-up
+    recurrence_engine.dart  launch/resume catch-up + resync
+    financial_period.dart   salary-cycle window ("this month")
     savings_math.dart       derived monthly-deposit math
-    date_grouping.dart      day/month grouping for lists
+    budget_advisor.dart     per-category budget suggestions (income seed / median)
+    budget_progress.dart    budget vs. this-month spend
+    statistics_summary.dart single-pass stats over the salary cycle
+    dashboard_summary.dart  home-screen figures
+    spending_window.dart    adaptive weekly-budget window
     period_summary.dart     monthly/yearly behaviour aggregates
+    date_grouping.dart      day/month grouping for lists
     calendar_format.dart    Gregorian/Hijri date formatting
+    parse_amount.dart       Arabic/Latin-digit amount parsing
   services/                 platform integrations (all no-op off-device)
     notification_service.dart  reminders + budget/stats/salary alerts
     alerts_coordinator.dart    schedules alerts from settings + data
@@ -107,11 +143,15 @@ lib/
     statistics_screen.dart     insights; behavior_screen.dart is monthly/yearly
     savings_screen.dart        goals + deposit ledger; goal_detail_screen.dart
     income_screen.dart         income + recurring income
+    budgets_screen.dart        per-category budgets + one-tap suggestions
+    recurring_screen.dart      monthly obligations (recurring expenses)
     months_screen.dart         month browser; month_detail_screen.dart
-    category_editor_screen.dart  category + sub-category tree
-    settings_screen.dart       theme, accent, calendar, alerts, lock, data
+    category_editor_screen.dart  category + sub-category tree; add_category_sheet
+    icon_picker_screen.dart    full-screen icon/emoji/color picker; icon_registry
+    settings_screen.dart       theme, accent, font, calendar, alerts, lock, data
     add_*_sheet.dart           the various add/edit bottom sheets
-    widgets/                   shared day cards, pickers, summary card
+    widgets/                   day cards, pickers, summary card, swipe-to-delete,
+                              transaction row, category icon tile
     theme/tokens.dart          design tokens + accent palettes
 test/                       pure-logic unit tests (no device needed)
 integration_test/
@@ -122,7 +162,7 @@ integration_test/
 
 ## CI / release
 
-Three GitHub Actions workflows:
+Three GitHub Actions workflows (free on this public repo):
 
 - **[ci.yml](.github/workflows/ci.yml)** — on push/PR: format check, codegen,
   analyze, test, and a full release AAB build.
@@ -146,9 +186,14 @@ list and the step-by-step store-submission guide are in
 
 ## Not in v1 (deliberately)
 
-- Editing/skipping a single recurrence occurrence (an exceptions table) —
-  transactions already carry `recurrenceId` to make this possible later.
-- Cloud *sync*. Running our own server stays out of scope on purpose: it would
-  make us the custodian of everyone's financial data for no real user benefit.
-  Local-first keeps the data in the user's custody. (One-tap **backup & restore**
-  now ships — see below — which covers device migration without a server.)
+- **A stocks / portfolio page.** Feasible for free (Yahoo `.SR`, SAHMK, Twelve
+  Data cover Tadawul; Stooq/Yahoo cover US), but it would introduce the app's
+  first network call and break the "no networking / nothing collected" promise,
+  so it's parked rather than built.
+- **Cloud *sync*.** Running our own server stays out of scope on purpose: it
+  would make us the custodian of everyone's financial data for no real user
+  benefit. Local-first keeps the data in the user's custody; one-tap **backup &
+  restore** covers device migration without a server.
+- **Editing/skipping an arbitrary single recurrence occurrence** (a full
+  exceptions table). Transactions carry `recurrenceId`, and a one-shot
+  next-payday override already exists, to make this possible later.
