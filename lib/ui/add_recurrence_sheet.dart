@@ -8,7 +8,8 @@ import '../data/enums.dart';
 import '../domain/parse_amount.dart';
 import '../domain/recurrence_engine.dart';
 import '../services/alerts_coordinator.dart';
-import '../domain/recurrence_math.dart' show dateOnly, occurrencesBetween;
+import '../domain/recurrence_math.dart'
+    show dateOnly, nextOccurrence, occurrencesBetween;
 import 'recurring_screen.dart' show frequencyLabelAr;
 import 'theme/tokens.dart';
 import 'widgets/category_picker.dart';
@@ -41,6 +42,8 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
   DateTime _startDate = DateTime.now();
   DateTime? _endDate;
   int? _categoryId;
+  // The pending next-payday override date, if any (income edit mode only).
+  DateTime? _nextPaydayOverride;
 
   bool get _isEditing => widget.existingRule != null;
   // Hide the expense/income toggle when editing (type is fixed) or when the
@@ -60,6 +63,9 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
       _startDate = rule.startDate;
       _endDate = rule.endDate;
       _categoryId = rule.categoryId;
+      _nextPaydayOverride = rule.nextOverrideDate == null
+          ? null
+          : dateOnly(rule.nextOverrideDate!);
     } else if (widget.lockedType != null) {
       _type = widget.lockedType!;
     }
@@ -204,6 +210,78 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
     ).length;
   }
 
+  /// The rule's normal next occurrence (ignoring any override), from the SAVED
+  /// schedule — the baseline the payday override adjusts.
+  DateTime? _scheduledNext() {
+    final rule = widget.existingRule!;
+    return nextOccurrence(
+      startDate: rule.startDate,
+      frequency: rule.frequency,
+      interval: rule.interval,
+      endDate: rule.endDate,
+      afterExclusive:
+          dateOnly(DateTime.now()).subtract(const Duration(days: 1)),
+    );
+  }
+
+  /// Picks the actual date of the next payday. Applied immediately (independent
+  /// of the sheet's Save): picking the scheduled date clears the override,
+  /// anything else stores a one-shot override for that single occurrence.
+  Future<void> _changeNextPayday() async {
+    final rule = widget.existingRule!;
+    final scheduled = _scheduledNext();
+    if (scheduled == null) return;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _nextPaydayOverride ?? scheduled,
+      firstDate: dateOnly(DateTime.now()),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    final p = dateOnly(picked);
+    final isScheduled = p == dateOnly(scheduled);
+    if (isScheduled) {
+      await widget.db.recurrenceDao.clearNextPaydayOverride(rule.id);
+    } else {
+      await widget.db.recurrenceDao
+          .setNextPaydayOverride(rule.id, scheduled, p);
+    }
+    // If moved to today (or past-due), materialize it right away.
+    await RecurrenceEngine(widget.db).catchUp();
+    if (!mounted) return;
+    refreshAlerts(widget.db, context.read<AppSettings>());
+    setState(() => _nextPaydayOverride = isScheduled ? null : p);
+  }
+
+  Widget _nextPaydayRow(DateFormat fmt) {
+    final scheduled = _scheduledNext();
+    if (scheduled == null) return const SizedBox.shrink();
+    final effective = _nextPaydayOverride ?? scheduled;
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text('الدفعة القادمة: ${fmt.format(effective)}')),
+              TextButton(
+                  onPressed: _changeNextPayday, child: const Text('تغيير')),
+            ],
+          ),
+          if (_nextPaydayOverride != null)
+            Text(
+              'مُعدّلة لهذه المرة فقط (المجدول: ${fmt.format(scheduled)})',
+              style: TextStyle(
+                fontSize: AppTextSizes.label,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final fmt = DateFormat('yyyy-MM-dd');
@@ -332,6 +410,9 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
                   ),
                 ),
               ),
+            // Adjust just the upcoming payday (this month early/late) without
+            // touching the recurring schedule. Income rules only.
+            if (_isEditing && _type == TxnType.income) _nextPaydayRow(fmt),
             Row(
               children: [
                 Expanded(

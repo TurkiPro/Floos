@@ -41,6 +41,13 @@ class RecurrenceRules extends Table {
   DateTimeColumn get lastMaterialized => dateTime().nullable()();
   BoolColumn get active => boolean().withDefault(const Constant(true))();
   TextColumn get note => text().nullable()();
+  // A one-shot override for the NEXT occurrence only (e.g. this month's salary
+  // landing a day or two early/late). [nextOverrideScheduled] is the scheduled
+  // occurrence date being replaced; [nextOverrideDate] is the date to use
+  // instead. Both are cleared the moment the engine materializes that
+  // occurrence, so they never affect the month after.
+  DateTimeColumn get nextOverrideScheduled => dateTime().nullable()();
+  DateTimeColumn get nextOverrideDate => dateTime().nullable()();
 }
 
 @DataClassName('Txn')

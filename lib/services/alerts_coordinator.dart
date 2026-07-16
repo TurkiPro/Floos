@@ -50,16 +50,19 @@ Future<DateTime?> _nextSalaryDate(AppDatabase db, DateTime now) async {
   DateTime? soonest;
   for (final r in rules) {
     if (r.type != TxnType.income) continue;
-    final next = nextOccurrence(
-      startDate: r.startDate,
-      frequency: r.frequency,
-      interval: r.interval,
-      endDate: r.endDate,
-      // Exclusive of yesterday => an occurrence dated today still counts, so
-      // opening the app on salary morning doesn't cancel tonight's alert.
-      // (Same fix as _salaryHint in home_screen.dart.)
-      afterExclusive: DateTime(today.year, today.month, today.day - 1),
-    );
+    // A pending next-payday override moves this rule's upcoming occurrence.
+    final next = r.nextOverrideDate != null
+        ? dateOnly(r.nextOverrideDate!)
+        : nextOccurrence(
+            startDate: r.startDate,
+            frequency: r.frequency,
+            interval: r.interval,
+            endDate: r.endDate,
+            // Exclusive of yesterday => an occurrence dated today still counts,
+            // so opening the app on salary morning doesn't cancel tonight's
+            // alert. (Same fix as _salaryHint in home_screen.dart.)
+            afterExclusive: DateTime(today.year, today.month, today.day - 1),
+          );
     if (next == null) continue;
     if (soonest == null || next.isBefore(soonest)) soonest = next;
   }

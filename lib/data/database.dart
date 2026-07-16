@@ -311,6 +311,30 @@ class RecurrenceDao extends DatabaseAccessor<AppDatabase>
         .write(RecurrenceRulesCompanion(lastMaterialized: Value(date)));
   }
 
+  /// Pre-sets the next occurrence's date: [scheduled] is the occurrence the
+  /// override replaces (the rule's normal next date), [date] is the date to use
+  /// instead. Consumed and cleared by the engine when that occurrence
+  /// materializes. Passing them equal is a no-op override, so callers clear
+  /// instead when the user picks the scheduled date back.
+  Future<void> setNextPaydayOverride(
+      int id, DateTime scheduled, DateTime date) {
+    return (update(recurrenceRules)..where((r) => r.id.equals(id))).write(
+      RecurrenceRulesCompanion(
+        nextOverrideScheduled: Value(dateOnly(scheduled)),
+        nextOverrideDate: Value(dateOnly(date)),
+      ),
+    );
+  }
+
+  Future<void> clearNextPaydayOverride(int id) {
+    return (update(recurrenceRules)..where((r) => r.id.equals(id))).write(
+      const RecurrenceRulesCompanion(
+        nextOverrideScheduled: Value(null),
+        nextOverrideDate: Value(null),
+      ),
+    );
+  }
+
   Future<void> pause(int id) {
     return (update(recurrenceRules)..where((r) => r.id.equals(id)))
         .write(const RecurrenceRulesCompanion(active: Value(false)));
@@ -366,6 +390,12 @@ class RecurrenceDao extends DatabaseAccessor<AppDatabase>
         lastMaterialized: resetMarkerToToday
             ? Value(dateOnly(DateTime.now()))
             : const Value.absent(),
+        // A pending next-payday override is tied to the OLD schedule's
+        // occurrence; if the schedule changed, drop it so it can't misfire.
+        nextOverrideScheduled:
+            resetMarkerToToday ? const Value(null) : const Value.absent(),
+        nextOverrideDate:
+            resetMarkerToToday ? const Value(null) : const Value.absent(),
       ),
     );
   }
@@ -519,7 +549,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -564,6 +594,14 @@ class AppDatabase extends _$AppDatabase {
           if (from < 7) {
             await m.addColumn(
                 savingsContributions, savingsContributions.external);
+          }
+          // v8 adds a one-shot per-rule override for the next occurrence's date
+          // (adjusting a single payday without changing the whole schedule).
+          if (from < 8) {
+            await m.addColumn(
+                recurrenceRules, recurrenceRules.nextOverrideScheduled);
+            await m.addColumn(
+                recurrenceRules, recurrenceRules.nextOverrideDate);
           }
         },
         beforeOpen: (details) async {

@@ -167,14 +167,18 @@ String? _salaryHint(List<RecurrenceRule> incomeRules, DateTime now) {
   DateTime? soonest;
   for (final r in incomeRules) {
     if (!r.active) continue;
-    final next = nextOccurrence(
-      startDate: r.startDate,
-      frequency: r.frequency,
-      interval: r.interval,
-      endDate: r.endDate,
-      // Exclusive of yesterday => an occurrence dated today still counts.
-      afterExclusive: today.subtract(const Duration(days: 1)),
-    );
+    // A pending next-payday override replaces this rule's upcoming occurrence,
+    // so the countdown reflects the adjusted (early/late) date.
+    final next = r.nextOverrideDate != null
+        ? dateOnly(r.nextOverrideDate!)
+        : nextOccurrence(
+            startDate: r.startDate,
+            frequency: r.frequency,
+            interval: r.interval,
+            endDate: r.endDate,
+            // Exclusive of yesterday => an occurrence dated today still counts.
+            afterExclusive: today.subtract(const Duration(days: 1)),
+          );
     if (next == null) continue;
     if (soonest == null || next.isBefore(soonest)) soonest = next;
   }

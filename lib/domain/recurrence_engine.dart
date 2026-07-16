@@ -36,12 +36,58 @@ class RecurrenceEngine {
             lastMaterialized: rule.lastMaterialized,
             until: until,
           );
-          if (occs.isEmpty) continue;
+
+          // A one-shot override adjusts a single occurrence's date. ovSched is
+          // the scheduled occurrence it replaces; ovDate is the date to use.
+          final ovSched = rule.nextOverrideScheduled == null
+              ? null
+              : dateOnly(rule.nextOverrideScheduled!);
+          final ovDate = rule.nextOverrideDate == null
+              ? null
+              : dateOnly(rule.nextOverrideDate!);
+          final hasOverride = ovSched != null && ovDate != null;
+          var consumed = false;
+
           for (final date in occs) {
-            await db.transactionDao.insertGenerated(rule, date);
+            if (hasOverride && date == ovSched) {
+              // The overridden occurrence has come up in the schedule. Create it
+              // at its override date only if that date has arrived; if it's a
+              // delay into the future, skip for now (the marker still advances
+              // below, and the override fires on a later run once ovDate lands).
+              if (!ovDate.isAfter(until)) {
+                await db.transactionDao.insertGenerated(rule, ovDate);
+                created++;
+                consumed = true;
+              }
+            } else {
+              await db.transactionDao.insertGenerated(rule, date);
+              created++;
+            }
           }
-          created += occs.length;
-          await db.recurrenceDao.setLastMaterialized(rule.id, occs.last);
+
+          DateTime? newMarker =
+              occs.isEmpty ? rule.lastMaterialized : occs.last;
+
+          // An override that's due now but whose scheduled slot isn't in this
+          // window: an early payday (scheduled still ahead) or a delayed one
+          // finally arriving (scheduled already behind the marker).
+          if (hasOverride && !consumed && !ovDate.isAfter(until)) {
+            await db.transactionDao.insertGenerated(rule, ovDate);
+            created++;
+            consumed = true;
+            // Push the marker to/at the overridden scheduled date so the normal
+            // schedule can never recreate that occurrence.
+            if (newMarker == null || ovSched.isAfter(newMarker)) {
+              newMarker = ovSched;
+            }
+          }
+
+          if (consumed) {
+            await db.recurrenceDao.clearNextPaydayOverride(rule.id);
+          }
+          if (newMarker != null && newMarker != rule.lastMaterialized) {
+            await db.recurrenceDao.setLastMaterialized(rule.id, newMarker);
+          }
         }
       });
       return created;

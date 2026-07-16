@@ -76,6 +76,11 @@ Future<String> buildBackupJson(AppDatabase db) async {
               r.lastMaterialized == null ? null : _ms(r.lastMaterialized!),
           'active': r.active,
           'note': r.note,
+          'nextOverrideScheduled': r.nextOverrideScheduled == null
+              ? null
+              : _ms(r.nextOverrideScheduled!),
+          'nextOverrideDate':
+              r.nextOverrideDate == null ? null : _ms(r.nextOverrideDate!),
         },
     ],
     'transactions': [
@@ -235,6 +240,10 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
             lastMaterialized: Value(_dateOrNull(r['lastMaterialized'])),
             active: Value(r['active'] as bool),
             note: Value(r['note'] as String?),
+            // Lenient: pre-v8 files have no override fields (default null).
+            nextOverrideScheduled:
+                Value(_dateOrNull(r['nextOverrideScheduled'])),
+            nextOverrideDate: Value(_dateOrNull(r['nextOverrideDate'])),
           ));
     }
 
