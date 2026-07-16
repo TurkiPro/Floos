@@ -144,7 +144,21 @@ class SettingsScreen extends StatelessWidget {
                   subtitle: const Text('تذكيرك بتحديث مصاريفك'),
                   value: settings.notificationsEnabled,
                   onChanged: (v) async {
-                    if (v) await NotificationService.requestPermission();
+                    if (v) {
+                      final granted =
+                          await NotificationService.requestPermission();
+                      if (!granted) {
+                        // Leave the setting off — the OS will never deliver.
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text(
+                                    'التنبيهات مرفوضة من النظام — فعّلها من إعدادات الجهاز.')),
+                          );
+                        }
+                        return;
+                      }
+                    }
                     settings.setNotificationsEnabled(v);
                     await refreshAlerts(db, settings);
                   },
@@ -336,15 +350,19 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
     if (ok == true) {
-      await db.transactionDao.clearAll();
-      await db.savingsDao.clearAll();
-      await db.recurrenceDao.clearAll();
-      await db.budgetDao.clearAll();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم حذف كل البيانات')),
-        );
-      }
+      await db.transaction(() async {
+        await db.transactionDao.clearAll();
+        await db.savingsDao.clearAll();
+        await db.recurrenceDao.clearAll();
+        await db.budgetDao.clearAll();
+      });
+      if (!context.mounted) return;
+      // The schedule/badge derived from the deleted data must not survive it.
+      await refreshAlerts(db, context.read<AppSettings>());
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم حذف كل البيانات')),
+      );
     }
   }
 }

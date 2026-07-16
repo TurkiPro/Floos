@@ -6,6 +6,7 @@ import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
 import '../domain/recurrence_engine.dart';
+import '../services/alerts_coordinator.dart';
 import '../services/sound_service.dart';
 import 'theme/tokens.dart';
 import 'widgets/category_picker.dart';
@@ -76,7 +77,10 @@ class _AddIncomeSheetState extends State<AddIncomeSheet> {
       );
     }
     if (!mounted) return;
-    SoundService.playSaved(enabled: context.read<AppSettings>().soundEnabled);
+    final settings = context.read<AppSettings>();
+    SoundService.playSaved(enabled: settings.soundEnabled);
+    // A recurring income rule feeds the salary-day alert; re-arm it now.
+    if (_recurring) refreshAlerts(widget.db, settings);
     Navigator.of(context).pop();
   }
 

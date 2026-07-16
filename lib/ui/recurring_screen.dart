@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
 import '../domain/recurrence_engine.dart';
 import '../domain/recurrence_math.dart';
+import '../services/alerts_coordinator.dart';
 import 'add_recurrence_sheet.dart';
 import 'theme/tokens.dart';
 
@@ -118,6 +120,9 @@ class ObligationsScreen extends StatelessWidget {
                         await RecurrenceEngine(db).catchUp();
                       } else {
                         await db.recurrenceDao.pause(r.id);
+                      }
+                      if (context.mounted) {
+                        refreshAlerts(db, context.read<AppSettings>());
                       }
                     },
                   ),

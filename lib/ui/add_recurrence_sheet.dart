@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
+import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
 import '../domain/recurrence_engine.dart';
+import '../services/alerts_coordinator.dart';
 import '../domain/recurrence_math.dart' show dateOnly, occurrencesBetween;
 import 'recurring_screen.dart' show frequencyLabelAr;
 import 'theme/tokens.dart';
@@ -91,7 +94,10 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
     );
     if (confirmed == true) {
       await widget.db.recurrenceDao.deleteById(widget.existingRule!.id);
-      if (mounted) Navigator.of(context).pop();
+      if (!mounted) return;
+      // The salary-day alert derives from the rules; re-arm now.
+      refreshAlerts(widget.db, context.read<AppSettings>());
+      Navigator.of(context).pop();
     }
   }
 
@@ -152,7 +158,11 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
       }
       return;
     }
-    if (mounted) Navigator.of(context).pop();
+    if (!mounted) return;
+    // A rule just changed shape — the salary-day one-off and weekly-budget
+    // figures derive from the rules, so re-arm them now, not at next launch.
+    refreshAlerts(widget.db, context.read<AppSettings>());
+    Navigator.of(context).pop();
   }
 
   /// A plain-Arabic sentence describing the schedule, so the numeric "كل"
