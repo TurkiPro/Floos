@@ -13,7 +13,10 @@ import 'widgets/category_picker.dart';
 
 class AddTransactionSheet extends StatefulWidget {
   final AppDatabase db;
-  const AddTransactionSheet({super.key, required this.db});
+  // null => add mode. Non-null => edit this existing transaction in place
+  // (tap-to-edit), e.g. to correct the day a salary actually landed.
+  final Txn? existing;
+  const AddTransactionSheet({super.key, required this.db, this.existing});
 
   @override
   State<AddTransactionSheet> createState() => _AddTransactionSheetState();
@@ -25,6 +28,21 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   final _noteCtrl = TextEditingController();
   DateTime _date = DateTime.now();
   int? _categoryId;
+
+  bool get _isEditing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    if (e != null) {
+      _type = e.type;
+      _amountCtrl.text = e.amount.toString();
+      _noteCtrl.text = e.note ?? '';
+      _date = e.date;
+      _categoryId = e.categoryId;
+    }
+  }
 
   @override
   void dispose() {
@@ -41,17 +59,32 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       );
       return;
     }
-    await widget.db.transactionDao.add(
-      amount: amount,
-      categoryId: _categoryId!,
-      type: _type,
-      date: _date,
-      note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
-    );
+    final note = _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim();
+    if (_isEditing) {
+      await widget.db.transactionDao.updateFields(
+        id: widget.existing!.id,
+        amount: amount,
+        categoryId: _categoryId!,
+        type: _type,
+        date: _date,
+        note: note,
+      );
+    } else {
+      await widget.db.transactionDao.add(
+        amount: amount,
+        categoryId: _categoryId!,
+        type: _type,
+        date: _date,
+        note: note,
+      );
+    }
     if (!mounted) return;
     final settings = context.read<AppSettings>();
-    SoundService.playSaved(enabled: settings.soundEnabled, type: _type);
-    // Keeps the weekly-budget badge in step with the new spending.
+    // The confirmation chime is for *adding* — editing shouldn't chime.
+    if (!_isEditing) {
+      SoundService.playSaved(enabled: settings.soundEnabled, type: _type);
+    }
+    // Keeps the weekly-budget badge in step with the changed spending.
     refreshAlerts(widget.db, settings);
     Navigator.of(context).pop();
   }
@@ -70,6 +103,11 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (_isEditing) ...[
+              Text('تعديل العملية',
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: AppSpacing.md),
+            ],
             SegmentedButton<TxnType>(
               segments: const [
                 ButtonSegment(value: TxnType.expense, label: Text('مصروف')),
@@ -86,7 +124,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               child: IntrinsicWidth(
                 child: TextField(
                   controller: _amountCtrl,
-                  autofocus: true,
+                  autofocus: !_isEditing,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   textAlign: TextAlign.center,
@@ -138,7 +176,9 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
-            FilledButton(onPressed: _save, child: const Text('حفظ')),
+            FilledButton(
+                onPressed: _save,
+                child: Text(_isEditing ? 'حفظ التعديلات' : 'حفظ')),
           ],
         ),
       ),

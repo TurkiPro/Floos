@@ -6,6 +6,7 @@ import '../../app_settings.dart';
 import '../../data/database.dart';
 import '../../data/enums.dart';
 import '../../services/alerts_coordinator.dart';
+import '../add_transaction_sheet.dart';
 import '../theme/tokens.dart';
 import 'category_icon_tile.dart';
 
@@ -61,45 +62,56 @@ class TransactionRow extends StatelessWidget {
       },
       child: Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-        child: Row(
-          children: [
-            CategoryIconTile(
-                iconKey: row.category.iconKey,
-                colorValue: row.category.colorValue),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    row.category.name,
-                    style: const TextStyle(
-                        fontSize: AppTextSizes.row,
-                        fontWeight: FontWeight.w500),
-                  ),
-                  if ((row.txn.note ?? '').isNotEmpty ||
-                      row.txn.recurrenceId != null)
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadii.tile),
+          // Tap to edit the entry in place — the way a salary's date is
+          // corrected for the current or any past month.
+          onTap: () => showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            useSafeArea: true,
+            builder: (_) => AddTransactionSheet(db: db, existing: row.txn),
+          ),
+          child: Row(
+            children: [
+              CategoryIconTile(
+                  iconKey: row.category.iconKey,
+                  colorValue: row.category.colorValue),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      [
-                        if ((row.txn.note ?? '').isNotEmpty) row.txn.note!,
-                        if (row.txn.recurrenceId != null) 'متكرر',
-                      ].join('  •  '),
-                      style: TextStyle(
-                        fontSize: AppTextSizes.label,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                      row.category.name,
+                      style: const TextStyle(
+                          fontSize: AppTextSizes.row,
+                          fontWeight: FontWeight.w500),
                     ),
-                ],
+                    if ((row.txn.note ?? '').isNotEmpty ||
+                        row.txn.recurrenceId != null)
+                      Text(
+                        [
+                          if ((row.txn.note ?? '').isNotEmpty) row.txn.note!,
+                          if (row.txn.recurrenceId != null) 'متكرر',
+                        ].join('  •  '),
+                        style: TextStyle(
+                          fontSize: AppTextSizes.label,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            Text(
-              '$sign${money.format(row.txn.amount)} ر.س',
-              style: TextStyle(
-                  color: amountColor,
-                  fontWeight: FontWeight.w600,
-                  fontSize: AppTextSizes.row),
-            ),
-          ],
+              Text(
+                '$sign${money.format(row.txn.amount)} ر.س',
+                style: TextStyle(
+                    color: amountColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: AppTextSizes.row),
+              ),
+            ],
+          ),
         ),
       ),
     );

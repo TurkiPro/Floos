@@ -148,6 +148,30 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
     return (delete(transactions)..where((t) => t.id.equals(id))).go();
   }
 
+  /// Edits an existing transaction's user-facing fields (date, amount, category,
+  /// type, note). Used by tap-to-edit — e.g. correcting the day a salary
+  /// actually landed. Leaves id/recurrenceId/createdAt untouched, so a
+  /// rule-generated row keeps its link and a re-run of catch-up can't recreate
+  /// it.
+  Future<void> updateFields({
+    required int id,
+    required double amount,
+    required int categoryId,
+    required TxnType type,
+    required DateTime date,
+    String? note,
+  }) {
+    return (update(transactions)..where((t) => t.id.equals(id))).write(
+      TransactionsCompanion(
+        amount: Value(amount),
+        categoryId: Value(categoryId),
+        type: Value(type),
+        date: Value(date),
+        note: Value(note),
+      ),
+    );
+  }
+
   /// Re-inserts a just-deleted transaction with its original id and links —
   /// the undo path for swipe-to-delete. Safe because the id was freed by the
   /// delete moments earlier; keeping it preserves the recurrenceId link and
