@@ -52,6 +52,7 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      showDragHandle: true,
       builder: (_) => AddCategorySheet(
         db: db,
         existingCategory: existing,

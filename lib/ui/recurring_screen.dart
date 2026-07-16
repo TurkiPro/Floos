@@ -44,6 +44,7 @@ class ObligationsScreen extends StatelessWidget {
           context: context,
           isScrollControlled: true,
           useSafeArea: true,
+          showDragHandle: true,
           builder: (_) =>
               AddRecurrenceSheet(db: db, lockedType: TxnType.expense),
         ),
@@ -171,6 +172,7 @@ class ObligationsScreen extends StatelessWidget {
             context: context,
             isScrollControlled: true,
             useSafeArea: true,
+            showDragHandle: true,
             builder: (_) => AddRecurrenceSheet(db: db, existingRule: r),
           ),
           leading: Container(

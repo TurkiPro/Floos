@@ -93,6 +93,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   context: context,
                   isScrollControlled: true,
                   useSafeArea: true,
+                  showDragHandle: true,
                   builder: (_) => AddTransactionSheet(db: db),
                 ),
                 icon: const Icon(Icons.add),

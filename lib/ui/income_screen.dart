@@ -34,6 +34,7 @@ class IncomeScreen extends StatelessWidget {
           context: context,
           isScrollControlled: true,
           useSafeArea: true,
+          showDragHandle: true,
           builder: (_) => AddIncomeSheet(db: db),
         ),
         icon: const Icon(Icons.add),
@@ -74,6 +75,7 @@ class IncomeScreen extends StatelessWidget {
                           context: context,
                           isScrollControlled: true,
                           useSafeArea: true,
+                          showDragHandle: true,
                           builder: (_) =>
                               AddRecurrenceSheet(db: db, existingRule: r),
                         ),

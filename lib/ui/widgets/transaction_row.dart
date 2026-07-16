@@ -70,6 +70,7 @@ class TransactionRow extends StatelessWidget {
             context: context,
             isScrollControlled: true,
             useSafeArea: true,
+            showDragHandle: true,
             builder: (_) => AddTransactionSheet(db: db, existing: row.txn),
           ),
           child: Row(

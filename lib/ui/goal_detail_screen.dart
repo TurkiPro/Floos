@@ -23,6 +23,7 @@ class GoalDetailScreen extends StatelessWidget {
           context: context,
           isScrollControlled: true,
           useSafeArea: true,
+          showDragHandle: true,
           builder: (_) => AddContributionSheet(db: db, goalId: goal.id),
         ),
         icon: const Icon(Icons.add),

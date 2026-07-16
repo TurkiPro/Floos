@@ -31,6 +31,7 @@ class SavingsScreen extends StatelessWidget {
               context: context,
               isScrollControlled: true,
               useSafeArea: true,
+              showDragHandle: true,
               builder: (_) => AddContributionSheet(db: db),
             ),
           ),
@@ -41,6 +42,7 @@ class SavingsScreen extends StatelessWidget {
           context: context,
           isScrollControlled: true,
           useSafeArea: true,
+          showDragHandle: true,
           builder: (_) => AddGoalSheet(db: db),
         ),
         icon: const Icon(Icons.add),
@@ -262,6 +264,7 @@ class _GoalCard extends StatelessWidget {
                           context: context,
                           isScrollControlled: true,
                           useSafeArea: true,
+                          showDragHandle: true,
                           builder: (_) =>
                               AddContributionSheet(db: db, goalId: goal.id),
                         ),
