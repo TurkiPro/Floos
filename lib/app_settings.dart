@@ -21,6 +21,26 @@ extension CalendarSystemLabel on CalendarSystem {
   String get label => this == CalendarSystem.gregorian ? 'ميلادي' : 'هجري';
 }
 
+/// How generously the budgets page seeds its day-one suggestions from income,
+/// before there's real spending history to learn from. Once history exists the
+/// suggestions come from actual spending and this no longer applies.
+enum SpendingStyle { frugal, balanced, comfortable }
+
+extension SpendingStyleLabel on SpendingStyle {
+  String get label => switch (this) {
+        SpendingStyle.frugal => 'مقتصد',
+        SpendingStyle.balanced => 'متوازن',
+        SpendingStyle.comfortable => 'مريح',
+      };
+
+  /// Multiplier applied to the income-based seed.
+  double get factor => switch (this) {
+        SpendingStyle.frugal => 0.8,
+        SpendingStyle.balanced => 1.0,
+        SpendingStyle.comfortable => 1.2,
+      };
+}
+
 /// Reactive holder for every user preference, backed by SharedPreferences. The
 /// app root listens to this so a change re-themes/re-schedules immediately, and
 /// the choices survive relaunch.
@@ -40,6 +60,7 @@ class AppSettings extends ChangeNotifier {
   static const _kAppLockEnabled = 'appLockEnabled';
   static const _kBadgeWeeklyBudget = 'badgeWeeklyBudget';
   static const _kFont = 'font';
+  static const _kBudgetStyle = 'budgetStyle';
 
   final SharedPreferences _prefs;
   ThemeMode _themeMode;
@@ -59,6 +80,7 @@ class AppSettings extends ChangeNotifier {
   bool _soundEnabled;
   bool _appLockEnabled;
   bool _badgeWeeklyBudget;
+  SpendingStyle _budgetStyle;
 
   AppSettings(this._prefs)
       : _themeMode = _readThemeMode(_prefs),
@@ -84,6 +106,7 @@ class AppSettings extends ChangeNotifier {
         _soundEnabled = _prefs.getBool(_kSoundEnabled) ?? true,
         _appLockEnabled = _prefs.getBool(_kAppLockEnabled) ?? false,
         _badgeWeeklyBudget = _prefs.getBool(_kBadgeWeeklyBudget) ?? false,
+        _budgetStyle = _readBudgetStyle(_prefs),
         _font = _readFont(_prefs);
 
   ThemeMode get themeMode => _themeMode;
@@ -100,6 +123,10 @@ class AppSettings extends ChangeNotifier {
   bool get soundEnabled => _soundEnabled;
   bool get appLockEnabled => _appLockEnabled;
   bool get badgeWeeklyBudget => _badgeWeeklyBudget;
+  SpendingStyle get budgetStyle => _budgetStyle;
+
+  /// Multiplier the budgets page applies to its income-based day-one seed.
+  double get lifestyleFactor => _budgetStyle.factor;
 
   // ------------------------------------------------------ savings prompt
 
@@ -200,6 +227,13 @@ class AppSettings extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setBudgetStyle(SpendingStyle style) {
+    if (style == _budgetStyle) return;
+    _budgetStyle = style;
+    _prefs.setString(_kBudgetStyle, style.name);
+    notifyListeners();
+  }
+
   static ThemeMode _readThemeMode(SharedPreferences prefs) {
     final name = prefs.getString(_kThemeMode);
     return ThemeMode.values.firstWhere(
@@ -221,6 +255,14 @@ class AppSettings extends ChangeNotifier {
     return AppFont.values.firstWhere(
       (f) => f.name == name,
       orElse: () => AppFont.plexArabic,
+    );
+  }
+
+  static SpendingStyle _readBudgetStyle(SharedPreferences prefs) {
+    final name = prefs.getString(_kBudgetStyle);
+    return SpendingStyle.values.firstWhere(
+      (s) => s.name == name,
+      orElse: () => SpendingStyle.balanced,
     );
   }
 }
