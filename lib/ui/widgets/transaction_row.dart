@@ -66,7 +66,11 @@ class TransactionRow extends StatelessWidget {
             children: [
               CategoryIconTile(
                   iconKey: row.category.iconKey,
-                  colorValue: row.category.colorValue),
+                  colorValue: row.category.colorValue,
+                  // A touch smaller than the default so the tile always sits
+                  // comfortably inside the row's height — it never pokes past
+                  // the red delete panel's rounded corners on a full swipe.
+                  size: 36),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
