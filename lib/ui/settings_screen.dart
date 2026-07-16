@@ -59,6 +59,19 @@ class SettingsScreen extends StatelessWidget {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
   }
 
+  /// iOS (and share_plus) rejects a share with a zero-rect origin — the
+  /// `{{0,0},{0,0}} must be non-zero` crash. Anchor the sheet to the current
+  /// view's frame so the popover has somewhere to point (harmless on iPhone,
+  /// required on iPad).
+  Rect _shareOrigin(BuildContext context) {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box != null && box.hasSize) {
+      return box.localToGlobal(Offset.zero) & box.size;
+    }
+    final size = MediaQuery.of(context).size;
+    return Rect.fromLTWH(0, 0, size.width, size.height / 2);
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<AppSettings>();
@@ -400,11 +413,12 @@ class SettingsScreen extends StatelessWidget {
     );
     if (choice == null || !context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
+    final origin = _shareOrigin(context);
     try {
       final File file = choice == 'pdf'
           ? await writeTransactionsPdf(db)
           : File(await exportTransactionsCsvToFile(db));
-      await Share.shareXFiles([XFile(file.path)]);
+      await Share.shareXFiles([XFile(file.path)], sharePositionOrigin: origin);
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('تعذّر التصدير: $e')));
     }
@@ -412,9 +426,10 @@ class SettingsScreen extends StatelessWidget {
 
   Future<void> _backup(BuildContext context, AppDatabase db) async {
     final messenger = ScaffoldMessenger.of(context);
+    final origin = _shareOrigin(context);
     try {
       final file = await writeBackupFile(db);
-      await Share.shareXFiles([XFile(file.path)]);
+      await Share.shareXFiles([XFile(file.path)], sharePositionOrigin: origin);
     } catch (e) {
       // Surface the actual reason instead of a generic "couldn't" — this is
       // what turns a mystified user report into a fixable one.

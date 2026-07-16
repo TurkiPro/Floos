@@ -155,16 +155,19 @@ class IncomeScreen extends StatelessWidget {
 
   String _subtitleFor(
       RecurrenceRule r, NumberFormat money, DateFormat dateFmt) {
-    final next = r.active
-        ? nextOccurrence(
-            startDate: r.startDate,
-            frequency: r.frequency,
-            interval: r.interval,
-            endDate: r.endDate,
-            afterExclusive: r.lastMaterialized ??
-                dateOnly(r.startDate).subtract(const Duration(days: 1)),
-          )
-        : null;
+    // A pending next-payday override replaces the computed next occurrence, so
+    // "التالي" here matches the home countdown and the salary alert.
+    final next = !r.active
+        ? null
+        : (r.nextOverrideDate ??
+            nextOccurrence(
+              startDate: r.startDate,
+              frequency: r.frequency,
+              interval: r.interval,
+              endDate: r.endDate,
+              afterExclusive: r.lastMaterialized ??
+                  dateOnly(r.startDate).subtract(const Duration(days: 1)),
+            ));
     final subtitle = StringBuffer()
       ..write(
           '${money.format(r.amount)} ر.س  •  ${frequencyLabelAr(r.frequency)}');

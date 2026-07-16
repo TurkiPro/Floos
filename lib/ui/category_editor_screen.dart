@@ -135,8 +135,9 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
       return const Center(child: Text('لا توجد فئات بعد'));
     }
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xxl),
+      // Extra bottom room so the last category scrolls clear of the floating
+      // "فئة جديدة" button, which otherwise covers its menu.
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, 96),
       itemCount: tops.length,
       itemBuilder: (context, i) {
         final top = tops[i];

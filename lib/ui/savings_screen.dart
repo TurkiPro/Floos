@@ -132,48 +132,77 @@ class _DepositRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final db = context.read<AppDatabase>();
     final scheme = Theme.of(context).colorScheme;
     final note = contribution.note ?? '';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: scheme.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppRadii.tile),
+    // Swipe-to-delete with undo, same as the transaction list and the goal
+    // detail screen — a deposit is removable wherever it's shown.
+    return Dismissible(
+      key: ValueKey('deposit-${contribution.id}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: Colors.red.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(AppRadii.card),
+        ),
+        alignment: AlignmentDirectional.centerStart,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      onDismissed: (_) {
+        final messenger = ScaffoldMessenger.of(context);
+        final deleted = contribution;
+        db.savingsDao.deleteContribution(deleted.id);
+        messenger.showSnackBar(SnackBar(
+          content: const Text('تم حذف الإيداع'),
+          action: SnackBarAction(
+            label: 'تراجع',
+            onPressed: () => db.savingsDao.restoreContribution(deleted),
+          ),
+        ));
+      },
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: scheme.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppRadii.tile),
+              ),
+              child: Icon(Icons.savings_outlined, color: scheme.primary),
             ),
-            child: Icon(Icons.savings_outlined, color: scheme.primary),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(goalName,
-                    style: const TextStyle(
-                        fontSize: AppTextSizes.row,
-                        fontWeight: FontWeight.w500)),
-                if (note.isNotEmpty)
-                  Text(
-                    note,
-                    style: TextStyle(
-                        fontSize: AppTextSizes.label,
-                        color: scheme.onSurfaceVariant),
-                  ),
-              ],
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(goalName,
+                      style: const TextStyle(
+                          fontSize: AppTextSizes.row,
+                          fontWeight: FontWeight.w500)),
+                  if (note.isNotEmpty)
+                    Text(
+                      note,
+                      style: TextStyle(
+                          fontSize: AppTextSizes.label,
+                          color: scheme.onSurfaceVariant),
+                    ),
+                ],
+              ),
             ),
-          ),
-          Text(
-            '+${money.format(contribution.amount)} ر.س',
-            style: const TextStyle(
-                color: AppColors.income,
-                fontWeight: FontWeight.w600,
-                fontSize: AppTextSizes.row),
-          ),
-        ],
+            Text(
+              '+${money.format(contribution.amount)} ر.س',
+              style: const TextStyle(
+                  color: AppColors.income,
+                  fontWeight: FontWeight.w600,
+                  fontSize: AppTextSizes.row),
+            ),
+          ],
+        ),
       ),
     );
   }

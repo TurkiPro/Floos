@@ -134,12 +134,18 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
   }
 
   Future<void> insertGenerated(RecurrenceRule rule, DateTime date) {
+    // Carry the rule's NAME onto the generated row so the obligation/income is
+    // recognisable in the list (e.g. "نتفلكس"), not just its category. Its own
+    // note, if any, is appended.
+    final label = (rule.note == null || rule.note!.trim().isEmpty)
+        ? rule.title
+        : '${rule.title} — ${rule.note!.trim()}';
     return into(transactions).insert(TransactionsCompanion.insert(
       amount: rule.amount,
       categoryId: rule.categoryId,
       type: rule.type,
       date: date,
-      note: Value(rule.note),
+      note: Value(label),
       recurrenceId: Value(rule.id),
     ));
   }
@@ -549,7 +555,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -602,6 +608,18 @@ class AppDatabase extends _$AppDatabase {
                 recurrenceRules, recurrenceRules.nextOverrideScheduled);
             await m.addColumn(
                 recurrenceRules, recurrenceRules.nextOverrideDate);
+          }
+          // v9 back-fills the rule NAME onto already-generated rows that never
+          // carried it (their note was null), so existing obligations show
+          // their name too. Only touches unnamed generated rows — a note the
+          // user typed via tap-to-edit is left alone.
+          if (from < 9) {
+            await customStatement(
+              'UPDATE transactions SET note = ('
+              'SELECT title FROM recurrence_rules '
+              'WHERE recurrence_rules.id = transactions.recurrence_id) '
+              "WHERE recurrence_id IS NOT NULL AND (note IS NULL OR note = '')",
+            );
           }
         },
         beforeOpen: (details) async {
