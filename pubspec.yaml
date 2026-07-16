@@ -24,8 +24,6 @@ dependencies:
   # Lightweight DI for handing the database to the widget tree.
   provider: ^6.1.2
 
-  # App font (IBM Plex Sans Arabic, fallback Tajawal).
-  google_fonts: ^6.2.1
 
   # Persists UI preferences (theme mode + accent color) across launches.
   shared_preferences: ^2.2.2
@@ -83,3 +81,22 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  # Bundled so the app fetches nothing at runtime (the privacy promise). Both
+  # families are SIL OFL 1.1; license text ships alongside in assets/fonts/.
+  fonts:
+    - family: IBM Plex Sans Arabic
+      fonts:
+        - asset: assets/fonts/IBMPlexSansArabic-Regular.ttf
+        - asset: assets/fonts/IBMPlexSansArabic-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/IBMPlexSansArabic-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/IBMPlexSansArabic-Bold.ttf
+          weight: 700
+    - family: Tajawal
+      fonts:
+        - asset: assets/fonts/Tajawal-Regular.ttf
+        - asset: assets/fonts/Tajawal-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Tajawal-Bold.ttf
+          weight: 700

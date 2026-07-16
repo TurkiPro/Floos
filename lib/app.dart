@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'app_settings.dart';
@@ -239,28 +238,14 @@ ThemeData _buildTheme(Brightness brightness, AppAccent accent) {
   );
 }
 
-/// IBM Plex Sans Arabic as the primary font, Tajawal as fallback.
+/// IBM Plex Sans Arabic as the primary font, Tajawal as fallback. Both are
+/// bundled assets (see pubspec `fonts:`) — the app must never fetch fonts, or
+/// anything, at runtime. `apply` sets the family + fallback on every slot,
+/// exactly what the previous per-slot loop did.
 TextTheme _appTextTheme(Brightness brightness) {
   final base = ThemeData(brightness: brightness).textTheme;
-  final theme = GoogleFonts.ibmPlexSansArabicTextTheme(base);
-  final fallback = GoogleFonts.tajawal().fontFamily!;
-  TextStyle? withFallback(TextStyle? s) =>
-      s?.copyWith(fontFamilyFallback: [fallback]);
-  return theme.copyWith(
-    displayLarge: withFallback(theme.displayLarge),
-    displayMedium: withFallback(theme.displayMedium),
-    displaySmall: withFallback(theme.displaySmall),
-    headlineLarge: withFallback(theme.headlineLarge),
-    headlineMedium: withFallback(theme.headlineMedium),
-    headlineSmall: withFallback(theme.headlineSmall),
-    titleLarge: withFallback(theme.titleLarge),
-    titleMedium: withFallback(theme.titleMedium),
-    titleSmall: withFallback(theme.titleSmall),
-    bodyLarge: withFallback(theme.bodyLarge),
-    bodyMedium: withFallback(theme.bodyMedium),
-    bodySmall: withFallback(theme.bodySmall),
-    labelLarge: withFallback(theme.labelLarge),
-    labelMedium: withFallback(theme.labelMedium),
-    labelSmall: withFallback(theme.labelSmall),
+  return base.apply(
+    fontFamily: 'IBM Plex Sans Arabic',
+    fontFamilyFallback: const ['Tajawal'],
   );
 }
