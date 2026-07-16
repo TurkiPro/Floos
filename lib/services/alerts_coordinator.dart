@@ -86,8 +86,10 @@ Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
   final daysSinceSaturday = (today.weekday + 1) % 7;
   final weekStart =
       DateTime(today.year, today.month, today.day - daysSinceSaturday);
+  final monthStart = DateTime(now.year, now.month, 1);
 
   var essentialWindow = 0.0, luxuryWindow = 0.0, spentThisWeek = 0.0;
+  var spentBeforeThisWeek = 0.0;
   DateTime? earliest;
 
   for (final r in rows) {
@@ -103,6 +105,11 @@ Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
 
     if (!date.isBefore(weekStart) && date.isBefore(tomorrow)) {
       spentThisWeek += amount;
+    }
+    // This month's discretionary spending in the weeks BEFORE the current one —
+    // drives the adaptive redistribution.
+    if (!date.isBefore(monthStart) && date.isBefore(weekStart)) {
+      spentBeforeThisWeek += amount;
     }
     if (!date.isBefore(windowStart) && date.isBefore(tomorrow)) {
       if (r.category.kind == CategoryKind.luxury) {
@@ -121,5 +128,14 @@ Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
     today: today,
   );
 
-  return WeeklyBudget(window.recommended, spentThisWeek);
+  // Adapt the flat weekly baseline to the month so far: over/under-spending in
+  // earlier weeks lowers/raises what's budgeted for the rest of the month.
+  final adaptive = adaptiveWeeklyBudget(
+    recommended: window.recommended,
+    spentBeforeThisWeek: spentBeforeThisWeek,
+    now: now,
+    weekStart: weekStart,
+  );
+
+  return WeeklyBudget(adaptive, spentThisWeek);
 }

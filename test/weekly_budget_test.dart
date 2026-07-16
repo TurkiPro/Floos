@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:floos/data/database.dart';
 import 'package:floos/data/enums.dart';
+import 'package:floos/domain/spending_window.dart';
 import 'package:floos/services/alerts_coordinator.dart';
 
 // Default seeded categories: id 1 = طعام (expense, essential),
@@ -50,7 +51,8 @@ void main() {
     expect(budget.spentThisWeek, 130);
   });
 
-  test('recommended follows essential/weeks + (luxury/weeks) * 0.85', () async {
+  test('recommended is the flat baseline adapted by the month so far',
+      () async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);
 
@@ -76,8 +78,16 @@ void main() {
     );
 
     final budget = await computeWeeklyBudget(db, now);
-    // essentialWindow 300 / 2 + (luxuryWindow 400 / 2) * 0.85 = 150 + 170.
-    expect(budget.recommended, closeTo(320, 1e-9));
+    // Flat baseline = essential 300/2 + (luxury 400/2)*0.85 = 320. All three
+    // expenses fell before this week (700 spent), so that deficit lowers the
+    // adaptive weekly budget.
+    final expected = adaptiveWeeklyBudget(
+      recommended: 320,
+      spentBeforeThisWeek: 700,
+      now: now,
+      weekStart: DateTime(2026, 7, 11),
+    );
+    expect(budget.recommended, closeTo(expected, 1e-9));
     expect(budget.spentThisWeek, 0);
   });
 
@@ -161,24 +171,37 @@ void main() {
     expect(after.spentThisWeek, 100);
   });
 
-  test('remaining clamps to 0 when spent exceeds recommended', () async {
+  test('heavy overspend earlier in the month zeroes this week\'s budget',
+      () async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);
 
-    // A single luxury expense this week: it counts 100% toward spentThisWeek
-    // but only 85% toward recommended, so spent > recommended.
+    // A long, light history sets a low weekly baseline...
     await db.transactionDao.add(
-      amount: 500,
-      categoryId: luxuryCat,
+      amount: 20,
+      categoryId: essentialCat,
+      type: TxnType.expense,
+      date: DateTime(2026, 5, 1),
+    );
+    // ...then a heavy spend in a prior week THIS month blows way past it.
+    await db.transactionDao.add(
+      amount: 2000,
+      categoryId: essentialCat,
+      type: TxnType.expense,
+      date: DateTime(2026, 7, 4), // before this week (Sat 2026-07-11)
+    );
+    // A little spending this week.
+    await db.transactionDao.add(
+      amount: 50,
+      categoryId: essentialCat,
       type: TxnType.expense,
       date: DateTime(2026, 7, 12),
     );
 
     final budget = await computeWeeklyBudget(db, now);
-    // weeks clamps to 1 (windowDays = 4). recommended = 500 * 0.85 = 425.
-    expect(budget.recommended, closeTo(425, 1e-9));
-    expect(budget.spentThisWeek, 500);
-    expect(budget.spentThisWeek > budget.recommended, isTrue);
+    expect(budget.spentThisWeek, 50);
+    expect(budget.recommended, 0,
+        reason: 'prior overspend leaves nothing for the rest of the month');
     expect(budget.remaining, 0);
   });
 }

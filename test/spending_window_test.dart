@@ -59,4 +59,39 @@ void main() {
       expect(w.pace, 0);
     });
   });
+
+  group('adaptiveWeeklyBudget', () {
+    // now = Wed 2026-07-15, weekStart = Sat 2026-07-11.
+    // July Saturdays: 4, 11, 18, 25 => weeksElapsed = 1 (the 4th), weeksLeft = 3
+    // (this week + the 18th + the 25th).
+    final now = DateTime(2026, 7, 15);
+    final weekStart = DateTime(2026, 7, 11);
+
+    double adaptive(double recommended, double spentBefore) =>
+        adaptiveWeeklyBudget(
+          recommended: recommended,
+          spentBeforeThisWeek: spentBefore,
+          now: now,
+          weekStart: weekStart,
+        );
+
+    test('returns the baseline when prior spend matches it exactly', () {
+      // Spent one baseline week (300) across the 1 elapsed week => no carry.
+      expect(adaptive(300, 300), closeTo(300, 1e-9));
+    });
+
+    test('overspending earlier lowers it (deficit spread over weeks left)', () {
+      // Deficit = 300*1 - 600 = -300, over 3 weeks => -100.
+      expect(adaptive(300, 600), closeTo(200, 1e-9));
+    });
+
+    test('a surplus raises it', () {
+      // Surplus = 300*1 - 0 = 300, over 3 weeks => +100.
+      expect(adaptive(300, 0), closeTo(400, 1e-9));
+    });
+
+    test('never goes negative', () {
+      expect(adaptive(100, 1000), 0);
+    });
+  });
 }

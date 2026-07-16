@@ -78,11 +78,16 @@ class StatisticsSummary {
     final windowStart =
         DateTime(today.year, today.month, today.day - spendingWindowDays);
     final lastMonth = DateTime(now.year, now.month - 1, 1);
+    // Saturday-aligned week start, for the adaptive weekly budget.
+    final daysSinceSaturday = (today.weekday + 1) % 7;
+    final weekStart =
+        DateTime(today.year, today.month, today.day - daysSinceSaturday);
 
     var allExpenseCount = 0;
     var spentThisMonth = 0.0, lastMonthSpent = 0.0, monthIncome = 0.0;
     var essentialThisMonth = 0.0, luxuryThisMonth = 0.0;
     var essentialWindow = 0.0, luxuryWindow = 0.0;
+    var spentBeforeThisWeek = 0.0;
     var txnCountThisMonth = 0;
     DateTime? earliestInWindow;
     TxnRow? biggestExpense;
@@ -128,7 +133,16 @@ class StatisticsSummary {
         }
       }
 
-      if (!date.isBefore(windowStart) && date.isBefore(tomorrow)) {
+      // Recurring obligations are excluded from the weekly-budget figures (same
+      // rule as the badge), so the "suggested weekly budget" reflects only
+      // discretionary spending.
+      final isRecurring = r.txn.recurrenceId != null;
+      if (!isRecurring && inThisMonth(date) && date.isBefore(weekStart)) {
+        spentBeforeThisWeek += amount;
+      }
+      if (!isRecurring &&
+          !date.isBefore(windowStart) &&
+          date.isBefore(tomorrow)) {
         if (kind == CategoryKind.luxury) {
           luxuryWindow += amount;
         } else {
@@ -163,6 +177,14 @@ class StatisticsSummary {
       luxuryWindow: luxuryWindow,
       earliestInWindow: earliestInWindow,
       today: today,
+    );
+    // The weekly budget adapts to the month so far (see adaptiveWeeklyBudget):
+    // over/under-spending earlier redistributes across the remaining weeks.
+    final adaptiveWeekly = adaptiveWeeklyBudget(
+      recommended: window.recommended,
+      spentBeforeThisWeek: spentBeforeThisWeek,
+      now: now,
+      weekStart: weekStart,
     );
 
     // Average spend per weekday over the window: divide each weekday's total
@@ -214,7 +236,7 @@ class StatisticsSummary {
       projectedThisMonth: projected,
       lastMonthSpent: lastMonthSpent,
       projectedVsLastMonth: projectedVsLast,
-      recommendedWeekly: window.recommended,
+      recommendedWeekly: adaptiveWeekly,
       currentWeeklyPace: window.pace,
       essentialThisMonth: essentialThisMonth,
       luxuryThisMonth: luxuryThisMonth,

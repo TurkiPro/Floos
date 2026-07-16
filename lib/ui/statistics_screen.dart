@@ -282,7 +282,7 @@ class StatisticsScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _label(context, 'الميزانية الأسبوعية المقترحة'),
+          _label(context, 'ميزانية هذا الأسبوع'),
           const SizedBox(height: AppSpacing.xs),
           Text('${money.format(s.recommendedWeekly)} ر.س',
               style: TextStyle(
@@ -291,8 +291,8 @@ class StatisticsScreen extends StatelessWidget {
                   color: scheme.primary)),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'محسوبة من متوسط إنفاقك: أساسياتك بالكامل + ٨٥٪ من كمالياتك، '
-            'لتوفير جزء من الإنفاق الاختياري.',
+            'محسوبة من متوسط إنفاقك (أساسياتك + ٨٥٪ من كمالياتك)، وتتكيّف مع '
+            'شهرك: تجاوزك في أسابيع سابقة يخفّضها، وتوفيرك يرفعها.',
             style: TextStyle(
                 fontSize: AppTextSizes.label, color: scheme.onSurfaceVariant),
           ),
