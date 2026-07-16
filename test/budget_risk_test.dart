@@ -64,4 +64,23 @@ void main() {
     final risks = budgetRisks([_budget(1, 100)], const [], now);
     expect(risks, isEmpty);
   });
+
+  test('already-over vs merely-projected split', () {
+    final risks = budgetRisks(
+      [_budget(1, 1000), _budget(2, 1000)],
+      [
+        _exp(1, 1200, DateTime(2026, 7, 5)), // past budget already
+        _exp(2, 600, DateTime(2026, 7, 5)), // only projected to exceed
+      ],
+      now,
+    );
+    final over = {for (final r in risks) r.categoryId: r};
+
+    expect(over[1]!.alreadyOver, isTrue);
+    expect(over[1]!.spentOverPct, closeTo(20, 1e-6)); // (1200-1000)/1000
+
+    expect(over[2]!.alreadyOver, isFalse);
+    expect(over[2]!.spentOverPct, 0, reason: 'not actually over yet');
+    expect(over[2]!.overByPct, greaterThan(0), reason: 'but projected over');
+  });
 }

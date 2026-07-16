@@ -169,24 +169,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 /// of any active recurring income rule. Null when no income recurs.
 String? _salaryHint(List<RecurrenceRule> incomeRules, DateTime now) {
   final today = dateOnly(now);
-  DateTime? soonest;
-  for (final r in incomeRules) {
-    if (!r.active) continue;
-    // A pending next-payday override replaces this rule's upcoming occurrence,
-    // so the countdown reflects the adjusted (early/late) date.
-    final next = r.nextOverrideDate != null
-        ? dateOnly(r.nextOverrideDate!)
-        : nextOccurrence(
-            startDate: r.startDate,
-            frequency: r.frequency,
-            interval: r.interval,
-            endDate: r.endDate,
-            // Exclusive of yesterday => an occurrence dated today still counts.
-            afterExclusive: today.subtract(const Duration(days: 1)),
-          );
-    if (next == null) continue;
-    if (soonest == null || next.isBefore(soonest)) soonest = next;
-  }
+  // The same salary date the financial period ends on (largest active income,
+  // override-aware), so the countdown and the stats' "days left" always agree.
+  final soonest = nextSalaryDate(incomeRules, now);
   if (soonest == null) return null;
 
   final days = soonest.difference(today).inDays;

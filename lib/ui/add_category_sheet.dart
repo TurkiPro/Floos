@@ -37,6 +37,11 @@ class _AddCategorySheetState extends State<AddCategorySheet> {
   Color _color = categorySwatches.first;
   CategoryKind _kind = CategoryKind.essential;
 
+  /// ARGB colours already used by other categories, so a new/edited category can
+  /// be steered to a distinct one. Loaded once when the sheet opens.
+  Set<int> _usedColors = {};
+  bool _colorTouched = false; // user picked a colour -> don't auto-override
+
   bool get _isEditing => widget.existingCategory != null;
   bool get _isSub => widget.parentId != null;
 
@@ -50,9 +55,27 @@ class _AddCategorySheetState extends State<AddCategorySheet> {
       _iconKey = c.iconKey;
       _color = Color(c.colorValue);
       _kind = c.kind;
+      _colorTouched = true; // keep the existing colour as-is
     } else if (widget.fixedType != null) {
       _type = widget.fixedType!;
     }
+    _loadUsedColors();
+  }
+
+  /// Reads every other category's colour, then (for a fresh category the user
+  /// hasn't touched) snaps the default to the first free swatch so two
+  /// categories don't silently share a colour.
+  Future<void> _loadUsedColors() async {
+    final all = await widget.db.categoryDao.getAll();
+    if (!mounted) return;
+    final used = {
+      for (final c in all)
+        if (c.id != widget.existingCategory?.id) c.colorValue,
+    };
+    setState(() {
+      _usedColors = used;
+      if (!_colorTouched) _color = firstFreeSwatch(used);
+    });
   }
 
   @override
@@ -70,6 +93,7 @@ class _AddCategorySheetState extends State<AddCategorySheet> {
         builder: (_) => IconPickerScreen(
           initialIconKey: _iconKey,
           initialColor: _color,
+          usedColors: _usedColors,
         ),
       ),
     );
@@ -77,6 +101,7 @@ class _AddCategorySheetState extends State<AddCategorySheet> {
       setState(() {
         _iconKey = result.$1;
         _color = result.$2;
+        _colorTouched = true;
       });
     }
   }

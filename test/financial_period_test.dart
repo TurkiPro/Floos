@@ -9,6 +9,7 @@ RecurrenceRule _income({
   required double amount,
   required DateTime start,
   bool active = true,
+  DateTime? overrideDate,
 }) =>
     RecurrenceRule(
       id: id,
@@ -20,6 +21,7 @@ RecurrenceRule _income({
       interval: 1,
       startDate: start,
       active: active,
+      nextOverrideDate: overrideDate,
     );
 
 void main() {
@@ -72,5 +74,44 @@ void main() {
         [_income(amount: 9000, start: DateTime(2026, 1, 25), active: false)],
         now);
     expect(p.start, DateTime(2026, 7, 1));
+  });
+
+  group('nextSalaryDate agrees with the cycle end', () {
+    test('scheduled payday, no override', () {
+      final rules = [_income(amount: 9000, start: DateTime(2026, 1, 25))];
+      expect(nextSalaryDate(rules, now), DateTime(2026, 7, 25));
+      expect(nextSalaryDate(rules, now), financialPeriod(rules, now).end,
+          reason: 'the countdown date and the cycle end must be the same day');
+    });
+
+    test('null without any recurring income', () {
+      expect(nextSalaryDate(const [], now), isNull);
+    });
+
+    // The bug behind "6 days left on home vs 8 in stats": an early/late override
+    // moves the actual next payday, so both the countdown and the cycle end must
+    // follow it rather than the fixed schedule.
+    test('an upcoming override pulls the payday (and cycle end) in', () {
+      final rules = [
+        _income(
+            amount: 9000,
+            start: DateTime(2026, 1, 25),
+            overrideDate: DateTime(2026, 7, 22)),
+      ];
+      expect(nextSalaryDate(rules, now), DateTime(2026, 7, 22));
+      expect(financialPeriod(rules, now).end, DateTime(2026, 7, 22));
+      expect(nextSalaryDate(rules, now), financialPeriod(rules, now).end);
+    });
+
+    test('a stale override before today is ignored', () {
+      final rules = [
+        _income(
+            amount: 9000,
+            start: DateTime(2026, 1, 25),
+            overrideDate: DateTime(2026, 7, 10)),
+      ];
+      expect(nextSalaryDate(rules, now), DateTime(2026, 7, 25));
+      expect(financialPeriod(rules, now).end, DateTime(2026, 7, 25));
+    });
   });
 }

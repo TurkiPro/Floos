@@ -14,10 +14,15 @@ import 'widgets/color_swatch_picker.dart';
 class IconPickerScreen extends StatefulWidget {
   final String initialIconKey;
   final Color initialColor;
+
+  /// ARGB colour values already taken by *other* categories; those swatches are
+  /// shown as unavailable so each category keeps a distinct colour.
+  final Set<int> usedColors;
   const IconPickerScreen({
     super.key,
     required this.initialIconKey,
     required this.initialColor,
+    this.usedColors = const {},
   });
 
   @override
@@ -94,9 +99,25 @@ class _IconPickerScreenState extends State<IconPickerScreen> {
                 ),
                 const SizedBox(width: AppSpacing.lg),
                 Expanded(
-                  child: ColorSwatchPicker(
-                    selected: _color,
-                    onChanged: (c) => setState(() => _color = c),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ColorSwatchPicker(
+                        selected: _color,
+                        usedColors: widget.usedColors,
+                        onChanged: (c) => setState(() => _color = c),
+                      ),
+                      if (widget.usedColors.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          'الألوان الباهتة مستخدمة في فئات أخرى',
+                          style: TextStyle(
+                            fontSize: AppTextSizes.label,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],

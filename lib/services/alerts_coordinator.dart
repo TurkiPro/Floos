@@ -44,30 +44,12 @@ Future<void> refreshAlerts(AppDatabase db, AppSettings settings) async {
   }
 }
 
-/// The soonest upcoming occurrence of any active recurring income rule.
+/// When the salary next lands — the largest active recurring income,
+/// override-aware — the same date the home countdown and the financial period
+/// use, so the reminder can't fire on a different day than they show.
 Future<DateTime?> _nextSalaryDate(AppDatabase db, DateTime now) async {
   final rules = await db.recurrenceDao.activeRules();
-  final today = dateOnly(now);
-  DateTime? soonest;
-  for (final r in rules) {
-    if (r.type != TxnType.income) continue;
-    // A pending next-payday override moves this rule's upcoming occurrence.
-    final next = r.nextOverrideDate != null
-        ? dateOnly(r.nextOverrideDate!)
-        : nextOccurrence(
-            startDate: r.startDate,
-            frequency: r.frequency,
-            interval: r.interval,
-            endDate: r.endDate,
-            // Exclusive of yesterday => an occurrence dated today still counts,
-            // so opening the app on salary morning doesn't cancel tonight's
-            // alert. (Same fix as _salaryHint in home_screen.dart.)
-            afterExclusive: DateTime(today.year, today.month, today.day - 1),
-          );
-    if (next == null) continue;
-    if (soonest == null || next.isBefore(soonest)) soonest = next;
-  }
-  return soonest;
+  return nextSalaryDate(rules, now);
 }
 
 /// Recommended weekly spend (all essentials + 85% of the discretionary

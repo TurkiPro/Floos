@@ -46,53 +46,69 @@ class WeeklyPerformanceScreen extends StatelessWidget {
                         for (final r in (reflSnap.data ?? const []))
                           r.weekStart.millisecondsSinceEpoch: r.note,
                       };
-                      final s = StatisticsSummary.from(
-                          rows, contributions, now, period);
-                      final weeks = weeklyPerformance(
-                        rows: rows,
-                        weeklyBudget: s.weeklyBaseline,
-                        now: now,
-                        periodStart: period.start,
-                        periodEnd: period.end,
-                      ).reversed.toList(); // newest week first
+                      return StreamBuilder<List<Category>>(
+                        stream: db.categoryDao.watchAll(),
+                        builder: (context, catSnap) {
+                          final byId = {
+                            for (final c
+                                in (catSnap.data ?? const <Category>[]))
+                              c.id: c
+                          };
+                          final s = StatisticsSummary.from(
+                              rows, contributions, now, period);
+                          final weeks = weeklyPerformance(
+                            rows: rows,
+                            byId: byId,
+                            weeklyBudget: s.weeklyBaseline,
+                            now: now,
+                            periodStart: period.start,
+                            periodEnd: period.end,
+                          ).reversed.toList(); // newest week first
 
-                      if (weeks.isEmpty || s.weeklyBaseline <= 0) {
-                        return const Center(
-                            child: Padding(
-                          padding: EdgeInsets.all(AppSpacing.xl),
-                          child: Text(
-                            'لا تتوفر ميزانية أسبوعية بعد — تحتاج بضعة أسابيع من '
-                            'الإنفاق حتى نحسب معدلك.',
-                            textAlign: TextAlign.center,
-                          ),
-                        ));
-                      }
-                      return ListView(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        children: [
-                          Text(
-                            'كل أسبوع من دورتك الحالية مقابل ميزانيتك الأسبوعية '
-                            '(${money.format(s.weeklyBaseline)} ⃁). اكتب ملاحظة '
-                            'عن سبب التزامك أو تجاوزك.',
-                            style: TextStyle(
-                                fontSize: AppTextSizes.label,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant),
-                          ),
-                          const SizedBox(height: AppSpacing.md),
-                          for (final w in weeks) ...[
-                            _WeekCard(
-                              week: w,
-                              note: notes[w.weekStart.millisecondsSinceEpoch],
-                              money: money,
-                              dfmt: dfmt,
-                              onEditNote: () => _editNote(context, db, w,
-                                  notes[w.weekStart.millisecondsSinceEpoch]),
-                            ),
-                            const SizedBox(height: AppSpacing.md),
-                          ],
-                        ],
+                          if (weeks.isEmpty || s.weeklyBaseline <= 0) {
+                            return const Center(
+                                child: Padding(
+                              padding: EdgeInsets.all(AppSpacing.xl),
+                              child: Text(
+                                'لا تتوفر ميزانية أسبوعية بعد — تحتاج بضعة أسابيع من '
+                                'الإنفاق حتى نحسب معدلك.',
+                                textAlign: TextAlign.center,
+                              ),
+                            ));
+                          }
+                          return ListView(
+                            padding: const EdgeInsets.all(AppSpacing.lg),
+                            children: [
+                              Text(
+                                'كل أسبوع من دورتك الحالية مقابل ميزانيتك الأسبوعية '
+                                '(${money.format(s.weeklyBaseline)} ⃁). اكتب ملاحظة '
+                                'عن سبب التزامك أو تجاوزك.',
+                                style: TextStyle(
+                                    fontSize: AppTextSizes.label,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              for (final w in weeks) ...[
+                                _WeekCard(
+                                  week: w,
+                                  note:
+                                      notes[w.weekStart.millisecondsSinceEpoch],
+                                  money: money,
+                                  dfmt: dfmt,
+                                  onEditNote: () => _editNote(
+                                      context,
+                                      db,
+                                      w,
+                                      notes[
+                                          w.weekStart.millisecondsSinceEpoch]),
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                              ],
+                            ],
+                          );
+                        },
                       );
                     },
                   );
@@ -330,8 +346,53 @@ class _DailyBars extends StatelessWidget {
               ),
           ],
         ),
+        // Legend: which colour is which category (so the crammed bars are
+        // readable). Categories that appear in the week, biggest first.
+        if (_legend().isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.md,
+            runSpacing: 6,
+            children: [
+              for (final item in _legend())
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                          color: Color(item.colorValue),
+                          shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(item.name,
+                        style: TextStyle(
+                            fontSize: AppTextSizes.label,
+                            color: scheme.onSurfaceVariant)),
+                  ],
+                ),
+            ],
+          ),
+        ],
       ],
     );
+  }
+
+  /// Distinct top categories spent in this week, summed and biggest first, for
+  /// the colour legend.
+  List<DaySlice> _legend() {
+    final totals = <int, double>{};
+    final byId = <int, DaySlice>{};
+    for (final d in days) {
+      for (final s in d.slices) {
+        totals[s.categoryId] = (totals[s.categoryId] ?? 0) + s.amount;
+        byId[s.categoryId] = s;
+      }
+    }
+    final ids = totals.keys.toList()
+      ..sort((a, b) => totals[b]!.compareTo(totals[a]!));
+    return [for (final id in ids) byId[id]!];
   }
 
   Widget _bar(BuildContext context, DaySpend d, double maxTotal) {

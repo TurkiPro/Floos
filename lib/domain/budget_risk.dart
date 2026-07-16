@@ -17,6 +17,13 @@ class BudgetRisk {
 
   double get overBy => projected - budget;
   double get overByPct => budget > 0 ? overBy / budget * 100 : 0;
+
+  /// Already past the budget with actual spend (not just projected).
+  bool get alreadyOver => spent >= budget;
+
+  /// How far actual spend is over the budget, as a percent (0 when not yet over).
+  double get spentOverPct =>
+      budget > 0 && spent > budget ? (spent - budget) / budget * 100 : 0;
 }
 
 int _daysInMonth(int year, int month) => DateTime(year, month + 1, 0).day;

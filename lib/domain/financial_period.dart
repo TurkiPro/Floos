@@ -24,18 +24,13 @@ FinancialPeriod financialPeriod(
     DateTime(now.year, now.month + 1, 1),
   );
 
-  // The "salary": the largest active recurring income defines the cycle.
-  RecurrenceRule? salary;
-  for (final r in incomeRules) {
-    if (r.type != TxnType.income || !r.active) continue;
-    if (salary == null || r.amount > salary.amount) salary = r;
-  }
+  final salary = _largestActiveIncome(incomeRules);
   if (salary == null) return calendar;
 
   final start = _latestOnOrBefore(salary, today);
   if (start == null) return calendar; // the salary rule hasn't started yet
 
-  final end = nextOccurrence(
+  final scheduledEnd = nextOccurrence(
         startDate: salary.startDate,
         frequency: salary.frequency,
         interval: salary.interval,
@@ -44,7 +39,47 @@ FinancialPeriod financialPeriod(
       ) ??
       // The salary rule has ended — cap a month out from the last payday.
       DateTime(start.year, start.month + 1, start.day);
+  // A pending next-payday override moves the actual next payday (the salary
+  // landing early or late), so the period ends on it — matching the home
+  // countdown and the weekly-budget days, which also honour the override.
+  final override = salary.nextOverrideDate == null
+      ? null
+      : dateOnly(salary.nextOverrideDate!);
+  final end =
+      (override != null && override.isAfter(today)) ? override : scheduledEnd;
   return FinancialPeriod(start, end);
+}
+
+/// The "salary": the largest active recurring income, which anchors the cycle.
+RecurrenceRule? _largestActiveIncome(List<RecurrenceRule> incomeRules) {
+  RecurrenceRule? salary;
+  for (final r in incomeRules) {
+    if (r.type != TxnType.income || !r.active) continue;
+    if (salary == null || r.amount > salary.amount) salary = r;
+  }
+  return salary;
+}
+
+/// When the salary next lands — the same date the financial period ends —
+/// honouring a pending next-payday override. Today counts (opening the app on
+/// payday still reads as "today"). Null when there's no recurring income, so the
+/// home countdown and every "days until salary" figure agree with the cycle.
+DateTime? nextSalaryDate(List<RecurrenceRule> incomeRules, DateTime now) {
+  final salary = _largestActiveIncome(incomeRules);
+  if (salary == null) return null;
+  final today = dateOnly(now);
+  if (salary.nextOverrideDate != null) {
+    final o = dateOnly(salary.nextOverrideDate!);
+    if (!o.isBefore(today)) return o; // an upcoming (or today's) override
+  }
+  return nextOccurrence(
+    startDate: salary.startDate,
+    frequency: salary.frequency,
+    interval: salary.interval,
+    endDate: salary.endDate,
+    // Exclusive of yesterday => an occurrence dated today still counts.
+    afterExclusive: DateTime(today.year, today.month, today.day - 1),
+  );
 }
 
 /// The latest occurrence of [rule] on or before [cap], or null if the rule

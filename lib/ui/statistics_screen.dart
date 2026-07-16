@@ -113,6 +113,10 @@ class StatisticsScreen extends StatelessWidget {
                               budgetSnap.data ?? const <CategoryBudget>[],
                               rows,
                               now);
+                          final over =
+                              risks.where((r) => r.alreadyOver).toList();
+                          final approaching =
+                              risks.where((r) => !r.alreadyOver).toList();
                           return ListView(
                             padding: const EdgeInsets.all(AppSpacing.lg),
                             children: [
@@ -128,8 +132,22 @@ class StatisticsScreen extends StatelessWidget {
                               const SizedBox(height: AppSpacing.md),
                               _savingsRateCard(context, s, money),
                               const SizedBox(height: AppSpacing.md),
-                              if (risks.isNotEmpty) ...[
-                                _budgetRiskCard(context, risks, byId, money),
+                              if (over.isNotEmpty) ...[
+                                _budgetRiskCard(context, over, byId, money,
+                                    title: 'تجاوزت ميزانيتها',
+                                    subtitle: 'أنفقت أكثر من ميزانيتها بالفعل',
+                                    icon: Icons.error_outline,
+                                    alreadyOver: true),
+                                const SizedBox(height: AppSpacing.md),
+                              ],
+                              if (approaching.isNotEmpty) ...[
+                                _budgetRiskCard(
+                                    context, approaching, byId, money,
+                                    title: 'على وشك التجاوز',
+                                    subtitle:
+                                        'حسب وتيرتك، متوقّع تجاوزها قبل نهاية الشهر',
+                                    icon: Icons.warning_amber_rounded,
+                                    alreadyOver: false),
                                 const SizedBox(height: AppSpacing.md),
                               ],
                               _essentialsCard(context, s, money),
@@ -782,8 +800,15 @@ class StatisticsScreen extends StatelessWidget {
   }
 
   /// Budgets projected to blow by month end, biggest overshoot first.
+  /// Budgets at risk. Two flavours: [alreadyOver] shows actual spend vs budget
+  /// ("أنفقت X من ميزانية Y"); otherwise it shows the projected month-end figure
+  /// ("متوقّع X …"). The percentage badge matches (actual overage vs projected).
   Widget _budgetRiskCard(BuildContext context, List<BudgetRisk> risks,
-      Map<int, Category> byId, NumberFormat money) {
+      Map<int, Category> byId, NumberFormat money,
+      {required String title,
+      required String subtitle,
+      required IconData icon,
+      required bool alreadyOver}) {
     final scheme = Theme.of(context).colorScheme;
     return _card(
       context,
@@ -792,19 +817,18 @@ class StatisticsScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.warning_amber_rounded,
-                  size: 18, color: Colors.red.shade400),
+              Icon(icon, size: 18, color: Colors.red.shade400),
               const SizedBox(width: AppSpacing.xs),
-              _label(context, 'ميزانيات على وشك التجاوز'),
+              _label(context, title),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text('حسب وتيرتك، هذه متوقّع تجاوزها قبل نهاية الشهر',
+          Text(subtitle,
               style: TextStyle(
                   fontSize: AppTextSizes.label,
                   color: scheme.onSurfaceVariant)),
           const SizedBox(height: AppSpacing.sm),
-          for (final risk in risks.take(4)) ...[
+          for (final risk in risks.take(5)) ...[
             const Divider(height: AppSpacing.lg),
             Row(
               children: [
@@ -820,8 +844,11 @@ class StatisticsScreen extends StatelessWidget {
                       Text(byId[risk.categoryId]?.name ?? '—',
                           style: const TextStyle(fontWeight: FontWeight.w600)),
                       Text(
-                        'متوقّع ${money.format(risk.projected)} من ميزانية '
-                        '${money.format(risk.budget)} ⃁',
+                        alreadyOver
+                            ? 'أنفقت ${money.format(risk.spent)} من ميزانية '
+                                '${money.format(risk.budget)} ⃁'
+                            : 'متوقّع ${money.format(risk.projected)} من ميزانية '
+                                '${money.format(risk.budget)} ⃁',
                         style: TextStyle(
                             fontSize: AppTextSizes.label,
                             color: scheme.onSurfaceVariant),
@@ -829,7 +856,8 @@ class StatisticsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                Text('+${risk.overByPct.toStringAsFixed(0)}٪',
+                Text(
+                    '+${(alreadyOver ? risk.spentOverPct : risk.overByPct).toStringAsFixed(0)}٪',
                     style: TextStyle(
                         fontWeight: FontWeight.w700,
                         color: Colors.red.shade400)),

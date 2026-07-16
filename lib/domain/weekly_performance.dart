@@ -2,12 +2,14 @@ import '../data/database.dart';
 import '../data/enums.dart';
 import 'recurrence_math.dart';
 
-/// One day's discretionary spend inside a week, split by top-category colour for
-/// the stacked day-bar chart.
+/// One day's discretionary spend in one top-level category, for the stacked
+/// day-bar chart (and its legend).
 class DaySlice {
+  final int categoryId; // top-level
+  final String name;
   final int colorValue;
   final double amount;
-  const DaySlice(this.colorValue, this.amount);
+  const DaySlice(this.categoryId, this.name, this.colorValue, this.amount);
 }
 
 class DaySpend {
@@ -50,6 +52,7 @@ class WeekPerformance {
 /// obligations are excluded, like the weekly-budget baseline itself.
 List<WeekPerformance> weeklyPerformance({
   required List<TxnRow> rows,
+  required Map<int, Category> byId,
   required double weeklyBudget,
   required DateTime now,
   required DateTime periodStart,
@@ -72,7 +75,9 @@ List<WeekPerformance> weeklyPerformance({
     final budget = weeklyBudget * days / 7;
 
     var spent = 0.0;
-    // date -> colorValue -> amount, for the elapsed days of this week.
+    // dayKey -> top-category id -> amount, for the days of this week. Grouping by
+    // top category (not raw colour) keeps each bar segment one distinct category
+    // that the legend can name.
     final byDay = <int, Map<int, double>>{};
     for (final r in rows) {
       if (r.txn.type != TxnType.expense) continue;
@@ -81,9 +86,9 @@ List<WeekPerformance> weeklyPerformance({
       if (d.isBefore(ws) || !d.isBefore(fullWeekEnd)) continue;
       final dayKey = d.difference(ws).inDays;
       if (d.isBefore(windowEnd)) spent += r.txn.amount;
-      final color = r.category.colorValue;
-      (byDay[dayKey] ??= <int, double>{})[color] =
-          (byDay[dayKey]?[color] ?? 0) + r.txn.amount;
+      final topId = r.category.parentId ?? r.category.id;
+      (byDay[dayKey] ??= <int, double>{})[topId] =
+          (byDay[dayKey]?[topId] ?? 0) + r.txn.amount;
     }
 
     // A slot per day of the (full) week, empty ones included so the chart keeps
@@ -92,10 +97,11 @@ List<WeekPerformance> weeklyPerformance({
     final daySpends = <DaySpend>[];
     for (var i = 0; i < weekLen; i++) {
       final date = DateTime(ws.year, ws.month, ws.day + i);
-      final slices = (byDay[i] ?? const <int, double>{})
-          .entries
-          .map((e) => DaySlice(e.key, e.value))
-          .toList()
+      final slices = (byDay[i] ?? const <int, double>{}).entries.map((e) {
+        final cat = byId[e.key];
+        return DaySlice(
+            e.key, cat?.name ?? '—', cat?.colorValue ?? 0xFF9E9E9E, e.value);
+      }).toList()
         ..sort((a, b) => b.amount.compareTo(a.amount));
       daySpends.add(DaySpend(date, slices));
     }

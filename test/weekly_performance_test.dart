@@ -45,6 +45,7 @@ void main() {
           _exp(999, DateTime(2026, 7, 8),
               recurrenceId: 5), // week 2, recurring -> excluded
         ],
+        byId: {1: _cat()},
         weeklyBudget: 700,
         now: now,
         periodStart: start,
@@ -67,6 +68,7 @@ void main() {
           _exp(800, DateTime(2026, 7, 2)),
           _exp(400, DateTime(2026, 7, 7))
         ],
+        byId: {1: _cat()},
         weeklyBudget: 700,
         now: now,
         periodStart: start,
@@ -77,6 +79,9 @@ void main() {
       expect(w1.days[1].total, 800); // 2 July is day index 1
       expect(w1.days[6].total, 400); // 7 July is day index 6
       expect(w1.days[0].total, 0); // 1 July, empty
+      // The slice carries the category name/colour for the chart legend.
+      expect(w1.days[1].slices.first.name, 'c');
+      expect(w1.days[1].slices.first.categoryId, 1);
     });
   });
 
