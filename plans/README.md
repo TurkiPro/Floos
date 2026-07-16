@@ -28,17 +28,17 @@ budget, alerts not re-armed after mutations).
 | 007 | Consolidate the duplicated weekly-budget formula | P2 | M | 006 | DONE (on main) |
 | 008 | Compute savings totals in one pass, not one query per goal | P3 | S | — | DONE (on main, commit `ea2b1a8`) |
 | — | Feature: user-set category budgets (direction) | — | M | — | DONE (on main; schema v6) |
-| 009 | Keep the finance database out of Android cloud backups | P1 | S | — | TODO |
-| 017 | Make the app lock cover every route, not just Home | P1 | M | — | TODO |
-| 010 | Bundle the Arabic fonts so the app makes zero network requests | P1 | M | — | TODO |
-| 011 | Make the backup format cover category budgets | P1 | S | — | TODO |
-| 012 | Anchor the weekly reminder to a fixed weekday | P1 | S | — | TODO |
-| 018 | Count today's transactions in the weekly budget and spending window | P1 | S | — | TODO |
-| 015 | Keep alerts and badge honest when the data changes | P2 | M | — | TODO |
-| 014 | Give swipe-to-delete an Undo (and keep the badge honest) | P2 | S | — | TODO |
-| 019 | Accept Arabic-Indic digits everywhere an amount is typed | P2 | S | — | TODO |
-| 013 | Make the category color the user picks actually show up | P2 | M | — | TODO |
-| 016 | Ship backup & restore in Settings (direction) | P2 | L | 011 | TODO |
+| 009 | Keep the finance database out of Android cloud backups | P1 | S | — | DONE (on main `b9fbb92`) |
+| 017 | Make the app lock cover every route, not just Home | P1 | M | — | DONE (on main `b9fbb92`; needs on-device iOS check from a pushed screen) |
+| 010 | Bundle the Arabic fonts so the app makes zero network requests | P1 | M | — | DONE (on main `bdeac8e`) |
+| 011 | Make the backup format cover category budgets | P1 | S | — | DONE (on main `3889e73`; also covers the v7 external flag) |
+| 012 | Anchor the weekly reminder to a fixed weekday | P1 | S | — | DONE (on main `cdb2dd5`) |
+| 018 | Count today's transactions in the weekly budget and spending window | P1 | S | — | DONE (on main `cdb2dd5`) |
+| 015 | Keep alerts and badge honest when the data changes | P2 | M | — | DONE (on main `64f82b4`) |
+| 014 | Give swipe-to-delete an Undo (and keep the badge honest) | P2 | S | — | DONE (on main `52fe8f1`) |
+| 019 | Accept Arabic-Indic digits everywhere an amount is typed | P2 | S | — | DONE (on main `3e91d26`) |
+| 013 | Make the category color the user picks actually show up | P2 | M | — | DONE (on main `bf2df61`; verified on Windows) |
+| 016 | Ship backup & restore in Settings (direction) | P2 | L | 011 | DONE (on main `cc96582`; OS share/restore walkthrough deferred to device) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale)
 
