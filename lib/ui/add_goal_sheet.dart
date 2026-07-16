@@ -75,7 +75,7 @@ class _AddGoalSheetState extends State<AddGoalSheet> {
                   const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: 'المبلغ المستهدف',
-                suffixText: 'ر.س',
+                suffixText: '⃁',
                 border: OutlineInputBorder(),
               ),
             ),

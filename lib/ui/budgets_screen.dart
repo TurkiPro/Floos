@@ -173,7 +173,7 @@ class BudgetsScreen extends StatelessWidget {
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: const InputDecoration(
             labelText: 'المبلغ الشهري',
-            suffixText: 'ر.س',
+            suffixText: '⃁',
           ),
         ),
         actions: [
@@ -332,7 +332,7 @@ class _BudgetTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     if (hasBudget) ...[
                       Text(
-                        '${money.format(spent)} من ${money.format(budget!.amount)} ر.س',
+                        '${money.format(spent)} من ${money.format(budget!.amount)} ⃁',
                         style: TextStyle(
                           fontSize: AppTextSizes.label,
                           color:
@@ -391,7 +391,7 @@ class _BudgetTile extends StatelessWidget {
   }
 }
 
-/// The inline "مقترح: X ر.س" line under a category, with its basis caption.
+/// The inline "مقترح: X ⃁" line under a category, with its basis caption.
 class _SuggestionNudge extends StatelessWidget {
   final BudgetSuggestion suggestion;
   final NumberFormat money;
@@ -406,7 +406,7 @@ class _SuggestionNudge extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.xs),
       child: Text(
-        'مقترح: ${money.format(suggestion.amount)} ر.س$basis',
+        'مقترح: ${money.format(suggestion.amount)} ⃁$basis',
         style: TextStyle(
           fontSize: AppTextSizes.label,
           fontWeight: FontWeight.w600,

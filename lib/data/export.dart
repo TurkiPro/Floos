@@ -21,7 +21,7 @@ String _csvField(String? v) {
 }
 
 /// Long-format CSV built for analysis, not for eyeballing:
-/// one row per transaction, ISO dates, amounts as plain numbers (no ر.س in the
+/// one row per transaction, ISO dates, amounts as plain numbers (no ⃁ in the
 /// cell, so the column stays numeric), category id and name in separate columns,
 /// and a recurrence_id so generated rows are distinguishable. Prefixed with a
 /// UTF-8 BOM so Excel renders the Arabic correctly.

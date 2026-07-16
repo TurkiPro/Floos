@@ -204,17 +204,17 @@ class StatisticsScreen extends StatelessWidget {
         children: [
           _label(context, 'إنفاق هذا الشهر'),
           const SizedBox(height: AppSpacing.xs),
-          Text('${money.format(s.spentThisMonth)} ر.س',
+          Text('${money.format(s.spentThisMonth)} ⃁',
               style: const TextStyle(
                   fontSize: AppTextSizes.heroMin, fontWeight: FontWeight.w700)),
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
               _miniStat(context, 'المعدل اليومي',
-                  '${money.format(s.dailyAvgThisMonth)} ر.س', scheme.onSurface),
+                  '${money.format(s.dailyAvgThisMonth)} ⃁', scheme.onSurface),
               const SizedBox(width: AppSpacing.lg),
               _miniStat(context, 'المتوقع للشهر',
-                  '${money.format(s.projectedThisMonth)} ر.س', scheme.primary),
+                  '${money.format(s.projectedThisMonth)} ⃁', scheme.primary),
             ],
           ),
           if (s.lastMonthSpent > 0) ...[
@@ -233,7 +233,7 @@ class StatisticsScreen extends StatelessWidget {
                 const SizedBox(width: AppSpacing.xs),
                 Expanded(
                   child: Text(
-                    'الشهر الماضي ${money.format(s.lastMonthSpent)} ر.س — '
+                    'الشهر الماضي ${money.format(s.lastMonthSpent)} ⃁ — '
                     'متوقع أن ${s.projectedVsLastMonth >= 0 ? 'ترتفع' : 'تنخفض'} '
                     '${s.projectedVsLastMonth.abs().toStringAsFixed(0)}٪',
                     style: TextStyle(
@@ -262,7 +262,7 @@ class StatisticsScreen extends StatelessWidget {
           _label(context, 'المتاح يوميًا لبقية الشهر'),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            allowance == null ? '—' : '${money.format(allowance.abs())} ر.س',
+            allowance == null ? '—' : '${money.format(allowance.abs())} ⃁',
             style: TextStyle(
               fontSize: AppTextSizes.heroMin,
               fontWeight: FontWeight.w700,
@@ -296,7 +296,7 @@ class StatisticsScreen extends StatelessWidget {
         children: [
           _label(context, 'ميزانية هذا الأسبوع'),
           const SizedBox(height: AppSpacing.xs),
-          Text('${money.format(s.recommendedWeekly)} ر.س',
+          Text('${money.format(s.recommendedWeekly)} ⃁',
               style: TextStyle(
                   fontSize: AppTextSizes.heroMin,
                   fontWeight: FontWeight.w700,
@@ -310,7 +310,7 @@ class StatisticsScreen extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'وتيرتك الحالية: ${money.format(s.currentWeeklyPace)} ر.س أسبوعيًا',
+            'وتيرتك الحالية: ${money.format(s.currentWeeklyPace)} ⃁ أسبوعيًا',
             style: TextStyle(
                 fontSize: AppTextSizes.label,
                 color: s.currentWeeklyPace > s.recommendedWeekly
@@ -362,7 +362,7 @@ class StatisticsScreen extends StatelessWidget {
             rate == null
                 ? 'أضف دخلًا لهذا الشهر لحساب معدل الادخار.'
                 : 'ادّخرت ${money.format(s.monthSaved)} من دخل '
-                    '${money.format(s.monthIncome)} ر.س. '
+                    '${money.format(s.monthIncome)} ⃁. '
                     '${rate >= 0.2 ? 'ممتاز — أنت فوق هدف ٢٠٪.' : 'الهدف الشائع هو ٢٠٪.'}',
             style: TextStyle(
                 fontSize: AppTextSizes.label, color: scheme.onSurfaceVariant),
@@ -401,14 +401,11 @@ class StatisticsScreen extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
-              _legend(
-                  context,
-                  'أساسيات',
-                  '${money.format(s.essentialThisMonth)} ر.س',
-                  AppColors.income),
+              _legend(context, 'أساسيات',
+                  '${money.format(s.essentialThisMonth)} ⃁', AppColors.income),
               const SizedBox(width: AppSpacing.lg),
               _legend(context, 'كماليات',
-                  '${money.format(s.luxuryThisMonth)} ر.س', _luxuryColor),
+                  '${money.format(s.luxuryThisMonth)} ⃁', _luxuryColor),
             ],
           ),
         ],
@@ -428,20 +425,20 @@ class StatisticsScreen extends StatelessWidget {
       (
         Icons.straighten,
         'متوسط العملية',
-        '${money.format(s.avgTxnThisMonth)} ر.س',
+        '${money.format(s.avgTxnThisMonth)} ⃁',
       ),
       if (s.biggestExpense != null)
         (
           Icons.arrow_upward,
           'أكبر مصروف',
-          '${money.format(s.biggestExpense!.txn.amount)} ر.س'
+          '${money.format(s.biggestExpense!.txn.amount)} ⃁'
               ' • ${s.biggestExpense!.category.name}',
         ),
       if (s.highestDayAmount > 0)
         (
           Icons.calendar_today,
           'أعلى يوم إنفاقًا',
-          '${money.format(s.highestDayAmount)} ر.س'
+          '${money.format(s.highestDayAmount)} ⃁'
               ' • ${dayName(s.highestDay!)} ${s.highestDay!.day}',
         ),
       (
@@ -454,7 +451,7 @@ class StatisticsScreen extends StatelessWidget {
           Icons.event_repeat,
           'أكثر أيام الأسبوع إنفاقًا',
           '${dayNameForWeekday(s.topWeekday!)}'
-              ' • ${money.format(s.topWeekdayAvg)} ر.س وسطيًا',
+              ' • ${money.format(s.topWeekdayAvg)} ⃁ وسطيًا',
         ),
     ];
 
@@ -541,7 +538,7 @@ class StatisticsScreen extends StatelessWidget {
                       style: TextStyle(
                           fontSize: AppTextSizes.label,
                           color: scheme.onSurfaceVariant)),
-                  Text('${money.format(entry.value)} ر.س',
+                  Text('${money.format(entry.value)} ⃁',
                       style: const TextStyle(fontWeight: FontWeight.w600)),
                 ],
               ),

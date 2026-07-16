@@ -55,7 +55,7 @@ class GoalDetailScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        '${money.format(total)} ر.س',
+                        '${money.format(total)} ⃁',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                             fontSize: AppTextSizes.heroMax,
@@ -63,7 +63,7 @@ class GoalDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: AppSpacing.xs),
                       Text(
-                        'من ${money.format(goal.targetAmount)} ر.س'
+                        'من ${money.format(goal.targetAmount)} ⃁'
                         '${goal.targetDate != null ? '  •  بحلول ${dateFmt.format(goal.targetDate!)}' : ''}',
                         textAlign: TextAlign.center,
                         style: TextStyle(
@@ -125,7 +125,7 @@ class GoalDetailScreen extends StatelessWidget {
                         ));
                       },
                       child: ListTile(
-                        title: Text('${money.format(c.amount)} ر.س'),
+                        title: Text('${money.format(c.amount)} ⃁'),
                         subtitle: Text([
                           dateFmt.format(c.date),
                           if ((c.note ?? '').isNotEmpty) c.note!,

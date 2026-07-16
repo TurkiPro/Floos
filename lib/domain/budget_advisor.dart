@@ -41,7 +41,7 @@ const double _roundStep = 10;
 double _roundFriendly(double v) => (v / _roundStep).round() * _roundStep;
 
 /// Median of a list (average of the two middle values for even length). Robust
-/// to a single spike in a way a mean isn't — one 3,000 ر.س flight shouldn't
+/// to a single spike in a way a mean isn't — one 3,000 ⃁ flight shouldn't
 /// permanently inflate the "travel" budget.
 double _median(List<double> xs) {
   if (xs.isEmpty) return 0;

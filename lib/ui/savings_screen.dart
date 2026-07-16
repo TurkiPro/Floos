@@ -97,7 +97,7 @@ class SavingsScreen extends StatelessWidget {
                         day: day.key,
                         today: DateTime.now(),
                         totalText:
-                            '+${money.format(day.value.fold<double>(0, (s, c) => s + c.amount))} ر.س',
+                            '+${money.format(day.value.fold<double>(0, (s, c) => s + c.amount))} ⃁',
                         totalColor: AppColors.income,
                         children: [
                           for (final c in day.value)
@@ -186,7 +186,7 @@ class _DepositRow extends StatelessWidget {
               ),
             ),
             Text(
-              '+${money.format(contribution.amount)} ر.س',
+              '+${money.format(contribution.amount)} ⃁',
               style: const TextStyle(
                   color: AppColors.income,
                   fontWeight: FontWeight.w600,
@@ -267,7 +267,7 @@ class _GoalCard extends StatelessWidget {
                     // testing). Explicit RTL label words anchor each
                     // number to its own context and keep the reading
                     // order unambiguous.
-                    'الحالي ${money.format(total)} ر.س  •  الهدف ${money.format(goal.targetAmount)} ر.س',
+                    'الحالي ${money.format(total)} ⃁  •  الهدف ${money.format(goal.targetAmount)} ⃁',
                     style: TextStyle(
                         fontSize: AppTextSizes.label,
                         color: scheme.onSurfaceVariant),
@@ -310,7 +310,7 @@ class _GoalCard extends StatelessWidget {
     );
   }
 
-  /// "الإيداع الشهري المقترح: X ر.س" -- the amount to deposit each month to
+  /// "الإيداع الشهري المقترح: X ⃁" -- the amount to deposit each month to
   /// hit the target by its deadline, recomputed from the live saved total.
   /// Null when the goal has no deadline or is already met.
   String? _monthlyLabel(SavingsGoal goal, double saved, NumberFormat money) {
@@ -321,6 +321,6 @@ class _GoalCard extends StatelessWidget {
       now: DateTime.now(),
     );
     if (monthly == null || monthly <= 0) return null;
-    return 'الإيداع الشهري المقترح: ${money.format(monthly)} ر.س';
+    return 'الإيداع الشهري المقترح: ${money.format(monthly)} ⃁';
   }
 }

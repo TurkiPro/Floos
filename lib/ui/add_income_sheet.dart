@@ -117,7 +117,7 @@ class _AddIncomeSheetState extends State<AddIncomeSheet> {
                   const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: 'المبلغ',
-                suffixText: 'ر.س',
+                suffixText: '⃁',
                 border: OutlineInputBorder(),
               ),
             ),

@@ -108,7 +108,7 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
                   const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: 'المبلغ',
-                suffixText: 'ر.س',
+                suffixText: '⃁',
                 border: OutlineInputBorder(),
               ),
             ),

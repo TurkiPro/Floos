@@ -332,7 +332,7 @@ class _AddRecurrenceSheetState extends State<AddRecurrenceSheet> {
                   const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: 'المبلغ',
-                suffixText: 'ر.س',
+                suffixText: '⃁',
                 border: OutlineInputBorder(),
               ),
             ),

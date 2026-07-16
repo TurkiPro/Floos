@@ -150,7 +150,7 @@ class NotificationService {
       if (settings.notifyWeeklyBudget) {
         final body = weeklyBudget == null
             ? 'ميزانية الأسبوع الجديدة جاهزة.'
-            : 'ميزانيتك لهذا الأسبوع: ${weeklyBudget.toStringAsFixed(0)} ر.س.';
+            : 'ميزانيتك لهذا الأسبوع: ${weeklyBudget.toStringAsFixed(0)} ⃁.';
         await _scheduleRepeating(
           id: _idWeeklyBudget,
           title: 'ميزانية الأسبوع',

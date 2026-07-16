@@ -45,7 +45,7 @@ class NetSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            '${money.format(net)} ر.س',
+            '${money.format(net)} ⃁',
             style: TextStyle(
               fontSize: AppTextSizes.heroMax,
               fontWeight: FontWeight.w700,
@@ -86,7 +86,7 @@ class NetSummaryCard extends StatelessWidget {
               style: TextStyle(
                   fontSize: AppTextSizes.label,
                   color: scheme.onSurfaceVariant)),
-          Text('${money.format(value)} ر.س',
+          Text('${money.format(value)} ⃁',
               style: TextStyle(
                   fontSize: AppTextSizes.row,
                   fontWeight: FontWeight.w600,

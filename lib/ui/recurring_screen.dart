@@ -105,7 +105,7 @@ class ObligationsScreen extends StatelessWidget {
                   children: [
                     const Text('إجمالي الالتزامات النشطة',
                         style: TextStyle(fontWeight: FontWeight.w600)),
-                    Text('${money.format(total)} ر.س',
+                    Text('${money.format(total)} ⃁',
                         style: TextStyle(
                             fontSize: AppTextSizes.row,
                             fontWeight: FontWeight.w700,
@@ -135,7 +135,7 @@ class ObligationsScreen extends StatelessWidget {
     DateFormat dateFmt,
     ColorScheme scheme,
   ) {
-    final subtitle = StringBuffer('${money.format(r.amount)} ر.س');
+    final subtitle = StringBuffer('${money.format(r.amount)} ⃁');
     if (r.active && next != null) {
       subtitle.write('  •  التالي ${dateFmt.format(next)}');
     } else if (!r.active) {

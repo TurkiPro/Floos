@@ -37,14 +37,14 @@ class DayGroupCard extends StatelessWidget {
     final String totalText;
     final Color totalColor;
     if (income == 0) {
-      totalText = '${money.format(expense)} ر.س';
+      totalText = '${money.format(expense)} ⃁';
       totalColor = scheme.onSurface;
     } else if (expense == 0) {
-      totalText = '+${money.format(income)} ر.س';
+      totalText = '+${money.format(income)} ⃁';
       totalColor = AppColors.income;
     } else {
       final net = income - expense;
-      totalText = '${net >= 0 ? '+' : '-'}${money.format(net.abs())} ر.س';
+      totalText = '${net >= 0 ? '+' : '-'}${money.format(net.abs())} ⃁';
       totalColor = net >= 0 ? AppColors.income : scheme.onSurface;
     }
 

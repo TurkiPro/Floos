@@ -172,7 +172,7 @@ class IncomeScreen extends StatelessWidget {
             ));
     final subtitle = StringBuffer()
       ..write(
-          '${money.format(r.amount)} ر.س  •  ${frequencyLabelAr(r.frequency)}');
+          '${money.format(r.amount)} ⃁  •  ${frequencyLabelAr(r.frequency)}');
     if (r.interval > 1) subtitle.write(' (كل ${r.interval})');
     if (r.active && next != null) {
       subtitle.write('\nالتالي: ${dateFmt.format(next)}');

@@ -98,7 +98,7 @@ class TransactionRow extends StatelessWidget {
                 ),
               ),
               Text(
-                '$sign${money.format(row.txn.amount)} ر.س',
+                '$sign${money.format(row.txn.amount)} ⃁',
                 style: TextStyle(
                     color: amountColor,
                     fontWeight: FontWeight.w600,

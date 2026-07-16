@@ -593,7 +593,7 @@ class _TopCard extends StatelessWidget {
                     fit: BoxFit.scaleDown,
                     alignment: AlignmentDirectional.centerStart,
                     child: Text(
-                      '${money.format(value)} ر.س',
+                      '${money.format(value)} ⃁',
                       style: TextStyle(
                         fontSize: AppTextSizes.heroMin,
                         fontWeight: FontWeight.w700,
@@ -720,7 +720,7 @@ class _SavingsPromptCard extends StatelessWidget {
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: const InputDecoration(
             labelText: 'المبلغ',
-            suffixText: 'ر.س',
+            suffixText: '⃁',
             border: OutlineInputBorder(),
           ),
         ),
@@ -780,7 +780,7 @@ class _SavingsPromptCard extends StatelessWidget {
                       Text(p.goal.name,
                           style: const TextStyle(fontWeight: FontWeight.w600)),
                       Text(
-                        'الإيداع الشهري: ${money.format(p.monthly)} ر.س',
+                        'الإيداع الشهري: ${money.format(p.monthly)} ⃁',
                         style: TextStyle(
                             fontSize: AppTextSizes.label,
                             color: scheme.onSurfaceVariant),

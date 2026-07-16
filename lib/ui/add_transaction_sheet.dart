@@ -144,7 +144,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                         ),
                         decoration: const InputDecoration(
                           hintText: '0.00',
-                          suffixText: 'ر.س',
+                          suffixText: '⃁',
                           border: InputBorder.none,
                         ),
                       ),

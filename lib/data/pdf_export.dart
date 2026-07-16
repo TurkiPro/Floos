@@ -53,8 +53,8 @@ Future<File> writeTransactionsPdf(AppDatabase db) async {
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
-            pw.Text('إجمالي الدخل: ${money.format(totalIncome)} ر.س'),
-            pw.Text('إجمالي المصروف: ${money.format(totalExpense)} ر.س'),
+            pw.Text('إجمالي الدخل: ${money.format(totalIncome)} ⃁'),
+            pw.Text('إجمالي المصروف: ${money.format(totalExpense)} ⃁'),
           ],
         ),
         pw.SizedBox(height: 12),
