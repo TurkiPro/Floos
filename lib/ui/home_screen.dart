@@ -21,6 +21,7 @@ import 'savings_screen.dart';
 import 'settings_screen.dart';
 import 'statistics_screen.dart';
 import 'theme/tokens.dart';
+import 'weekly_performance_screen.dart';
 import 'widgets/day_group_card.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -717,74 +718,94 @@ class _WeeklyStatusCard extends StatelessWidget {
     final accent = over ? Colors.red.shade400 : AppColors.income;
 
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: scheme.surface,
         borderRadius: BorderRadius.circular(AppRadii.card),
         boxShadow: const [AppShadows.card],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'ميزانية الأسبوع',
-                style: TextStyle(
-                    fontSize: AppTextSizes.label,
-                    color: scheme.onSurfaceVariant),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            // Tap through to the week-by-week performance detail.
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (_) => const WeeklyPerformanceScreen()),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'ميزانية الأسبوع',
+                        style: TextStyle(
+                            fontSize: AppTextSizes.label,
+                            color: scheme.onSurfaceVariant),
+                      ),
+                      Icon(Icons.chevron_left,
+                          size: 16, color: scheme.onSurfaceVariant),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          over ? 'تجاوزت ⚠️' : 'ضمن الميزانية ✅',
+                          style: TextStyle(
+                              fontSize: AppTextSizes.label,
+                              fontWeight: FontWeight.w700,
+                              color: accent),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      value: status.ratio,
+                      minHeight: 8,
+                      backgroundColor:
+                          scheme.onSurfaceVariant.withValues(alpha: 0.12),
+                      valueColor: AlwaysStoppedAnimation(accent),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text.rich(
+                    TextSpan(children: [
+                      TextSpan(
+                        text: 'أنفقت ${money.format(status.spent)}',
+                        style: TextStyle(
+                            color: scheme.onSurface,
+                            fontWeight: FontWeight.w600),
+                      ),
+                      if (status.budget > 0)
+                        TextSpan(
+                          text: ' من ${money.format(status.budget)} ⃁',
+                          style: TextStyle(color: scheme.onSurfaceVariant),
+                        ),
+                      TextSpan(
+                        text: over
+                            ? '  •  تجاوزت بـ ${money.format(status.over)} ⃁'
+                            : '  •  باقي ${money.format(status.remaining)} ⃁',
+                        style: TextStyle(
+                            color: accent, fontWeight: FontWeight.w600),
+                      ),
+                    ]),
+                    style: const TextStyle(fontSize: AppTextSizes.label),
+                  ),
+                ],
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm, vertical: 3),
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  over ? 'تجاوزت ⚠️' : 'ضمن الميزانية ✅',
-                  style: TextStyle(
-                      fontSize: AppTextSizes.label,
-                      fontWeight: FontWeight.w700,
-                      color: accent),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: status.ratio,
-              minHeight: 8,
-              backgroundColor: scheme.onSurfaceVariant.withValues(alpha: 0.12),
-              valueColor: AlwaysStoppedAnimation(accent),
             ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Text.rich(
-            TextSpan(children: [
-              TextSpan(
-                text: 'أنفقت ${money.format(status.spent)}',
-                style: TextStyle(
-                    color: scheme.onSurface, fontWeight: FontWeight.w600),
-              ),
-              if (status.budget > 0)
-                TextSpan(
-                  text: ' من ${money.format(status.budget)} ⃁',
-                  style: TextStyle(color: scheme.onSurfaceVariant),
-                ),
-              TextSpan(
-                text: over
-                    ? '  •  تجاوزت بـ ${money.format(status.over)} ⃁'
-                    : '  •  باقي ${money.format(status.remaining)} ⃁',
-                style: TextStyle(color: accent, fontWeight: FontWeight.w600),
-              ),
-            ]),
-            style: const TextStyle(fontSize: AppTextSizes.label),
-          ),
-        ],
+        ),
       ),
     );
   }
