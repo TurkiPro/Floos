@@ -801,9 +801,12 @@ class StatisticsScreen extends StatelessWidget {
   }
 
   /// Budgets projected to blow by month end, biggest overshoot first.
-  /// Budgets at risk. Two flavours: [alreadyOver] shows actual spend vs budget
-  /// ("أنفقت X من ميزانية Y"); otherwise it shows the projected month-end figure
-  /// ("متوقّع X …"). The percentage badge matches (actual overage vs projected).
+  /// Budgets at risk. Both flavours headline the ACTUAL spend vs budget ("أنفقت
+  /// X من ميزانية Y"), so an [alreadyOver] row shows spend past the budget while
+  /// an about-to-exceed row visibly sits under it — the projected month-end
+  /// figure is a separate, clearly-labelled forecast line ("متوقّع X بنهاية
+  /// الشهر") and never the headline, so "+8%" can't be misread as already-over.
+  /// Red for over, amber for merely projected.
   Widget _budgetRiskCard(BuildContext context, List<BudgetRisk> risks,
       Map<int, Category> byId, NumberFormat money,
       {required String title,
@@ -811,6 +814,7 @@ class StatisticsScreen extends StatelessWidget {
       required IconData icon,
       required bool alreadyOver}) {
     final scheme = Theme.of(context).colorScheme;
+    final accent = alreadyOver ? Colors.red.shade400 : Colors.orange.shade400;
     return _card(
       context,
       child: Column(
@@ -818,7 +822,7 @@ class StatisticsScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: Colors.red.shade400),
+              Icon(icon, size: 18, color: accent),
               const SizedBox(width: AppSpacing.xs),
               _label(context, title),
             ],
@@ -844,24 +848,30 @@ class StatisticsScreen extends StatelessWidget {
                     children: [
                       Text(byId[risk.categoryId]?.name ?? '—',
                           style: const TextStyle(fontWeight: FontWeight.w600)),
+                      // Headline the ACTUAL spend vs budget for both flavours, so
+                      // an about-to-exceed row visibly sits under its budget.
                       Text(
-                        alreadyOver
-                            ? 'أنفقت ${money.format(risk.spent)} من ميزانية '
-                                '${money.format(risk.budget)} ⃁'
-                            : 'متوقّع ${money.format(risk.projected)} من ميزانية '
-                                '${money.format(risk.budget)} ⃁',
+                        'أنفقت ${money.format(risk.spent)} من ميزانية '
+                        '${money.format(risk.budget)} ⃁',
                         style: TextStyle(
                             fontSize: AppTextSizes.label,
                             color: scheme.onSurfaceVariant),
                       ),
+                      // The forecast is a separate, clearly-labelled line — never
+                      // the headline — so it can't read as money already spent.
+                      if (!alreadyOver)
+                        Text(
+                          'متوقّع ${money.format(risk.projected)} بنهاية الشهر',
+                          style: TextStyle(
+                              fontSize: AppTextSizes.label, color: accent),
+                        ),
                     ],
                   ),
                 ),
                 Text(
                     '+${(alreadyOver ? risk.spentOverPct : risk.overByPct).toStringAsFixed(0)}٪',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Colors.red.shade400)),
+                    style:
+                        TextStyle(fontWeight: FontWeight.w700, color: accent)),
               ],
             ),
           ],
