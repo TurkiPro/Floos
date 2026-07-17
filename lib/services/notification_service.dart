@@ -19,6 +19,7 @@ class NotificationService {
   static const _idWeeklyBudget = 2;
   static const _idStats = 3;
   static const _idSalary = 4;
+  static const _idTest = 5;
 
   static bool get supported =>
       Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
@@ -26,10 +27,7 @@ class NotificationService {
   static Future<void> init() async {
     if (!supported || _ready) return;
     try {
-      tzdata.initializeTimeZones();
-      final local = await FlutterTimezone.getLocalTimezone();
-      tz.setLocalLocation(tz.getLocation(local.identifier));
-
+      // Initialise the plugin FIRST — this is what actually enables delivery.
       const android = AndroidInitializationSettings('@mipmap/ic_launcher');
       const darwin = DarwinInitializationSettings(
         requestAlertPermission: false,
@@ -41,10 +39,47 @@ class NotificationService {
         iOS: darwin,
         macOS: darwin,
       ));
+
+      // Timezone drives correctly-timed scheduling, but resolving it must never
+      // disable notifications. Previously a throw here ran BEFORE plugin init,
+      // so a single timezone hiccup skipped initialisation and silently killed
+      // every notification. Now the plugin is already up; if the device zone
+      // can't be resolved we fall back to UTC (a wrong-by-offset time beats
+      // silence) rather than bailing out.
+      tzdata.initializeTimeZones();
+      try {
+        final local = await FlutterTimezone.getLocalTimezone();
+        tz.setLocalLocation(tz.getLocation(local.identifier));
+      } catch (_) {
+        tz.setLocalLocation(tz.getLocation('UTC'));
+      }
+
       _ready = true;
     } catch (_) {
       _ready = false;
     }
+  }
+
+  /// Fires a notification a few seconds out, so the user can confirm end-to-end
+  /// that alerts actually reach the device (permission + init + scheduling +
+  /// timezone) instead of waiting for a real reminder to come due.
+  static Future<void> showTest() async {
+    if (!supported) return;
+    await init();
+    if (!_ready) return;
+    try {
+      final when = tz.TZDateTime.now(tz.local).add(const Duration(seconds: 6));
+      await _plugin.zonedSchedule(
+        _idTest,
+        'تنبيه تجريبي ✅',
+        'التنبيهات تعمل! ستصلك تذكيراتك في أوقاتها.',
+        when,
+        _testDetails,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+    } catch (_) {}
   }
 
   /// Asks the OS for permission. Returns false when unavailable or denied.
@@ -83,6 +118,32 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(presentBadge: false),
         macOS: DarwinNotificationDetails(presentBadge: false),
+      );
+
+  // Test alert: same channel, but asks iOS/macOS to present even while the app
+  // is in the foreground, so the check works whether or not the app is open.
+  // presentBadge stays false — the icon badge belongs to BadgeService.
+  static NotificationDetails get _testDetails => const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'floos_alerts',
+          'تنبيهات فلوس',
+          channelDescription: 'تذكيرات تسجيل المصاريف وتنبيهات الميزانية',
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
+          channelShowBadge: false,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBanner: true,
+          presentSound: true,
+          presentBadge: false,
+        ),
+        macOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBanner: true,
+          presentSound: true,
+          presentBadge: false,
+        ),
       );
 
   /// Rebuilds the whole schedule from the current settings. Called on launch

@@ -195,6 +195,22 @@ class SettingsScreen extends StatelessWidget {
                 if (settings.notificationsEnabled) ...[
                   const Divider(height: 1),
                   ListTile(
+                    leading: const Icon(Icons.notifications_active),
+                    title: const Text('إرسال تنبيه تجريبي'),
+                    subtitle: const Text('تأكّد أن التنبيهات تصل جهازك'),
+                    onTap: () async {
+                      await NotificationService.showTest();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text(
+                                  'أقفل شاشة جوالك الآن — سيصلك تنبيه خلال ٦ ثوانٍ ✅')),
+                        );
+                      }
+                    },
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
                     leading: const Icon(Icons.repeat),
                     title: const Text('التكرار'),
                     trailing: DropdownButton<ReminderCadence>(
