@@ -327,6 +327,15 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const Divider(height: 1),
                 SwitchListTile(
+                  secondary: const Icon(Icons.speed_outlined),
+                  title: const Text('حالة ميزانية الأسبوع في الرئيسية'),
+                  subtitle: const Text(
+                      'بطاقة تبيّن إن كنت ضمن ميزانية الأسبوع أو تجاوزتها'),
+                  value: settings.showWeeklyStatusOnHome,
+                  onChanged: settings.setShowWeeklyStatusOnHome,
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
                   secondary: const Icon(Icons.volume_up_outlined),
                   title: const Text('صوت عند إضافة عملية'),
                   value: settings.soundEnabled,

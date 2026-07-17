@@ -13,6 +13,7 @@ import '../domain/parse_amount.dart';
 import '../domain/recurrence_engine.dart';
 import '../domain/recurrence_math.dart';
 import '../domain/savings_math.dart';
+import '../domain/weekly_budget_status.dart';
 import '../services/alerts_coordinator.dart';
 import 'add_transaction_sheet.dart';
 import 'income_screen.dart';
@@ -144,11 +145,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 goalsSnapshot.data ?? const <SavingsGoal>[];
                             final data = DashboardSummary.from(
                                 rows, contributions, period);
+                            // Same salary-cycle, balance-capped weekly budget the
+                            // badge/stats use, for the optional home status card.
+                            final weekStatus = weeklyBudgetStatus(
+                              rows: rows,
+                              incomeRules: incomeRules,
+                              contributions: contributions,
+                              now: now,
+                            );
                             return _DashboardBody(
                               data: data,
                               money: money,
                               goals: goals,
                               contributions: contributions,
+                              weekStatus: weekStatus,
                             );
                           },
                         );
@@ -393,11 +403,13 @@ class _DashboardBody extends StatelessWidget {
   final NumberFormat money;
   final List<SavingsGoal> goals;
   final List<SavingsContribution> contributions;
+  final WeeklyBudgetStatus weekStatus;
   const _DashboardBody({
     required this.data,
     required this.money,
     required this.goals,
     required this.contributions,
+    required this.weekStatus,
   });
 
   /// Goals still owed this month's deposit: income has landed, the goal has a
@@ -484,6 +496,13 @@ class _DashboardBody extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         _MonthStatsCard(data: data, money: money),
+        // Optional at-a-glance weekly-budget status (toggle in Settings). Hidden
+        // when there's nothing meaningful to show yet (no budget and no spend).
+        if (context.watch<AppSettings>().showWeeklyStatusOnHome &&
+            (weekStatus.budget > 0 || weekStatus.spent > 0)) ...[
+          const SizedBox(height: AppSpacing.md),
+          _WeeklyStatusCard(status: weekStatus, money: money),
+        ],
         if (pending.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.md),
           _SavingsPromptCard(pending: pending, money: money),
@@ -675,6 +694,95 @@ class _MonthStatsCard extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   color: color),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Optional at-a-glance card: is this week's discretionary spending still within
+/// the weekly budget, or already over — and by how much. Green «ضمن الميزانية»
+/// when within, red «تجاوزت» when blown, with a progress bar and the exact
+/// remaining/overshoot. Toggle lives in Settings for anyone who wants it gone.
+class _WeeklyStatusCard extends StatelessWidget {
+  final WeeklyBudgetStatus status;
+  final NumberFormat money;
+  const _WeeklyStatusCard({required this.status, required this.money});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final over = status.isOver;
+    final accent = over ? Colors.red.shade400 : AppColors.income;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        boxShadow: const [AppShadows.card],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'ميزانية الأسبوع',
+                style: TextStyle(
+                    fontSize: AppTextSizes.label,
+                    color: scheme.onSurfaceVariant),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm, vertical: 3),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  over ? 'تجاوزت ⚠️' : 'ضمن الميزانية ✅',
+                  style: TextStyle(
+                      fontSize: AppTextSizes.label,
+                      fontWeight: FontWeight.w700,
+                      color: accent),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: status.ratio,
+              minHeight: 8,
+              backgroundColor: scheme.onSurfaceVariant.withValues(alpha: 0.12),
+              valueColor: AlwaysStoppedAnimation(accent),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text.rich(
+            TextSpan(children: [
+              TextSpan(
+                text: 'أنفقت ${money.format(status.spent)}',
+                style: TextStyle(
+                    color: scheme.onSurface, fontWeight: FontWeight.w600),
+              ),
+              if (status.budget > 0)
+                TextSpan(
+                  text: ' من ${money.format(status.budget)} ⃁',
+                  style: TextStyle(color: scheme.onSurfaceVariant),
+                ),
+              TextSpan(
+                text: over
+                    ? '  •  تجاوزت بـ ${money.format(status.over)} ⃁'
+                    : '  •  باقي ${money.format(status.remaining)} ⃁',
+                style: TextStyle(color: accent, fontWeight: FontWeight.w600),
+              ),
+            ]),
+            style: const TextStyle(fontSize: AppTextSizes.label),
           ),
         ],
       ),

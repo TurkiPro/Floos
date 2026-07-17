@@ -2,8 +2,7 @@ import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
 import '../domain/financial_period.dart';
-import '../domain/recurrence_math.dart';
-import '../domain/spending_window.dart';
+import '../domain/weekly_budget_status.dart';
 import 'badge_service.dart';
 import 'notification_service.dart';
 
@@ -52,111 +51,18 @@ Future<DateTime?> _nextSalaryDate(AppDatabase db, DateTime now) async {
   return nextSalaryDate(rules, now);
 }
 
-/// Recommended weekly spend (all essentials + 85% of the discretionary
-/// average, the same formula the statistics screen shows) and what's already
-/// been spent since the start of this week.
+/// The current week's balance-capped budget and what's been spent against it —
+/// loads the live data and hands it to the pure [weeklyBudgetStatus] (shared
+/// with the home status card so the badge and the card can't disagree).
 Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
   final rows = await db.transactionDao.watchAllWithCategory().first;
   final incomeRules = await db.recurrenceDao.watchByType(TxnType.income).first;
-  // Weeks are anchored on the salary day (the cycle start), so "this week" runs
-  // from the payday-aligned week boundary, not a fixed weekday.
-  final period = financialPeriod(incomeRules, now);
-  final today = DateTime(now.year, now.month, now.day);
-  // Exclusive upper bound: manual adds default to DateTime.now() (with a
-  // time-of-day), so a row stamped today at 14:30 is after today-at-midnight
-  // and a midnight upper bound would drop it. Constructor arithmetic (not
-  // Duration) keeps the window boundaries DST-safe.
-  final tomorrow = DateTime(now.year, now.month, now.day + 1);
-  final windowStart =
-      DateTime(today.year, today.month, today.day - spendingWindowDays);
-  final weekStart = cycleWeekStart(period.start, now);
-  final cycleStart = dateOnly(period.start);
-
-  var essentialWindow = 0.0, luxuryWindow = 0.0, spentThisWeek = 0.0;
-  var spentBeforeThisWeek = 0.0;
-  // This cycle's income and total spend, for grounding the budget in the real
-  // remaining balance (below).
-  var periodIncome = 0.0, periodExpense = 0.0;
-  DateTime? earliest;
-
-  for (final r in rows) {
-    final date = r.txn.date;
-    final amount = r.txn.amount;
-
-    if (r.txn.type == TxnType.income) {
-      if (period.contains(date)) periodIncome += amount;
-      continue;
-    }
-    // Every expense this cycle — recurring obligations included — reduces the
-    // balance the weekly budget is capped by.
-    if (period.contains(date)) periodExpense += amount;
-
-    // Fixed monthly obligations (rent, subscriptions, bills) are generated from
-    // a recurring rule and are planned, not discretionary day-to-day spending.
-    // They must not count against the weekly budget — neither eating this week's
-    // allowance when one lands this week, nor inflating the 12-week average the
-    // recommendation is built from. Anything with a recurrence link is excluded.
-    if (r.txn.recurrenceId != null) continue;
-
-    if (!date.isBefore(weekStart) && date.isBefore(tomorrow)) {
-      spentThisWeek += amount;
-    }
-    // This cycle's discretionary spending in the weeks BEFORE the current one —
-    // drives the adaptive redistribution.
-    if (!date.isBefore(cycleStart) && date.isBefore(weekStart)) {
-      spentBeforeThisWeek += amount;
-    }
-    if (!date.isBefore(windowStart) && date.isBefore(tomorrow)) {
-      if (r.category.kind == CategoryKind.luxury) {
-        luxuryWindow += amount;
-      } else {
-        essentialWindow += amount;
-      }
-      if (earliest == null || date.isBefore(earliest)) earliest = date;
-    }
-  }
-
-  final window = weeklySpend(
-    essentialWindow: essentialWindow,
-    luxuryWindow: luxuryWindow,
-    earliestInWindow: earliest,
-    today: today,
-  );
-
-  // Adapt the flat weekly baseline to the cycle so far: over/under-spending in
-  // earlier weeks lowers/raises what's budgeted for the rest of the cycle.
-  final adaptive = adaptiveWeeklyBudget(
-    recommended: window.recommended,
-    spentBeforeThisWeek: spentBeforeThisWeek,
-    periodStart: period.start,
-    periodEnd: period.end,
+  final contributions = await db.savingsDao.watchAllContributions().first;
+  final status = weeklyBudgetStatus(
+    rows: rows,
+    incomeRules: incomeRules,
+    contributions: contributions,
     now: now,
   );
-
-  // Money set aside this cycle (external deposits already existed, so they don't
-  // reduce this cycle's spendable income).
-  final contributions = await db.savingsDao.watchAllContributions().first;
-  var saved = 0.0;
-  for (final c in contributions) {
-    if (!c.external && period.contains(c.date)) saved += c.amount;
-  }
-
-  // Cap the behavioural budget at the real balance left for the rest of the
-  // cycle, so the badge matches the statistics card and never promises more than
-  // is actually available. Only when income is known — otherwise there's no
-  // balance to cap against and the behavioural figure stands.
-  final periodDays = period.end.difference(cycleStart).inDays;
-  final daysLeft = period.end
-      .difference(today)
-      .inDays
-      .clamp(1, periodDays < 1 ? 1 : periodDays);
-  final capped = periodIncome > 0
-      ? balanceCappedWeekly(
-          adaptive: adaptive,
-          remainingForCycle: periodIncome - periodExpense - saved,
-          daysLeft: daysLeft,
-        )
-      : adaptive;
-
-  return WeeklyBudget(capped, spentThisWeek);
+  return WeeklyBudget(status.budget, status.spent);
 }

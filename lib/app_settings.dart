@@ -59,6 +59,7 @@ class AppSettings extends ChangeNotifier {
   static const _kSoundEnabled = 'soundEnabled';
   static const _kAppLockEnabled = 'appLockEnabled';
   static const _kBadgeWeeklyBudget = 'badgeWeeklyBudget';
+  static const _kShowWeeklyStatus = 'showWeeklyStatusHome';
   static const _kFont = 'font';
   static const _kBudgetStyle = 'budgetStyle';
 
@@ -80,6 +81,7 @@ class AppSettings extends ChangeNotifier {
   bool _soundEnabled;
   bool _appLockEnabled;
   bool _badgeWeeklyBudget;
+  bool _showWeeklyStatus;
   SpendingStyle _budgetStyle;
 
   AppSettings(this._prefs)
@@ -106,6 +108,7 @@ class AppSettings extends ChangeNotifier {
         _soundEnabled = _prefs.getBool(_kSoundEnabled) ?? true,
         _appLockEnabled = _prefs.getBool(_kAppLockEnabled) ?? false,
         _badgeWeeklyBudget = _prefs.getBool(_kBadgeWeeklyBudget) ?? false,
+        _showWeeklyStatus = _prefs.getBool(_kShowWeeklyStatus) ?? true,
         _budgetStyle = _readBudgetStyle(_prefs),
         _font = _readFont(_prefs);
 
@@ -123,6 +126,7 @@ class AppSettings extends ChangeNotifier {
   bool get soundEnabled => _soundEnabled;
   bool get appLockEnabled => _appLockEnabled;
   bool get badgeWeeklyBudget => _badgeWeeklyBudget;
+  bool get showWeeklyStatusOnHome => _showWeeklyStatus;
   SpendingStyle get budgetStyle => _budgetStyle;
 
   /// Multiplier the budgets page applies to its income-based day-one seed.
@@ -224,6 +228,12 @@ class AppSettings extends ChangeNotifier {
   void setBadgeWeeklyBudget(bool value) {
     _badgeWeeklyBudget = value;
     _prefs.setBool(_kBadgeWeeklyBudget, value);
+    notifyListeners();
+  }
+
+  void setShowWeeklyStatusOnHome(bool value) {
+    _showWeeklyStatus = value;
+    _prefs.setBool(_kShowWeeklyStatus, value);
     notifyListeners();
   }
 
