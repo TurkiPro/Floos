@@ -1,5 +1,6 @@
 import '../data/database.dart';
 import '../data/enums.dart';
+import 'financial_period.dart';
 
 /// One category's monthly budget vs. what's actually been spent against it this
 /// month. Spent is summed live from transactions (sub-categories roll up to
@@ -24,19 +25,21 @@ class BudgetLine {
   bool get isOver => spent > budgeted;
 }
 
-/// Builds a [BudgetLine] per budget, summing this month's expenses by
-/// top-level category. Rows for other months and income are ignored. Sorted
-/// most-consumed first, so the tightest budgets surface at the top.
+/// Builds a [BudgetLine] per budget, summing this salary cycle's expenses by
+/// top-level category. Spend follows the financial [period] (the same window the
+/// home dashboard and statistics use), not the calendar month, so the budgets
+/// screen and the stats "over budget" flags can't disagree. Rows outside the
+/// cycle and income are ignored. Sorted most-consumed first, so the tightest
+/// budgets surface at the top.
 List<BudgetLine> budgetProgress(
   List<CategoryBudget> budgets,
   List<TxnRow> rows,
-  DateTime now,
+  FinancialPeriod period,
 ) {
   final spentByTop = <int, double>{};
   for (final r in rows) {
     if (r.txn.type != TxnType.expense) continue;
-    final d = r.txn.date;
-    if (d.year != now.year || d.month != now.month) continue;
+    if (!period.contains(r.txn.date)) continue;
     final topId = r.category.parentId ?? r.category.id;
     spentByTop[topId] = (spentByTop[topId] ?? 0) + r.txn.amount;
   }

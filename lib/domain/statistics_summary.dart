@@ -238,16 +238,19 @@ class StatisticsSummary {
     final allowance = monthIncome > 0 ? unspentIncome / daysLeft : null;
     final savingsRate = monthIncome > 0 ? monthSaved / monthIncome : null;
 
-    // The weekly budget must not keep assuming money you've set aside is still
-    // spendable. Cap it by what income actually leaves for the rest of the month
-    // (which already subtracts savings); when that ceiling bites and there are
-    // savings behind it, flag it so the card can say so.
-    final incomeWeeklyCeiling =
-        allowance == null ? null : (allowance < 0 ? 0.0 : allowance * 7);
-    final cappedWeekly =
-        incomeWeeklyCeiling != null && incomeWeeklyCeiling < adaptiveWeekly
-            ? incomeWeeklyCeiling
-            : adaptiveWeekly;
+    // The weekly budget must never assume money you've already spent or set
+    // aside is still available. Cap it at the real balance left for the rest of
+    // the cycle (income − spending − savings), pro-rated so it can't exceed that
+    // balance near payday — otherwise a flat 7-day figure reads as "imaginary"
+    // when it's larger than everything you have left. When the cap bites and
+    // there are savings behind it, flag it so the card can explain the drop.
+    final cappedWeekly = monthIncome > 0
+        ? balanceCappedWeekly(
+            adaptive: adaptiveWeekly,
+            remainingForCycle: unspentIncome,
+            daysLeft: daysLeft,
+          )
+        : adaptiveWeekly;
     final weeklyReducedBySavings =
         monthSaved > 0 && cappedWeekly < adaptiveWeekly;
 

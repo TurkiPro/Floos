@@ -49,6 +49,27 @@ WeeklySpend weeklySpend({
   );
 }
 
+/// Caps the behavioural weekly budget [adaptive] so it can never promise more
+/// money than actually remains for the rest of the cycle. [remainingForCycle] is
+/// income minus what's been spent and set aside this cycle (the real balance);
+/// [daysLeft] is the days until the next payday. Near payday (fewer than 7 days
+/// left) a full 7-day projection would exceed the real balance, so the ceiling
+/// becomes the balance itself — the weekly budget then tracks the money you
+/// genuinely have, not an imaginary flat figure. Returns [adaptive] unchanged
+/// when it already fits under that ceiling.
+double balanceCappedWeekly({
+  required double adaptive,
+  required double remainingForCycle,
+  required int daysLeft,
+}) {
+  if (remainingForCycle <= 0) return 0;
+  final days = daysLeft < 1 ? 1 : daysLeft;
+  final weekCeiling = remainingForCycle / days * 7;
+  final ceiling =
+      weekCeiling < remainingForCycle ? weekCeiling : remainingForCycle;
+  return adaptive < ceiling ? adaptive : ceiling;
+}
+
 /// The weekly budget, adapted to how the cycle has gone so far. [recommended] is
 /// the flat historical weekly baseline (B); [spentBeforeThisWeek] is this
 /// cycle's discretionary spending in the weeks *before* the current one. Weeks

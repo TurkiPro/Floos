@@ -95,4 +95,42 @@ void main() {
       expect(adaptive(100, 1000), 0);
     });
   });
+
+  group('balanceCappedWeekly', () {
+    test('near payday, caps at the remaining balance (not a full 7 days)', () {
+      // 600 left, 6 days to payday: a flat weekly figure of 700 would exceed
+      // everything you have — cap it at the 600 balance.
+      expect(
+        balanceCappedWeekly(adaptive: 700, remainingForCycle: 600, daysLeft: 6),
+        closeTo(600, 1e-9),
+      );
+    });
+
+    test('with a week or more left, the balance ceiling does not bite', () {
+      // 1400 over 14 days => 100/day => 700 for a 7-day week; adaptive is under.
+      expect(
+        balanceCappedWeekly(
+            adaptive: 500, remainingForCycle: 1400, daysLeft: 14),
+        closeTo(500, 1e-9),
+      );
+    });
+
+    test('still caps at the 7-day ceiling when adaptive is above it', () {
+      expect(
+        balanceCappedWeekly(
+            adaptive: 900, remainingForCycle: 1400, daysLeft: 14),
+        closeTo(700, 1e-9),
+      );
+    });
+
+    test('no balance left => zero', () {
+      expect(
+          balanceCappedWeekly(adaptive: 500, remainingForCycle: 0, daysLeft: 5),
+          0);
+      expect(
+          balanceCappedWeekly(
+              adaptive: 500, remainingForCycle: -50, daysLeft: 5),
+          0);
+    });
+  });
 }

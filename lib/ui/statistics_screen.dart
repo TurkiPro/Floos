@@ -112,7 +112,8 @@ class StatisticsScreen extends StatelessWidget {
                           final risks = budgetRisks(
                               budgetSnap.data ?? const <CategoryBudget>[],
                               rows,
-                              now);
+                              now,
+                              period);
                           final over =
                               risks.where((r) => r.alreadyOver).toList();
                           final approaching =

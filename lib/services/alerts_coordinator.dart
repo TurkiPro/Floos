@@ -74,18 +74,29 @@ Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
 
   var essentialWindow = 0.0, luxuryWindow = 0.0, spentThisWeek = 0.0;
   var spentBeforeThisWeek = 0.0;
+  // This cycle's income and total spend, for grounding the budget in the real
+  // remaining balance (below).
+  var periodIncome = 0.0, periodExpense = 0.0;
   DateTime? earliest;
 
   for (final r in rows) {
-    if (r.txn.type != TxnType.expense) continue;
+    final date = r.txn.date;
+    final amount = r.txn.amount;
+
+    if (r.txn.type == TxnType.income) {
+      if (period.contains(date)) periodIncome += amount;
+      continue;
+    }
+    // Every expense this cycle — recurring obligations included — reduces the
+    // balance the weekly budget is capped by.
+    if (period.contains(date)) periodExpense += amount;
+
     // Fixed monthly obligations (rent, subscriptions, bills) are generated from
     // a recurring rule and are planned, not discretionary day-to-day spending.
     // They must not count against the weekly budget — neither eating this week's
     // allowance when one lands this week, nor inflating the 12-week average the
     // recommendation is built from. Anything with a recurrence link is excluded.
     if (r.txn.recurrenceId != null) continue;
-    final date = r.txn.date;
-    final amount = r.txn.amount;
 
     if (!date.isBefore(weekStart) && date.isBefore(tomorrow)) {
       spentThisWeek += amount;
@@ -122,5 +133,30 @@ Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
     now: now,
   );
 
-  return WeeklyBudget(adaptive, spentThisWeek);
+  // Money set aside this cycle (external deposits already existed, so they don't
+  // reduce this cycle's spendable income).
+  final contributions = await db.savingsDao.watchAllContributions().first;
+  var saved = 0.0;
+  for (final c in contributions) {
+    if (!c.external && period.contains(c.date)) saved += c.amount;
+  }
+
+  // Cap the behavioural budget at the real balance left for the rest of the
+  // cycle, so the badge matches the statistics card and never promises more than
+  // is actually available. Only when income is known — otherwise there's no
+  // balance to cap against and the behavioural figure stands.
+  final periodDays = period.end.difference(cycleStart).inDays;
+  final daysLeft = period.end
+      .difference(today)
+      .inDays
+      .clamp(1, periodDays < 1 ? 1 : periodDays);
+  final capped = periodIncome > 0
+      ? balanceCappedWeekly(
+          adaptive: adaptive,
+          remainingForCycle: periodIncome - periodExpense - saved,
+          daysLeft: daysLeft,
+        )
+      : adaptive;
+
+  return WeeklyBudget(capped, spentThisWeek);
 }

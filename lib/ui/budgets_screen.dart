@@ -7,6 +7,7 @@ import '../data/database.dart';
 import '../data/enums.dart';
 import '../domain/budget_advisor.dart';
 import '../domain/budget_progress.dart';
+import '../domain/financial_period.dart';
 import '../domain/parse_amount.dart';
 import 'theme/tokens.dart';
 import 'widgets/amount_input.dart';
@@ -55,8 +56,11 @@ class BudgetsScreen extends StatelessWidget {
                     stream: db.transactionDao.watchAllWithCategory(),
                     builder: (context, txnSnap) {
                       final rows = txnSnap.data ?? const <TxnRow>[];
+                      // Track budgets over the salary cycle (like the home and
+                      // stats screens), not the calendar month.
+                      final period = financialPeriod(incomeRules, now);
                       final lines = {
-                        for (final l in budgetProgress(budgets, rows, now))
+                        for (final l in budgetProgress(budgets, rows, period))
                           l.categoryId: l,
                       };
                       final suggestions = {

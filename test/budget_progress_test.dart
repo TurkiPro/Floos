@@ -4,8 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:floos/data/database.dart';
 import 'package:floos/data/enums.dart';
 import 'package:floos/domain/budget_progress.dart';
+import 'package:floos/domain/financial_period.dart';
 
-final now = DateTime(2026, 7, 15);
+// The current salary cycle = July, so July rows count and June ones don't.
+final period = FinancialPeriod(DateTime(2026, 7, 1), DateTime(2026, 8, 1));
 
 Category _cat({int id = 1, int? parentId}) => Category(
       id: id,
@@ -45,7 +47,7 @@ void main() {
         // last month, ignored:
         _expense(999, DateTime(2026, 6, 1), id: 1),
       ];
-      final lines = budgetProgress(budgets, rows, now);
+      final lines = budgetProgress(budgets, rows, period);
       expect(lines, hasLength(1));
       expect(lines.single.spent, 300);
       expect(lines.single.budgeted, 500);
@@ -59,7 +61,7 @@ void main() {
         _expense(150, DateTime(2026, 7, 2), id: 10, parentId: 1),
         _expense(50, DateTime(2026, 7, 4), id: 11, parentId: 1),
       ];
-      final lines = budgetProgress(budgets, rows, now);
+      final lines = budgetProgress(budgets, rows, period);
       expect(lines.single.spent, 200);
     });
 
@@ -70,21 +72,21 @@ void main() {
         // different category, no budget:
         _expense(500, DateTime(2026, 7, 2), id: 2),
       ];
-      final lines = budgetProgress(budgets, rows, now);
+      final lines = budgetProgress(budgets, rows, period);
       expect(lines.single.spent, 80);
     });
 
     test('flags over-budget and keeps a >1 ratio', () {
       final budgets = [_budget(1, 100)];
       final rows = [_expense(130, DateTime(2026, 7, 2), id: 1)];
-      final lines = budgetProgress(budgets, rows, now);
+      final lines = budgetProgress(budgets, rows, period);
       expect(lines.single.isOver, isTrue);
       expect(lines.single.remaining, -30);
       expect(lines.single.ratio, closeTo(1.3, 1e-9));
     });
 
     test('a budget with no spend yet shows zero spent', () {
-      final lines = budgetProgress([_budget(1, 100)], const [], now);
+      final lines = budgetProgress([_budget(1, 100)], const [], period);
       expect(lines.single.spent, 0);
       expect(lines.single.ratio, 0);
     });
@@ -95,7 +97,7 @@ void main() {
         _expense(20, DateTime(2026, 7, 2), id: 1), // 20%
         _expense(90, DateTime(2026, 7, 2), id: 2), // 90%
       ];
-      final lines = budgetProgress(budgets, rows, now);
+      final lines = budgetProgress(budgets, rows, period);
       expect(lines.first.categoryId, 2);
       expect(lines[1].categoryId, 1);
     });
