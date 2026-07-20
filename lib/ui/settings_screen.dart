@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -195,22 +194,6 @@ class SettingsScreen extends StatelessWidget {
                 if (settings.notificationsEnabled) ...[
                   const Divider(height: 1),
                   ListTile(
-                    leading: const Icon(Icons.notifications_active),
-                    title: const Text('إرسال تنبيه تجريبي'),
-                    subtitle: const Text('تأكّد أن التنبيهات تصل جهازك'),
-                    onTap: () async {
-                      await NotificationService.showTest();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text(
-                                  'أقفل شاشة جوالك الآن — سيصلك تنبيه خلال ٦ ثوانٍ ✅')),
-                        );
-                      }
-                    },
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
                     leading: const Icon(Icons.repeat),
                     title: const Text('التكرار'),
                     trailing: DropdownButton<ReminderCadence>(
@@ -387,23 +370,11 @@ class SettingsScreen extends StatelessWidget {
               label: 'حذف كل البيانات',
               onTap: () => _confirmClear(context, db)),
 
-          // Debug builds only. Seeding wipes the database before inserting six
-          // months of fake transactions — shipping that to a real user, one tap
-          // away in Settings, would destroy their financial records.
-          if (kDebugMode) ...[
-            const SizedBox(height: AppSpacing.xl),
-            _sectionLabel(context, 'أدوات تجريبية (للتطوير فقط)'),
-            _navTile(context,
-                icon: Icons.auto_awesome_outlined,
-                label: 'تعبئة ببيانات تجريبية', onTap: () async {
-              await seedDummyData(db);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('تمت تعبئة بيانات آخر ٦ أشهر')),
-                );
-              }
-            }),
-          ],
+          // The app mark doubles as a hidden developer unlock: tap it six times
+          // to reveal the dev tools (test notification + demo-data seeding).
+          // Those tools are destructive or for-testing, so they never sit in the
+          // normal settings where a real user could hit them by accident.
+          _DevFooter(db: db),
         ],
       ),
     );
@@ -571,6 +542,145 @@ class SettingsScreen extends StatelessWidget {
         const SnackBar(content: Text('تم حذف كل البيانات')),
       );
     }
+  }
+}
+
+/// The app mark at the foot of Settings, doubling as the classic
+/// tap-six-times developer unlock. Once unlocked it reveals the dev-only tools
+/// (send a test notification, seed demo data) that must never sit in the normal
+/// settings — seeding in particular wipes the whole database.
+class _DevFooter extends StatefulWidget {
+  final AppDatabase db;
+  const _DevFooter({required this.db});
+
+  @override
+  State<_DevFooter> createState() => _DevFooterState();
+}
+
+class _DevFooterState extends State<_DevFooter> {
+  static const _needed = 6;
+  int _taps = 0;
+  bool _unlocked = false;
+
+  void _onMarkTap() {
+    if (_unlocked) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    setState(() => _taps++);
+    final remaining = _needed - _taps;
+    if (remaining <= 0) {
+      setState(() => _unlocked = true);
+      messenger.showSnackBar(const SnackBar(
+          content: Text('🛠️ أنت الآن مطوّر! ظهرت أدوات التطوير.')));
+    } else if (remaining <= 3) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(
+            'أنت على بُعد $remaining ${remaining == 1 ? 'خطوة' : 'خطوات'} من وضع المطوّر'),
+        duration: const Duration(milliseconds: 800),
+      ));
+    }
+  }
+
+  Future<void> _sendTestNotification() async {
+    await NotificationService.showTest();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('أقفل شاشة جوالك الآن — سيصلك تنبيه خلال ٦ ثوانٍ ✅')));
+  }
+
+  Future<void> _seed() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('تعبئة ببيانات تجريبية؟'),
+        content: const Text(
+            'سيتم حذف كل بياناتك الحالية واستبدالها ببيانات وهمية لآخر ٦ أشهر. لا يمكن التراجع.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('استبدال'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await seedDummyData(widget.db);
+    if (!mounted) return;
+    await refreshAlerts(widget.db, context.read<AppSettings>());
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تمت تعبئة بيانات آخر ٦ أشهر')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final faded = scheme.onSurfaceVariant.withValues(alpha: 0.6);
+    return Column(
+      children: [
+        const SizedBox(height: AppSpacing.xl),
+        GestureDetector(
+          onTap: _onMarkTap,
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.account_balance_wallet_rounded,
+                    size: 18, color: faded),
+                const SizedBox(width: 6),
+                Text('فلوس',
+                    style: TextStyle(
+                        fontSize: AppTextSizes.row,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1,
+                        color: faded)),
+              ],
+            ),
+          ),
+        ),
+        if (_unlocked) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Text('أدوات المطوّر',
+                  style: TextStyle(
+                      fontSize: AppTextSizes.label,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurfaceVariant)),
+            ),
+          ),
+          Card(
+            margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.notifications_active_outlined),
+                  title: const Text('إرسال تنبيه تجريبي'),
+                  subtitle: const Text('تأكّد أن التنبيهات تصل جهازك'),
+                  onTap: _sendTestNotification,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.auto_awesome_outlined),
+                  title: const Text('تعبئة ببيانات تجريبية'),
+                  subtitle: const Text('يحذف بياناتك ويملؤها ببيانات وهمية'),
+                  onTap: _seed,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
   }
 }
 
