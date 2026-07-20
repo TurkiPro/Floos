@@ -82,7 +82,7 @@ class SavingsScreen extends StatelessWidget {
                   if (contributions.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.sm),
                     Text(
-                      'آخر الإيداعات',
+                      'آخر التحويلات',
                       style: TextStyle(
                         fontSize: AppTextSizes.label,
                         fontWeight: FontWeight.w600,
@@ -90,25 +90,32 @@ class SavingsScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    // Same day-card layout as every other dated list.
+                    // Same day-card layout as every other dated list. The day
+                    // header shows the NET moved that day (deposits −
+                    // withdrawals), signed and coloured accordingly.
                     for (final day in groupByDay(
                         contributions.take(60).toList(), (c) => c.date)) ...[
-                      DaySection(
-                        day: day.key,
-                        today: DateTime.now(),
-                        totalText:
-                            '+${money.format(day.value.fold<double>(0, (s, c) => s + c.amount))} ⃁',
-                        totalColor: AppColors.income,
-                        children: [
-                          for (final c in day.value)
-                            _DepositRow(
-                              key: ValueKey(c.id),
-                              contribution: c,
-                              goalName: byId[c.goalId]?.name ?? '—',
-                              money: money,
-                            ),
-                        ],
-                      ),
+                      Builder(builder: (context) {
+                        final net =
+                            day.value.fold<double>(0, (s, c) => s + c.amount);
+                        return DaySection(
+                          day: day.key,
+                          today: DateTime.now(),
+                          totalText:
+                              '${net < 0 ? '−' : '+'}${money.format(net.abs())} ⃁',
+                          totalColor:
+                              net < 0 ? Colors.red.shade400 : AppColors.income,
+                          children: [
+                            for (final c in day.value)
+                              _DepositRow(
+                                key: ValueKey(c.id),
+                                contribution: c,
+                                goalName: byId[c.goalId]?.name ?? '—',
+                                money: money,
+                              ),
+                          ],
+                        );
+                      }),
                       const SizedBox(height: AppSpacing.md),
                     ],
                   ],
@@ -140,6 +147,9 @@ class _DepositRow extends StatelessWidget {
     final db = context.read<AppDatabase>();
     final scheme = Theme.of(context).colorScheme;
     final note = contribution.note ?? '';
+    // A negative contribution is a withdrawal back to the current account.
+    final withdraw = contribution.amount < 0;
+    final tint = withdraw ? Colors.red.shade400 : scheme.primary;
     // Swipe-to-delete with undo, same as the transaction list and the goal
     // detail screen — a deposit is removable wherever it's shown.
     return Padding(
@@ -175,10 +185,14 @@ class _DepositRow extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: scheme.primary.withValues(alpha: 0.12),
+                  color: tint.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppRadii.tile),
                 ),
-                child: Icon(Icons.savings_outlined, color: scheme.primary),
+                child: Icon(
+                    withdraw
+                        ? Icons.account_balance_wallet_outlined
+                        : Icons.savings_outlined,
+                    color: tint),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -200,9 +214,9 @@ class _DepositRow extends StatelessWidget {
                 ),
               ),
               Text(
-                '+${money.format(contribution.amount)} ⃁',
-                style: const TextStyle(
-                    color: AppColors.income,
+                '${withdraw ? '−' : '+'}${money.format(contribution.amount.abs())} ⃁',
+                style: TextStyle(
+                    color: tint,
                     fontWeight: FontWeight.w600,
                     fontSize: AppTextSizes.row),
               ),

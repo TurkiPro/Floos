@@ -33,6 +33,10 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
   DateTime _date = DateTime.now();
   int? _goalId;
   bool _external = false;
+  // A withdrawal (savings → current account) is stored as a negative
+  // contribution: it lowers the goal's balance and, being non-external, flows
+  // straight back into the spendable balance.
+  bool _withdraw = false;
 
   @override
   void initState() {
@@ -40,7 +44,8 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
     final e = widget.existing;
     if (e != null) {
       _goalId = e.goalId;
-      _amountCtrl.text = groupedAmount(e.amount);
+      _withdraw = e.amount < 0;
+      _amountCtrl.text = groupedAmount(e.amount.abs());
       _date = e.date;
       _noteCtrl.text = e.note ?? '';
       _external = e.external;
@@ -64,24 +69,48 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
       );
       return;
     }
-    final note = _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim();
     final e = widget.existing;
+    // A withdrawal can't pull out more than the goal currently holds.
+    if (_withdraw) {
+      final all = await widget.db.savingsDao.watchAllContributions().first;
+      var goalTotal = 0.0;
+      for (final c in all) {
+        if (c.goalId != _goalId) continue;
+        // Exclude the row we're editing (its new value replaces it).
+        if (e != null && c.id == e.id) continue;
+        goalTotal += c.amount;
+      }
+      if (amount > goalTotal) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  'المبلغ أكبر من رصيد الهدف (${groupedAmount(goalTotal)} ⃁)')),
+        );
+        return;
+      }
+    }
+    // Withdrawals are stored negative and always affect the balance (never
+    // "external" — that flag is only for deposits of pre-existing money).
+    final signed = _withdraw ? -amount : amount;
+    final external = _withdraw ? false : _external;
+    final note = _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim();
     if (e != null) {
       await widget.db.savingsDao.updateContribution(
         e.id,
         goalId: _goalId!,
-        amount: amount,
+        amount: signed,
         date: _date,
         note: note,
-        external: _external,
+        external: external,
       );
     } else {
       await widget.db.savingsDao.addContribution(
         goalId: _goalId!,
-        amount: amount,
+        amount: signed,
         date: _date,
         note: note,
-        external: _external,
+        external: external,
       );
     }
     if (mounted) Navigator.of(context).pop();
@@ -117,8 +146,28 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(widget.existing == null ? 'إضافة إيداع' : 'تعديل الإيداع',
+            Text(
+                widget.existing == null
+                    ? (_withdraw ? 'سحب من الادخار' : 'إيداع في الادخار')
+                    : 'تعديل الحركة',
                 style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.md),
+            // Direction: deposit moves money from your balance into the goal;
+            // withdraw pulls it back out to your balance.
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(
+                    value: false,
+                    label: Text('إيداع'),
+                    icon: Icon(Icons.savings_outlined)),
+                ButtonSegment(
+                    value: true,
+                    label: Text('سحب'),
+                    icon: Icon(Icons.account_balance_wallet_outlined)),
+              ],
+              selected: {_withdraw},
+              onSelectionChanged: (s) => setState(() => _withdraw = s.first),
+            ),
             const SizedBox(height: AppSpacing.lg),
             // Goal picker only when no goal was pre-selected.
             if (widget.goalId == null) ...[
@@ -184,15 +233,19 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: AppSpacing.sm),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _external,
-              onChanged: (v) => setState(() => _external = v),
-              title: const Text('إيداع خارجي (لا يُخصم من الرصيد)'),
-              subtitle: const Text(
-                  'مبلغ موجود مسبقًا أو هدية — يُضاف للهدف دون التأثير على رصيدك.'),
-            ),
+            // "External" only applies to deposits (pre-existing money added to a
+            // goal). A withdrawal always returns to the balance, so hide it then.
+            if (!_withdraw) ...[
+              const SizedBox(height: AppSpacing.sm),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _external,
+                onChanged: (v) => setState(() => _external = v),
+                title: const Text('إيداع خارجي (لا يُخصم من الرصيد)'),
+                subtitle: const Text(
+                    'مبلغ موجود مسبقًا أو هدية — يُضاف للهدف دون التأثير على رصيدك.'),
+              ),
+            ],
             const SizedBox(height: AppSpacing.lg),
             FilledButton(onPressed: _save, child: const Text('حفظ')),
             if (widget.existing != null) ...[

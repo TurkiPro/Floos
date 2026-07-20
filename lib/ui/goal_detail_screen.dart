@@ -138,7 +138,15 @@ class GoalDetailScreen extends StatelessWidget {
                           builder: (_) =>
                               AddContributionSheet(db: db, existing: c),
                         ),
-                        title: Text('${money.format(c.amount)} ⃁'),
+                        title: Text(
+                          '${c.amount < 0 ? '−' : '+'}${money.format(c.amount.abs())} ⃁',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: c.amount < 0
+                                ? Colors.red.shade400
+                                : Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
                         subtitle: Text([
                           dateFmt.format(c.date),
                           if ((c.note ?? '').isNotEmpty) c.note!,

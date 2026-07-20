@@ -129,6 +129,20 @@ void main() {
       expect(d.monthRemaining, 1000 - 0 - 200);
     });
 
+    test('a withdrawal (negative deposit) returns money to the balance', () {
+      final rows = [_income(1000, DateTime(2026, 7, 1))];
+      final contributions = [
+        _contrib(300, DateTime(2026, 7, 2)), // deposit into savings
+        _contrib(-100, DateTime(2026, 7, 20)), // withdraw back to the balance
+      ];
+      final d = DashboardSummary.from(rows, contributions, july);
+      // Net saved is 200; the withdrawal flows back into the spendable balance.
+      expect(d.savingsTotal, 200);
+      expect(d.balance, 800); // 1000 - 0 - 200
+      expect(d.monthSaved, 200);
+      expect(d.monthRemaining, 800);
+    });
+
     test('empty input yields all zeros and an empty month list', () {
       final d = DashboardSummary.from(const [], const [], july);
       expect(d.balance, 0);
