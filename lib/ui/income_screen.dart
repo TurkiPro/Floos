@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
+import '../domain/balance_transfers.dart';
 import '../domain/date_grouping.dart';
 import '../domain/recurrence_engine.dart';
 import '../domain/recurrence_math.dart';
@@ -154,6 +155,56 @@ class IncomeScreen extends StatelessWidget {
               );
             },
           ),
+          const SizedBox(height: AppSpacing.lg),
+          Text(
+            'التحويلات (الادخار والاستثمار)',
+            style: TextStyle(
+              fontSize: AppTextSizes.label,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          // Money moved between the balance and savings/investments, so the
+          // balance page explains what left it (or came back) beyond income.
+          StreamBuilder<List<SavingsGoal>>(
+            stream: db.savingsDao.watchGoals(),
+            builder: (context, goalsSnap) {
+              final goalNames = {
+                for (final g in (goalsSnap.data ?? const <SavingsGoal>[]))
+                  g.id: g.name
+              };
+              return StreamBuilder<List<SavingsContribution>>(
+                stream: db.savingsDao.watchAllContributions(),
+                builder: (context, contribSnap) {
+                  return StreamBuilder<List<Investment>>(
+                    stream: db.investmentDao.watchAll(),
+                    builder: (context, invSnap) {
+                      final transfers = balanceTransfers(
+                        contributions:
+                            contribSnap.data ?? const <SavingsContribution>[],
+                        investments: invSnap.data ?? const <Investment>[],
+                        goalNames: goalNames,
+                      );
+                      if (transfers.isEmpty) {
+                        return const Padding(
+                          padding:
+                              EdgeInsets.symmetric(vertical: AppSpacing.md),
+                          child: Text('لا توجد تحويلات بعد'),
+                        );
+                      }
+                      return Column(
+                        children: [
+                          for (final t in transfers.take(40))
+                            _TransferRow(transfer: t, money: money),
+                        ],
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          ),
         ],
       ),
     );
@@ -184,5 +235,62 @@ class IncomeScreen extends StatelessWidget {
       subtitle.write('\nمتوقفة');
     }
     return subtitle.toString();
+  }
+}
+
+/// One balance transfer to/from savings or investments, from the balance's
+/// point of view: an outflow (money into savings/investing) shows red and
+/// negative; an inflow (a withdrawal/sell coming back) shows green and positive.
+class _TransferRow extends StatelessWidget {
+  final BalanceTransfer transfer;
+  final NumberFormat money;
+  const _TransferRow({required this.transfer, required this.money});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final inflow = transfer.amount >= 0; // + = came back to the balance
+    final tint = inflow ? AppColors.income : Colors.red.shade400;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: tint.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppRadii.tile),
+            ),
+            child: Icon(
+                transfer.savings ? Icons.savings_outlined : Icons.trending_up,
+                color: tint),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(transfer.label,
+                    style: const TextStyle(
+                        fontSize: AppTextSizes.row,
+                        fontWeight: FontWeight.w500)),
+                Text(DateFormat('yyyy-MM-dd').format(transfer.date),
+                    style: TextStyle(
+                        fontSize: AppTextSizes.label,
+                        color: scheme.onSurfaceVariant)),
+              ],
+            ),
+          ),
+          Text(
+            '${inflow ? '+' : '−'}${money.format(transfer.amount.abs())} ⃁',
+            style: TextStyle(
+                color: tint,
+                fontWeight: FontWeight.w600,
+                fontSize: AppTextSizes.row),
+          ),
+        ],
+      ),
+    );
   }
 }

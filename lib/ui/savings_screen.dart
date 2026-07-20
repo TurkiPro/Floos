@@ -150,6 +150,11 @@ class _DepositRow extends StatelessWidget {
     // A negative contribution is a withdrawal back to the current account.
     final withdraw = contribution.amount < 0;
     final tint = withdraw ? Colors.red.shade400 : scheme.primary;
+    // Where the money came from / went, so the deposit reads as a movement.
+    final source = withdraw
+        ? 'إلى الرصيد'
+        : (contribution.external ? 'خارجي' : 'من الرصيد');
+    final sub = [source, if (note.isNotEmpty) note].join('  •  ');
     // Swipe-to-delete with undo, same as the transaction list and the goal
     // detail screen — a deposit is removable wherever it's shown.
     return Padding(
@@ -203,13 +208,12 @@ class _DepositRow extends StatelessWidget {
                         style: const TextStyle(
                             fontSize: AppTextSizes.row,
                             fontWeight: FontWeight.w500)),
-                    if (note.isNotEmpty)
-                      Text(
-                        note,
-                        style: TextStyle(
-                            fontSize: AppTextSizes.label,
-                            color: scheme.onSurfaceVariant),
-                      ),
+                    Text(
+                      sub,
+                      style: TextStyle(
+                          fontSize: AppTextSizes.label,
+                          color: scheme.onSurfaceVariant),
+                    ),
                   ],
                 ),
               ),

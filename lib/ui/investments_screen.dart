@@ -87,18 +87,23 @@ class InvestmentsScreen extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.lg),
               for (final day in groupByDay(items, (i) => i.date)) ...[
-                DaySection(
-                  day: day.key,
-                  today: DateTime.now(),
-                  totalText:
-                      '${money.format(day.value.fold<double>(0, (s, i) => s + i.amount))} ⃁',
-                  totalColor: scheme.primary,
-                  children: [
-                    for (final inv in day.value)
-                      _InvestmentRow(
-                          key: ValueKey(inv.id), investment: inv, money: money),
-                  ],
-                ),
+                Builder(builder: (context) {
+                  final net = day.value.fold<double>(0, (s, i) => s + i.amount);
+                  return DaySection(
+                    day: day.key,
+                    today: DateTime.now(),
+                    totalText:
+                        '${net < 0 ? '−' : '+'}${money.format(net.abs())} ⃁',
+                    totalColor: net < 0 ? Colors.red.shade400 : scheme.primary,
+                    children: [
+                      for (final inv in day.value)
+                        _InvestmentRow(
+                            key: ValueKey(inv.id),
+                            investment: inv,
+                            money: money),
+                    ],
+                  );
+                }),
                 const SizedBox(height: AppSpacing.md),
               ],
             ],
@@ -120,8 +125,14 @@ class _InvestmentRow extends StatelessWidget {
     final db = context.read<AppDatabase>();
     final scheme = Theme.of(context).colorScheme;
     final note = investment.note ?? '';
+    // A negative entry is a sell — money pulled back to the current account.
+    final withdraw = investment.amount < 0;
+    final tint = withdraw ? Colors.red.shade400 : scheme.primary;
+    // Where the money came from / went, so the ledger reads as a real movement.
+    final source =
+        withdraw ? 'إلى الرصيد' : (investment.external ? 'مستقل' : 'من الرصيد');
     final sub = [
-      if (investment.external) 'مستقل',
+      source,
       if (note.isNotEmpty) note,
     ].join('  •  ');
     return Padding(
@@ -154,10 +165,14 @@ class _InvestmentRow extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: scheme.primary.withValues(alpha: 0.12),
+                  color: tint.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppRadii.tile),
                 ),
-                child: Icon(Icons.trending_up, color: scheme.primary),
+                child: Icon(
+                    withdraw
+                        ? Icons.account_balance_wallet_outlined
+                        : Icons.trending_up,
+                    color: tint),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -176,9 +191,10 @@ class _InvestmentRow extends StatelessWidget {
                   ],
                 ),
               ),
-              Text('${money.format(investment.amount)} ⃁',
+              Text(
+                  '${withdraw ? '−' : '+'}${money.format(investment.amount.abs())} ⃁',
                   style: TextStyle(
-                      color: scheme.primary,
+                      color: tint,
                       fontWeight: FontWeight.w600,
                       fontSize: AppTextSizes.row)),
             ],

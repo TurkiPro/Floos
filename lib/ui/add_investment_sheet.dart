@@ -25,6 +25,9 @@ class _AddInvestmentSheetState extends State<AddInvestmentSheet> {
   final _noteCtrl = TextEditingController();
   DateTime _date = DateTime.now();
   bool _external = false;
+  // A sell/withdrawal (investment → current account) is stored as a negative
+  // entry: it lowers the portfolio total and flows back into the balance.
+  bool _withdraw = false;
 
   @override
   void initState() {
@@ -32,7 +35,8 @@ class _AddInvestmentSheetState extends State<AddInvestmentSheet> {
     final e = widget.existing;
     if (e != null) {
       _nameCtrl.text = e.name;
-      _amountCtrl.text = groupedAmount(e.amount);
+      _withdraw = e.amount < 0;
+      _amountCtrl.text = groupedAmount(e.amount.abs());
       _noteCtrl.text = e.note ?? '';
       _date = e.date;
       _external = e.external;
@@ -56,24 +60,46 @@ class _AddInvestmentSheetState extends State<AddInvestmentSheet> {
       );
       return;
     }
-    final note = _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim();
     final e = widget.existing;
+    // A sell can't pull out more than the portfolio currently holds.
+    if (_withdraw) {
+      final all = await widget.db.investmentDao.watchAll().first;
+      var total = 0.0;
+      for (final inv in all) {
+        if (e != null && inv.id == e.id) continue;
+        total += inv.amount;
+      }
+      if (amount > total) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  'المبلغ أكبر من إجمالي المستثمَر (${groupedAmount(total)} ⃁)')),
+        );
+        return;
+      }
+    }
+    // Sells are stored negative and always return to the balance (never
+    // "external" — that flag is only for standalone deposits).
+    final signed = _withdraw ? -amount : amount;
+    final external = _withdraw ? false : _external;
+    final note = _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim();
     if (e != null) {
       await widget.db.investmentDao.updateInvestment(
         e.id,
         name: name,
-        amount: amount,
+        amount: signed,
         date: _date,
         note: note,
-        external: _external,
+        external: external,
       );
     } else {
       await widget.db.investmentDao.add(
         name: name,
-        amount: amount,
+        amount: signed,
         date: _date,
         note: note,
-        external: _external,
+        external: external,
       );
     }
     if (mounted) Navigator.of(context).pop();
@@ -109,8 +135,28 @@ class _AddInvestmentSheetState extends State<AddInvestmentSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(widget.existing == null ? 'استثمار جديد' : 'تعديل الاستثمار',
+            Text(
+                widget.existing == null
+                    ? (_withdraw ? 'سحب من الاستثمار' : 'استثمار جديد')
+                    : 'تعديل الحركة',
                 style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.md),
+            // Direction: invest moves money from your balance into the
+            // portfolio; sell pulls it back out to your balance.
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(
+                    value: false,
+                    label: Text('استثمار'),
+                    icon: Icon(Icons.trending_up)),
+                ButtonSegment(
+                    value: true,
+                    label: Text('سحب'),
+                    icon: Icon(Icons.account_balance_wallet_outlined)),
+              ],
+              selected: {_withdraw},
+              onSelectionChanged: (s) => setState(() => _withdraw = s.first),
+            ),
             const SizedBox(height: AppSpacing.lg),
             TextField(
               controller: _nameCtrl,
@@ -160,15 +206,19 @@ class _AddInvestmentSheetState extends State<AddInvestmentSheet> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: AppSpacing.sm),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _external,
-              onChanged: (v) => setState(() => _external = v),
-              title: const Text('مبلغ مستقل (لا يُخصم من الرصيد)'),
-              subtitle: const Text(
-                  'استثمار موجود مسبقًا خارج التطبيق — يُسجَّل دون التأثير على رصيدك.'),
-            ),
+            // "Standalone" only applies to investing (pre-existing money). A
+            // sell always returns to the balance, so hide it then.
+            if (!_withdraw) ...[
+              const SizedBox(height: AppSpacing.sm),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _external,
+                onChanged: (v) => setState(() => _external = v),
+                title: const Text('مبلغ مستقل (لا يُخصم من الرصيد)'),
+                subtitle: const Text(
+                    'استثمار موجود مسبقًا خارج التطبيق — يُسجَّل دون التأثير على رصيدك.'),
+              ),
+            ],
             const SizedBox(height: AppSpacing.lg),
             FilledButton(onPressed: _save, child: const Text('حفظ')),
             if (widget.existing != null) ...[
