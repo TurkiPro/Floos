@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "turkisecurity-site",
+      "runtimeExecutable": "C:\\Users\\pc\\AppData\\Local\\Microsoft\\WinGet\\Links\\hugo.exe",
+      "runtimeArgs": ["server", "-D", "--source", "C:\\Users\\pc\\Documents\\turkisecurity.com", "--port", "1313"],
+      "port": 1313
+    }
+  ]
+}
