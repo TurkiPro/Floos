@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -16,6 +17,7 @@ import '../services/app_lock_service.dart';
 import '../services/notification_service.dart';
 import 'budgets_screen.dart';
 import 'category_editor_screen.dart';
+import 'investments_screen.dart';
 import 'months_screen.dart';
 import 'recurring_screen.dart';
 import 'statistics_screen.dart';
@@ -90,6 +92,10 @@ class SettingsScreen extends StatelessWidget {
               icon: Icons.account_balance_wallet_outlined,
               label: 'الميزانيات',
               onTap: () => _push(context, const BudgetsScreen())),
+          _navTile(context,
+              icon: Icons.trending_up,
+              label: 'الاستثمارات',
+              onTap: () => _push(context, const InvestmentsScreen())),
           _navTile(context,
               icon: Icons.event_repeat_outlined,
               label: 'الالتزامات الشهرية',
@@ -533,6 +539,7 @@ class SettingsScreen extends StatelessWidget {
         await db.savingsDao.clearAll();
         await db.recurrenceDao.clearAll();
         await db.budgetDao.clearAll();
+        await db.investmentDao.clearAll();
       });
       if (!context.mounted) return;
       // The schedule/badge derived from the deleted data must not survive it.
@@ -557,28 +564,54 @@ class _DevFooter extends StatefulWidget {
   State<_DevFooter> createState() => _DevFooterState();
 }
 
-class _DevFooterState extends State<_DevFooter> {
+class _DevFooterState extends State<_DevFooter>
+    with SingleTickerProviderStateMixin {
   static const _needed = 6;
   int _taps = 0;
   bool _unlocked = false;
+  double _markScale = 1.0;
+  String _version = '';
 
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  );
+  late final Animation<double> _reveal =
+      CurvedAnimation(parent: _c, curve: Curves.easeOutCubic);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) setState(() => _version = info.version);
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  // Six taps toggle the dev tools — no on-screen countdown, just a bump on the
+  // mark and an animated reveal (or hide on the next six taps).
   void _onMarkTap() {
-    if (_unlocked) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    setState(() => _taps++);
-    final remaining = _needed - _taps;
-    if (remaining <= 0) {
-      setState(() => _unlocked = true);
-      messenger.showSnackBar(const SnackBar(
-          content: Text('🛠️ أنت الآن مطوّر! ظهرت أدوات التطوير.')));
-    } else if (remaining <= 3) {
-      messenger.showSnackBar(SnackBar(
-        content: Text(
-            'أنت على بُعد $remaining ${remaining == 1 ? 'خطوة' : 'خطوات'} من وضع المطوّر'),
-        duration: const Duration(milliseconds: 800),
-      ));
-    }
+    _taps++;
+    if (_taps < _needed) return;
+    _taps = 0;
+    setState(() {
+      _unlocked = !_unlocked;
+      _markScale = 1.22;
+    });
+    _unlocked ? _c.forward() : _c.reverse();
+    Future.delayed(const Duration(milliseconds: 180), () {
+      if (mounted) setState(() => _markScale = 1.0);
+    });
   }
 
   Future<void> _sendTestNotification() async {
@@ -629,56 +662,78 @@ class _DevFooterState extends State<_DevFooter> {
           behavior: HitTestBehavior.opaque,
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: AnimatedScale(
+              scale: _markScale,
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.account_balance_wallet_rounded,
+                      size: 18, color: faded),
+                  const SizedBox(width: 6),
+                  Text('فلوس',
+                      style: TextStyle(
+                          fontSize: AppTextSizes.row,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1,
+                          color: faded)),
+                  if (_version.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Text('· $_version',
+                        style: TextStyle(
+                            fontSize: AppTextSizes.label, color: faded)),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+        // The dev tools reveal (or hide) with a coordinated size + fade.
+        SizeTransition(
+          sizeFactor: _reveal,
+          child: FadeTransition(
+            opacity: _reveal,
+            child: Column(
               children: [
-                Icon(Icons.account_balance_wallet_rounded,
-                    size: 18, color: faded),
-                const SizedBox(width: 6),
-                Text('فلوس',
-                    style: TextStyle(
-                        fontSize: AppTextSizes.row,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1,
-                        color: faded)),
+                const SizedBox(height: AppSpacing.sm),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: Text('أدوات المطوّر',
+                        style: TextStyle(
+                            fontSize: AppTextSizes.label,
+                            fontWeight: FontWeight.w600,
+                            color: scheme.onSurfaceVariant)),
+                  ),
+                ),
+                Card(
+                  margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading:
+                            const Icon(Icons.notifications_active_outlined),
+                        title: const Text('إرسال تنبيه تجريبي'),
+                        subtitle: const Text('تأكّد أن التنبيهات تصل جهازك'),
+                        onTap: _sendTestNotification,
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.auto_awesome_outlined),
+                        title: const Text('تعبئة ببيانات تجريبية'),
+                        subtitle:
+                            const Text('يحذف بياناتك ويملؤها ببيانات وهمية'),
+                        onTap: _seed,
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
         ),
-        if (_unlocked) ...[
-          const SizedBox(height: AppSpacing.sm),
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: Text('أدوات المطوّر',
-                  style: TextStyle(
-                      fontSize: AppTextSizes.label,
-                      fontWeight: FontWeight.w600,
-                      color: scheme.onSurfaceVariant)),
-            ),
-          ),
-          Card(
-            margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.notifications_active_outlined),
-                  title: const Text('إرسال تنبيه تجريبي'),
-                  subtitle: const Text('تأكّد أن التنبيهات تصل جهازك'),
-                  onTap: _sendTestNotification,
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.auto_awesome_outlined),
-                  title: const Text('تعبئة ببيانات تجريبية'),
-                  subtitle: const Text('يحذف بياناتك ويملؤها ببيانات وهمية'),
-                  onTap: _seed,
-                ),
-              ],
-            ),
-          ),
-        ],
       ],
     );
   }

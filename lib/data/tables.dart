@@ -116,3 +116,18 @@ class SavingsContributions extends Table {
   // they'd wrongly subtract from income the user never recorded.
   BoolColumn get external => boolean().withDefault(const Constant(false))();
 }
+
+/// A single investment entry — money put into a stock, fund, portfolio, etc.,
+/// tracked separately from expenses (it's not spending). Only the amount put in
+/// is recorded, never a live price (no networking). Like a savings deposit, a
+/// non-[external] entry comes out of the current balance; an [external] one is a
+/// standalone amount already invested elsewhere that doesn't touch the balance.
+@DataClassName('Investment')
+class Investments extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text().withLength(min: 1, max: 80)();
+  RealColumn get amount => real()();
+  DateTimeColumn get date => dateTime()();
+  TextColumn get note => text().nullable()();
+  BoolColumn get external => boolean().withDefault(const Constant(false))();
+}

@@ -144,22 +144,29 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           builder: (context, goalsSnapshot) {
                             final goals =
                                 goalsSnapshot.data ?? const <SavingsGoal>[];
-                            final data = DashboardSummary.from(
-                                rows, contributions, period);
-                            // Same salary-cycle, balance-capped weekly budget the
-                            // badge/stats use, for the optional home status card.
-                            final weekStatus = weeklyBudgetStatus(
-                              rows: rows,
-                              incomeRules: incomeRules,
-                              contributions: contributions,
-                              now: now,
-                            );
-                            return _DashboardBody(
-                              data: data,
-                              money: money,
-                              goals: goals,
-                              contributions: contributions,
-                              weekStatus: weekStatus,
+                            return StreamBuilder<List<Investment>>(
+                              stream: db.investmentDao.watchAll(),
+                              builder: (context, invSnapshot) {
+                                final investments =
+                                    invSnapshot.data ?? const <Investment>[];
+                                final data = DashboardSummary.from(
+                                    rows, contributions, investments, period);
+                                // Same salary-cycle weekly budget the badge/stats
+                                // use, for the optional home status card.
+                                final weekStatus = weeklyBudgetStatus(
+                                  rows: rows,
+                                  incomeRules: incomeRules,
+                                  contributions: contributions,
+                                  now: now,
+                                );
+                                return _DashboardBody(
+                                  data: data,
+                                  money: money,
+                                  goals: goals,
+                                  contributions: contributions,
+                                  weekStatus: weekStatus,
+                                );
+                              },
                             );
                           },
                         );

@@ -9,6 +9,10 @@ import 'financial_period.dart';
 class DashboardSummary {
   final double balance;
   final double savingsTotal;
+
+  /// Everything put into investments (a manual portfolio) — the counterpart to
+  /// [savingsTotal]. Non-external investments are subtracted from [balance] too.
+  final double investedTotal;
   final double monthRemaining;
   final double monthSpent;
   final double monthSaved;
@@ -19,6 +23,7 @@ class DashboardSummary {
   const DashboardSummary({
     required this.balance,
     required this.savingsTotal,
+    required this.investedTotal,
     required this.monthRemaining,
     required this.monthSpent,
     required this.monthSaved,
@@ -29,6 +34,7 @@ class DashboardSummary {
   factory DashboardSummary.from(
     List<TxnRow> rows,
     List<SavingsContribution> contributions,
+    List<Investment> investments,
     FinancialPeriod period,
   ) {
     // "This month" here means the current salary cycle (see FinancialPeriod),
@@ -65,9 +71,19 @@ class DashboardSummary {
       if (inMonth(c.date)) monthSaved += c.amount;
     }
 
+    // Investments mirror savings: money moved into a portfolio, not spent. A
+    // non-external entry comes out of the balance; a standalone (external) one
+    // is pre-existing money that doesn't.
+    double investedTotal = 0, internalInvested = 0;
+    for (final inv in investments) {
+      investedTotal += inv.amount;
+      if (!inv.external) internalInvested += inv.amount;
+    }
+
     return DashboardSummary(
-      balance: allIncome - allExpense - internalSaved,
+      balance: allIncome - allExpense - internalSaved - internalInvested,
       savingsTotal: allSaved,
+      investedTotal: investedTotal,
       monthRemaining: monthIncome - monthSpent - monthSaved,
       monthSpent: monthSpent,
       monthSaved: monthSaved,

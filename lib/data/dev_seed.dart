@@ -19,6 +19,7 @@ Future<void> seedDummyData(AppDatabase db) async {
   await db.recurrenceDao.clearAll();
   await db.savingsDao.clearAll();
   await db.budgetDao.clearAll();
+  await db.investmentDao.clearAll();
 
   final cats = await db.categoryDao.getAll();
   final expenseCats = cats
@@ -144,4 +145,16 @@ Future<void> seedDummyData(AppDatabase db) async {
     final amount = budgetByIcon[cat.iconKey];
     if (amount != null) await db.budgetDao.setBudget(cat.id, amount);
   }
+
+  // A couple of investments so the portfolio page has something to show.
+  await db.investmentDao.add(
+    name: 'صندوق مؤشر السوق',
+    amount: 8000,
+    date: DateTime(now.year, now.month - 3, 10),
+  );
+  await db.investmentDao.add(
+    name: 'أسهم تقنية',
+    amount: 4500,
+    date: DateTime(now.year, now.month - 1, 5),
+  );
 }

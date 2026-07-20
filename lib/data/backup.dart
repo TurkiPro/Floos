@@ -43,6 +43,7 @@ Future<String> buildBackupJson(AppDatabase db) async {
   final contributions = await db.select(db.savingsContributions).get();
   final budgets = await db.select(db.categoryBudgets).get();
   final reflections = await db.select(db.weeklyReflections).get();
+  final invsts = await db.select(db.investments).get();
 
   final map = {
     'version': backupFormatVersion,
@@ -135,6 +136,17 @@ Future<String> buildBackupJson(AppDatabase db) async {
           'note': w.note,
         },
     ],
+    'investments': [
+      for (final i in invsts)
+        {
+          'id': i.id,
+          'name': i.name,
+          'amount': i.amount,
+          'date': _ms(i.date),
+          'note': i.note,
+          'external': i.external,
+        },
+    ],
   };
 
   return const JsonEncoder.withIndent('  ').convert(map);
@@ -207,6 +219,11 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
       ? (root['weeklyReflections'] as List).cast<Map<String, dynamic>>()
       : const <Map<String, dynamic>>[];
 
+  // Investments are read leniently too: a pre-v11 backup has no such section.
+  final investmentRows = root['investments'] is List
+      ? (root['investments'] as List).cast<Map<String, dynamic>>()
+      : const <Map<String, dynamic>>[];
+
   // Everything in one transaction: any failure (bad row, dangling FK) rolls the
   // whole thing back and the pre-existing data survives.
   await db.transaction(() async {
@@ -215,6 +232,7 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
     // — the category CASCADE would drop them anyway, but an explicit delete
     // keeps the wipe order self-documenting.
     await db.delete(db.weeklyReflections).go();
+    await db.delete(db.investments).go();
     await db.delete(db.categoryBudgets).go();
     await db.delete(db.transactions).go();
     await db.delete(db.savingsContributions).go();
@@ -318,6 +336,18 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
             id: Value(w['id'] as int),
             weekStart: _date(w['weekStart']),
             note: w['note'] as String,
+          ));
+    }
+
+    // Investments stand alone too (no foreign keys).
+    for (final i in investmentRows) {
+      await db.into(db.investments).insert(InvestmentsCompanion.insert(
+            id: Value(i['id'] as int),
+            name: i['name'] as String,
+            amount: i['amount'] as double,
+            date: _date(i['date']),
+            note: Value(i['note'] as String?),
+            external: Value(i['external'] as bool? ?? false),
           ));
     }
   });

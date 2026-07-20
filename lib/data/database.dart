@@ -599,6 +599,76 @@ class WeeklyReflectionDao extends DatabaseAccessor<AppDatabase>
   Future<void> clearAll() => delete(weeklyReflections).go();
 }
 
+@DriftAccessor(tables: [Investments])
+class InvestmentDao extends DatabaseAccessor<AppDatabase>
+    with _$InvestmentDaoMixin {
+  InvestmentDao(super.db);
+
+  /// Every investment entry, newest first.
+  Stream<List<Investment>> watchAll() {
+    return (select(investments)..orderBy([(i) => OrderingTerm.desc(i.date)]))
+        .watch();
+  }
+
+  /// One-shot list, for backup export.
+  Future<List<Investment>> getAll() => select(investments).get();
+
+  Future<int> add({
+    required String name,
+    required double amount,
+    required DateTime date,
+    String? note,
+    bool external = false,
+  }) {
+    return into(investments).insert(InvestmentsCompanion.insert(
+      name: name,
+      amount: amount,
+      date: date,
+      note: Value(note),
+      external: Value(external),
+    ));
+  }
+
+  Future<void> updateInvestment(
+    int id, {
+    required String name,
+    required double amount,
+    required DateTime date,
+    String? note,
+    required bool external,
+  }) {
+    return (update(investments)..where((i) => i.id.equals(id))).write(
+      InvestmentsCompanion(
+        name: Value(name),
+        amount: Value(amount),
+        date: Value(date),
+        note: Value(note),
+        external: Value(external),
+      ),
+    );
+  }
+
+  Future<void> deleteInvestment(int id) {
+    return (delete(investments)..where((i) => i.id.equals(id))).go();
+  }
+
+  /// Re-inserts a just-deleted investment with its original id — the undo path
+  /// for swipe-to-delete.
+  Future<void> restore(Investment i) {
+    return into(investments).insert(InvestmentsCompanion.insert(
+      id: Value(i.id),
+      name: i.name,
+      amount: i.amount,
+      date: i.date,
+      note: Value(i.note),
+      external: Value(i.external),
+    ));
+  }
+
+  /// Wipes all investments — used by the dev data tools and the full reset.
+  Future<void> clearAll() => delete(investments).go();
+}
+
 @DriftDatabase(
   tables: [
     Categories,
@@ -608,6 +678,7 @@ class WeeklyReflectionDao extends DatabaseAccessor<AppDatabase>
     SavingsContributions,
     CategoryBudgets,
     WeeklyReflections,
+    Investments,
   ],
   daos: [
     CategoryDao,
@@ -616,6 +687,7 @@ class WeeklyReflectionDao extends DatabaseAccessor<AppDatabase>
     SavingsDao,
     BudgetDao,
     WeeklyReflectionDao,
+    InvestmentDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -623,7 +695,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -693,6 +765,11 @@ class AppDatabase extends _$AppDatabase {
           // view.
           if (from < 10) {
             await m.createTable(weeklyReflections);
+          }
+          // v11 adds the investments ledger (a manual portfolio, separate from
+          // expenses).
+          if (from < 11) {
+            await m.createTable(investments);
           }
         },
         beforeOpen: (details) async {
