@@ -50,6 +50,7 @@ class RecurrenceEngine {
       }
       if (occs.isNotEmpty) {
         await db.recurrenceDao.setLastMaterialized(rule.id, occs.last);
+        await db.recurrenceDao.setLastPaidDate(rule.id, occs.last);
       }
     });
     return created;
@@ -87,6 +88,9 @@ class RecurrenceEngine {
               : dateOnly(rule.nextOverrideDate!);
           final hasOverride = ovSched != null && ovDate != null;
           var consumed = false;
+          // The ACTUAL date of the most recent occurrence created this run (an
+          // override moves it off its scheduled slot). Anchors the period.
+          DateTime? lastActual;
 
           for (final date in occs) {
             if (hasOverride && date == ovSched) {
@@ -98,10 +102,12 @@ class RecurrenceEngine {
                 await db.transactionDao.insertGenerated(rule, ovDate);
                 created++;
                 consumed = true;
+                lastActual = ovDate;
               }
             } else {
               await db.transactionDao.insertGenerated(rule, date);
               created++;
+              lastActual = date;
             }
           }
 
@@ -115,6 +121,7 @@ class RecurrenceEngine {
             await db.transactionDao.insertGenerated(rule, ovDate);
             created++;
             consumed = true;
+            lastActual = ovDate;
             // Push the marker to/at the overridden scheduled date so the normal
             // schedule can never recreate that occurrence.
             if (newMarker == null || ovSched.isAfter(newMarker)) {
@@ -127,6 +134,9 @@ class RecurrenceEngine {
           }
           if (newMarker != null && newMarker != rule.lastMaterialized) {
             await db.recurrenceDao.setLastMaterialized(rule.id, newMarker);
+          }
+          if (lastActual != null) {
+            await db.recurrenceDao.setLastPaidDate(rule.id, lastActual);
           }
         }
       });

@@ -10,6 +10,8 @@ RecurrenceRule _income({
   required DateTime start,
   bool active = true,
   DateTime? overrideDate,
+  DateTime? lastMaterialized,
+  DateTime? lastPaidDate,
 }) =>
     RecurrenceRule(
       id: id,
@@ -22,6 +24,8 @@ RecurrenceRule _income({
       startDate: start,
       active: active,
       nextOverrideDate: overrideDate,
+      lastMaterialized: lastMaterialized,
+      lastPaidDate: lastPaidDate,
     );
 
 void main() {
@@ -112,6 +116,47 @@ void main() {
       ];
       expect(nextSalaryDate(rules, now), DateTime(2026, 7, 25));
       expect(financialPeriod(rules, now).end, DateTime(2026, 7, 25));
+    });
+  });
+
+  // The bug: a 25th salary pulled in early to the 23rd and materialized. The
+  // override is now consumed; lastMaterialized sits at the scheduled slot (25th)
+  // and lastPaidDate at the actual payday (23rd). The whole cycle must roll over
+  // to the new one anchored on the 23rd — home/stats can't stay stuck at "2 days
+  // left until the 25th" while the money already landed.
+  group('an early payday already materialized rolls the cycle over', () {
+    // Salary on the 25th; July's was moved to the 23rd and paid.
+    final salaryEarly = _income(
+      amount: 9000,
+      start: DateTime(2026, 1, 25),
+      lastMaterialized: DateTime(2026, 7, 25), // scheduled slot
+      lastPaidDate: DateTime(2026, 7, 23), // actually paid here
+    );
+
+    test('on the payday: new cycle starts today, next salary is next month',
+        () {
+      final today = DateTime(2026, 7, 23);
+      final p = financialPeriod([salaryEarly], today);
+      expect(p.start, DateTime(2026, 7, 23), reason: 'anchored on the payday');
+      expect(p.end, DateTime(2026, 8, 25), reason: 'next salary, not the 25th');
+      // Home reads "salary landed today", not a 2-day countdown.
+      expect(nextSalaryDate([salaryEarly], today), DateTime(2026, 7, 23));
+    });
+
+    test('the day after: counts down to next month, not the old 25th', () {
+      final tomorrow = DateTime(2026, 7, 24);
+      final p = financialPeriod([salaryEarly], tomorrow);
+      expect(p.start, DateTime(2026, 7, 23));
+      expect(p.end, DateTime(2026, 8, 25));
+      expect(nextSalaryDate([salaryEarly], tomorrow), DateTime(2026, 8, 25));
+      expect(nextSalaryDate([salaryEarly], tomorrow),
+          financialPeriod([salaryEarly], tomorrow).end);
+    });
+
+    test('even on the old scheduled slot (25th), next is next month', () {
+      final slot = DateTime(2026, 7, 25);
+      expect(nextSalaryDate([salaryEarly], slot), DateTime(2026, 8, 25));
+      expect(financialPeriod([salaryEarly], slot).start, DateTime(2026, 7, 23));
     });
   });
 }

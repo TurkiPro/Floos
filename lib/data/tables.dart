@@ -48,6 +48,12 @@ class RecurrenceRules extends Table {
   // occurrence, so they never affect the month after.
   DateTimeColumn get nextOverrideScheduled => dateTime().nullable()();
   DateTimeColumn get nextOverrideDate => dateTime().nullable()();
+  // The ACTUAL date of the most recent materialized occurrence. Differs from
+  // [lastMaterialized] (the scheduled slot) when an override moved a payday
+  // early or late: e.g. a July-25 salary pulled in to July 23 has
+  // lastMaterialized = July 25 but lastPaidDate = July 23. The financial period
+  // anchors to this, so "the day you were actually paid" starts the cycle.
+  DateTimeColumn get lastPaidDate => dateTime().nullable()();
 }
 
 @DataClassName('Txn')

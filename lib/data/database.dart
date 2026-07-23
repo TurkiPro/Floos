@@ -327,6 +327,14 @@ class RecurrenceDao extends DatabaseAccessor<AppDatabase>
         .write(RecurrenceRulesCompanion(lastMaterialized: Value(date)));
   }
 
+  /// Records the ACTUAL date the most recent occurrence was created on (which an
+  /// override can move off its scheduled slot), so the financial period anchors
+  /// to the day the salary really landed.
+  Future<void> setLastPaidDate(int id, DateTime date) {
+    return (update(recurrenceRules)..where((r) => r.id.equals(id)))
+        .write(RecurrenceRulesCompanion(lastPaidDate: Value(dateOnly(date))));
+  }
+
   /// Pre-sets the next occurrence's date: [scheduled] is the occurrence the
   /// override replaces (the rule's normal next date), [date] is the date to use
   /// instead. Consumed and cleared by the engine when that occurrence
@@ -695,7 +703,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -770,6 +778,18 @@ class AppDatabase extends _$AppDatabase {
           // expenses).
           if (from < 11) {
             await m.createTable(investments);
+          }
+          // v12 records each rule's actual last-paid date (distinct from the
+          // scheduled slot) so the financial period anchors to the real payday
+          // when an override moved it. Back-fill from the ledger so a salary
+          // already pulled early/late anchors correctly right after the update.
+          if (from < 12) {
+            await m.addColumn(recurrenceRules, recurrenceRules.lastPaidDate);
+            await customStatement(
+              'UPDATE recurrence_rules SET last_paid_date = ('
+              'SELECT MAX(date) FROM transactions '
+              'WHERE transactions.recurrence_id = recurrence_rules.id)',
+            );
           }
         },
         beforeOpen: (details) async {

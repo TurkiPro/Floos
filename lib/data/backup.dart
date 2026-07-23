@@ -83,6 +83,7 @@ Future<String> buildBackupJson(AppDatabase db) async {
               : _ms(r.nextOverrideScheduled!),
           'nextOverrideDate':
               r.nextOverrideDate == null ? null : _ms(r.nextOverrideDate!),
+          'lastPaidDate': r.lastPaidDate == null ? null : _ms(r.lastPaidDate!),
         },
     ],
     'transactions': [
@@ -278,6 +279,8 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
             nextOverrideScheduled:
                 Value(_dateOrNull(r['nextOverrideScheduled'])),
             nextOverrideDate: Value(_dateOrNull(r['nextOverrideDate'])),
+            // Lenient: pre-v12 files have no lastPaidDate.
+            lastPaidDate: Value(_dateOrNull(r['lastPaidDate'])),
           ));
     }
 

@@ -71,6 +71,8 @@ void main() {
     expect(rule.nextOverrideDate, isNull, reason: 'override consumed');
     expect(rule.lastMaterialized, DateTime(2026, 8, 15),
         reason: 'marker sits at the scheduled slot so it can\'t recreate it');
+    expect(rule.lastPaidDate, DateTime(2026, 8, 13),
+        reason: 'the period anchors to the actual early payday, not the slot');
 
     // The scheduled 15th must NOT produce a second August salary.
     await RecurrenceEngine(db).catchUp(asOf: DateTime(2026, 8, 20));
@@ -88,5 +90,9 @@ void main() {
 
     await RecurrenceEngine(db).catchUp(asOf: DateTime(2026, 9, 20));
     expect(await genDates(db), [DateTime(2026, 8, 15), DateTime(2026, 9, 15)]);
+    // With no override, the actual paid date equals the scheduled slot.
+    final rule = (await db.recurrenceDao.activeRules()).single;
+    expect(rule.lastPaidDate, DateTime(2026, 9, 15));
+    expect(rule.lastMaterialized, DateTime(2026, 9, 15));
   });
 }
