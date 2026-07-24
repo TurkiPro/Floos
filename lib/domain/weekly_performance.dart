@@ -71,8 +71,12 @@ List<WeekPerformance> weeklyPerformance({
     final we = DateTime(ws.year, ws.month, ws.day + 7);
     final fullWeekEnd = we.isBefore(cycleEnd) ? we : cycleEnd; // week's own end
     final windowEnd = we.isBefore(upper) ? we : upper; // clamped to today
-    final days = windowEnd.difference(ws).inDays;
-    final budget = weeklyBudget * days / 7;
+    // The week's OWN length (7, or fewer when the cycle ends mid-week) — never
+    // the days elapsed so far. A week still in progress is judged against its
+    // whole allowance, so this screen and the home card can't reach opposite
+    // verdicts on the same week.
+    final weekLen = fullWeekEnd.difference(ws).inDays;
+    final budget = weeklyBudget * weekLen / 7;
 
     var spent = 0.0;
     // dayKey -> top-category id -> amount, for the days of this week. Grouping by
@@ -93,7 +97,6 @@ List<WeekPerformance> weeklyPerformance({
 
     // A slot per day of the (full) week, empty ones included so the chart keeps
     // a fixed 7-column shape.
-    final weekLen = fullWeekEnd.difference(ws).inDays;
     final daySpends = <DaySpend>[];
     for (var i = 0; i < weekLen; i++) {
       final date = DateTime(ws.year, ws.month, ws.day + i);

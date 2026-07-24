@@ -58,8 +58,27 @@ void main() {
       expect(weeks[0].over, isTrue);
       expect(weeks[1].budget, closeTo(700, 1e-9));
       expect(weeks[1].spent, 0); // the recurring 999 is excluded
+      // A week still in progress is judged against its WHOLE allowance, not the
+      // days elapsed — otherwise this screen and the home card reach opposite
+      // verdicts on the same week.
       expect(weeks[2].current, isTrue);
-      expect(weeks[2].budget, closeTo(200, 1e-9)); // 700 * 2/7
+      expect(weeks[2].budget, closeTo(700, 1e-9));
+    });
+
+    test('a short final week of the cycle is still pro-rated to its length',
+        () {
+      // Cycle 1–24 July: weeks 1–8, 8–15, 15–22, then a 2-day tail 22–24.
+      final weeks = weeklyPerformance(
+        rows: const [],
+        byId: {1: _cat()},
+        weeklyBudget: 700,
+        now: DateTime(2026, 7, 24),
+        periodStart: DateTime(2026, 7, 1),
+        periodEnd: DateTime(2026, 7, 24),
+      );
+      expect(weeks.last.weekStart, DateTime(2026, 7, 22));
+      // Genuinely a 2-day week (the cycle ends), so 700 * 2/7.
+      expect(weeks.last.budget, closeTo(200, 1e-9));
     });
 
     test('per-day breakdown slots every day of the week', () {

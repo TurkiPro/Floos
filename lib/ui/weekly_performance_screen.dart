@@ -56,16 +56,22 @@ class WeeklyPerformanceScreen extends StatelessWidget {
                           };
                           final s = StatisticsSummary.from(
                               rows, contributions, now, period);
+                          // The SAME weekly budget the home card and the
+                          // statistics card show (adapted to the cycle and
+                          // capped by the real remaining balance) — not the raw
+                          // behavioural baseline, which read as a second,
+                          // contradictory "weekly budget".
+                          final weeklyBudget = s.recommendedWeekly;
                           final weeks = weeklyPerformance(
                             rows: rows,
                             byId: byId,
-                            weeklyBudget: s.weeklyBaseline,
+                            weeklyBudget: weeklyBudget,
                             now: now,
                             periodStart: period.start,
                             periodEnd: period.end,
                           ).reversed.toList(); // newest week first
 
-                          if (weeks.isEmpty || s.weeklyBaseline <= 0) {
+                          if (weeks.isEmpty || weeklyBudget <= 0) {
                             return const Center(
                                 child: Padding(
                               padding: EdgeInsets.all(AppSpacing.xl),
@@ -81,7 +87,7 @@ class WeeklyPerformanceScreen extends StatelessWidget {
                             children: [
                               Text(
                                 'كل أسبوع من دورتك الحالية مقابل ميزانيتك الأسبوعية '
-                                '(${money.format(s.weeklyBaseline)} ⃁). اكتب ملاحظة '
+                                '(${money.format(weeklyBudget)} ⃁). اكتب ملاحظة '
                                 'عن سبب التزامك أو تجاوزك.',
                                 style: TextStyle(
                                     fontSize: AppTextSizes.label,

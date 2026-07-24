@@ -21,10 +21,6 @@ class StatisticsSummary {
   /// amount is available to spend. Drives the note on the weekly-budget card.
   final bool weeklyReducedBySavings;
 
-  /// The flat behaviour baseline (essentials + 85% of luxuries per week, before
-  /// the month's adapt/cap) — a stable per-week yardstick for the weekly
-  /// performance view.
-  final double weeklyBaseline;
   final double currentWeeklyPace;
   final double essentialThisMonth;
   final double luxuryThisMonth;
@@ -54,7 +50,6 @@ class StatisticsSummary {
     required this.projectedVsLastMonth,
     required this.recommendedWeekly,
     required this.weeklyReducedBySavings,
-    required this.weeklyBaseline,
     required this.currentWeeklyPace,
     required this.essentialThisMonth,
     required this.luxuryThisMonth,
@@ -274,7 +269,6 @@ class StatisticsSummary {
       projectedVsLastMonth: projectedVsLast,
       recommendedWeekly: cappedWeekly,
       weeklyReducedBySavings: weeklyReducedBySavings,
-      weeklyBaseline: window.recommended,
       currentWeeklyPace: window.pace,
       essentialThisMonth: essentialThisMonth,
       luxuryThisMonth: luxuryThisMonth,
