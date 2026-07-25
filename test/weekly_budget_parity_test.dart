@@ -47,10 +47,23 @@ RecurrenceRule _salary(DateTime start) => RecurrenceRule(
       active: true,
     );
 
+RecurrenceRule _obligation(DateTime start) => RecurrenceRule(
+      id: 9,
+      title: 'إيجار',
+      amount: 1200,
+      categoryId: 1,
+      type: TxnType.expense,
+      frequency: Frequency.monthly,
+      interval: 1,
+      startDate: start,
+      active: true,
+    );
+
 void main() {
   test('home and stats derive the same weekly budget from the same data', () {
     final now = DateTime(2026, 7, 16);
-    final rules = [_salary(DateTime(2026, 1, 25))];
+    final incomeRules = [_salary(DateTime(2026, 1, 25))];
+    final expenseRules = [_obligation(DateTime(2026, 1, 25))];
     final rows = [
       _txn(TxnType.income, 19000, DateTime(2026, 6, 25)),
       _txn(TxnType.expense, 500, DateTime(2026, 6, 28)),
@@ -71,11 +84,13 @@ void main() {
           external: false),
     ];
 
-    final period = financialPeriod(rules, now);
-    final stats = StatisticsSummary.from(rows, contributions, now, period);
+    final period = financialPeriod(incomeRules, now);
+    final stats = StatisticsSummary.from(
+        rows, contributions, incomeRules, expenseRules, now, period);
     final home = weeklyBudgetStatus(
       rows: rows,
-      incomeRules: rules,
+      incomeRules: incomeRules,
+      expenseRules: expenseRules,
       contributions: contributions,
       now: now,
     );

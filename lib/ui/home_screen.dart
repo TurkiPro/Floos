@@ -109,9 +109,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // the salary-cycle financial period the dashboard figures are based on,
       // so they stay live as rules are added/paused/edited.
       body: StreamBuilder<List<RecurrenceRule>>(
-        stream: db.recurrenceDao.watchByType(TxnType.income),
+        stream: db.recurrenceDao.watchAll(),
         builder: (context, rulesSnapshot) {
-          final incomeRules = rulesSnapshot.data ?? const <RecurrenceRule>[];
+          final rules = rulesSnapshot.data ?? const <RecurrenceRule>[];
+          final incomeRules =
+              rules.where((r) => r.type == TxnType.income).toList();
+          final expenseRules =
+              rules.where((r) => r.type == TxnType.expense).toList();
           final now = DateTime.now();
           final period = financialPeriod(incomeRules, now);
           return Column(
@@ -156,6 +160,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 final weekStatus = weeklyBudgetStatus(
                                   rows: rows,
                                   incomeRules: incomeRules,
+                                  expenseRules: expenseRules,
                                   contributions: contributions,
                                   now: now,
                                 );

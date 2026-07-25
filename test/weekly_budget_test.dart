@@ -6,14 +6,15 @@ import 'package:floos/data/enums.dart';
 import 'package:floos/domain/spending_window.dart';
 import 'package:floos/services/alerts_coordinator.dart';
 
-// Default seeded categories: id 1 = طعام (expense, essential),
-// id 3 = تسوق (expense, luxury). Confirmed from _defaultCategories order.
+// Default seeded categories: id 1 = طعام (expense, essential). Confirmed from
+// the _defaultCategories order.
 const essentialCat = 1;
-const luxuryCat = 3;
 
-// No recurring income in these tests, so the cycle falls back to the calendar
-// month: the cycle starts 1 July, and weeks are anchored on that day. For
-// now = 20 July the current week runs 15–21 July.
+// Most tests have no recurring income, so the cycle falls back to the calendar
+// month: it starts 1 July, and weeks are anchored on that day. For now = 20 July
+// the current week runs 15–21 July. A couple of tests add a salary dated the 1st
+// (monthly), which keeps the very same 1 July–1 Aug cycle while giving the
+// income-based budget a real number to work from.
 final now = DateTime(2026, 7, 20);
 
 void main() {
@@ -52,39 +53,44 @@ void main() {
     expect(budget.spentThisWeek, 130);
   });
 
-  test('recommended is the flat baseline adapted by the cycle so far',
+  test('the weekly budget is disposable income, adapted by the cycle so far',
       () async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);
 
-    // Earliest at 2026-07-07 => windowDays = 14 => weeks = 2 (all within the
-    // 84-day window, and all before the current week so spentThisWeek is 0).
-    await db.transactionDao.add(
-      amount: 200,
+    // A recurring salary (6000/mo on the 1st, keeping the cycle at 1 Jul–1 Aug)
+    // and a recurring obligation (2000/mo). No savings, no discretionary spend.
+    await db.recurrenceDao.add(
+      title: 'راتب',
+      amount: 6000,
+      categoryId: essentialCat, // category is irrelevant to the budget
+      type: TxnType.income,
+      frequency: Frequency.monthly,
+      startDate: DateTime(2026, 7, 1),
+    );
+    await db.recurrenceDao.add(
+      title: 'إيجار',
+      amount: 2000,
       categoryId: essentialCat,
       type: TxnType.expense,
-      date: DateTime(2026, 7, 7), // earliest
-    );
-    await db.transactionDao.add(
-      amount: 100,
-      categoryId: essentialCat,
-      type: TxnType.expense,
-      date: DateTime(2026, 7, 9),
-    );
-    await db.transactionDao.add(
-      amount: 400,
-      categoryId: luxuryCat,
-      type: TxnType.expense,
-      date: DateTime(2026, 7, 13),
+      frequency: Frequency.monthly,
+      startDate: DateTime(2026, 7, 1),
     );
 
     final budget = await computeWeeklyBudget(db, now);
-    // Flat baseline = essential 300/2 + (luxury 400/2)*0.85 = 320. All three
-    // expenses fell before this week (700 spent), so that deficit lowers the
-    // adaptive weekly budget.
+    // Base = (6000 salary − 2000 obligations − 0 saved) ÷ the cycle's ~4.43
+    // weeks, then adapted for the weeks already elapsed with nothing spent (the
+    // unspent earlier weeks roll forward).
+    final base = incomeWeeklyBase(
+      salaryMonthly: 6000,
+      obligationsMonthly: 2000,
+      savedThisCycle: 0,
+      periodStart: DateTime(2026, 7, 1),
+      periodEnd: DateTime(2026, 8, 1),
+    );
     final expected = adaptiveWeeklyBudget(
-      recommended: 320,
-      spentBeforeThisWeek: 700,
+      recommended: base,
+      spentBeforeThisWeek: 0,
       periodStart: DateTime(2026, 7, 1),
       periodEnd: DateTime(2026, 8, 1),
       now: now,
@@ -98,7 +104,7 @@ void main() {
     addTearDown(db.close);
 
     // A manual add defaults to DateTime.now() with a time — this must count
-    // toward this week and the window, not be dropped for being "after" today.
+    // toward this week, not be dropped for being "after" today.
     await db.transactionDao.add(
       amount: 150,
       categoryId: essentialCat,
@@ -108,7 +114,6 @@ void main() {
 
     final budget = await computeWeeklyBudget(db, now);
     expect(budget.spentThisWeek, 150);
-    expect(budget.recommended, greaterThan(0));
   });
 
   test('income rows are ignored', () async {
@@ -172,21 +177,29 @@ void main() {
     expect(after.spentThisWeek, 100);
   });
 
-  test('heavy overspend earlier in the cycle zeroes this week\'s budget',
-      () async {
+  test('overspending past the balance zeroes this week\'s budget', () async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);
 
-    // A long, light history sets a low weekly baseline...
-    await db.transactionDao.add(
-      amount: 20,
+    // A salary that has actually landed (an income transaction, so there's a
+    // real balance to cap against)...
+    await db.recurrenceDao.add(
+      title: 'راتب',
+      amount: 6000,
       categoryId: essentialCat,
-      type: TxnType.expense,
-      date: DateTime(2026, 5, 1),
+      type: TxnType.income,
+      frequency: Frequency.monthly,
+      startDate: DateTime(2026, 7, 1),
     );
-    // ...then a heavy spend in a prior week THIS cycle blows way past it.
     await db.transactionDao.add(
-      amount: 2000,
+      amount: 6000,
+      categoryId: essentialCat,
+      type: TxnType.income,
+      date: DateTime(2026, 7, 1),
+    );
+    // ...then blowing more than the whole salary in an earlier week of the cycle.
+    await db.transactionDao.add(
+      amount: 7000,
       categoryId: essentialCat,
       type: TxnType.expense,
       date: DateTime(2026, 7, 4), // before this week (15 July)
@@ -202,7 +215,7 @@ void main() {
     final budget = await computeWeeklyBudget(db, now);
     expect(budget.spentThisWeek, 50);
     expect(budget.recommended, 0,
-        reason: 'prior overspend leaves nothing for the rest of the cycle');
+        reason: 'nothing left for the rest of the cycle to budget');
     expect(budget.remaining, 0);
   });
 }

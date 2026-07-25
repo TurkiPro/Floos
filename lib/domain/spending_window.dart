@@ -1,3 +1,4 @@
+import '../data/enums.dart';
 import 'recurrence_math.dart';
 
 /// The rolling spending window both the weekly-budget alert and the statistics
@@ -16,6 +17,40 @@ DateTime cycleWeekStart(DateTime periodStart, DateTime now) {
   final elapsedDays = dateOnly(now).difference(start).inDays;
   final weeks = elapsedDays <= 0 ? 0 : elapsedDays ~/ 7;
   return DateTime(start.year, start.month, start.day + 7 * weeks);
+}
+
+/// The monthly-equivalent cost of a recurring rule, so obligations (and income)
+/// of any cadence reduce to one comparable monthly figure.
+double monthlyEquivalent(Frequency frequency, double amount, int interval) {
+  final n = interval < 1 ? 1 : interval;
+  switch (frequency) {
+    case Frequency.daily:
+      return amount * 30.44 / n;
+    case Frequency.weekly:
+      return amount * 52.0 / 12.0 / n;
+    case Frequency.monthly:
+      return amount / n;
+    case Frequency.yearly:
+      return amount / 12.0 / n;
+  }
+}
+
+/// The weekly budget as disposable income: (monthly salary − this cycle's
+/// monthly obligations − what's actually been set aside this cycle) ÷ the
+/// cycle's weeks. Forward-looking and income-based — the figure the user asked
+/// for. Never negative. The caller still adapts it week-to-week and caps it at
+/// the real remaining balance.
+double incomeWeeklyBase({
+  required double salaryMonthly,
+  required double obligationsMonthly,
+  required double savedThisCycle,
+  required DateTime periodStart,
+  required DateTime periodEnd,
+}) {
+  final days = dateOnly(periodEnd).difference(dateOnly(periodStart)).inDays;
+  final weeks = days <= 0 ? 1.0 : days / 7.0;
+  final disposable = salaryMonthly - obligationsMonthly - savedThisCycle;
+  return disposable <= 0 ? 0 : disposable / weeks;
 }
 
 class WeeklySpend {

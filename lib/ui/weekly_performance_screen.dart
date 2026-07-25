@@ -25,9 +25,13 @@ class WeeklyPerformanceScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('أدائي الأسبوعي')),
       body: StreamBuilder<List<RecurrenceRule>>(
-        stream: db.recurrenceDao.watchByType(TxnType.income),
+        stream: db.recurrenceDao.watchAll(),
         builder: (context, rulesSnap) {
-          final incomeRules = rulesSnap.data ?? const <RecurrenceRule>[];
+          final rules = rulesSnap.data ?? const <RecurrenceRule>[];
+          final incomeRules =
+              rules.where((r) => r.type == TxnType.income).toList();
+          final expenseRules =
+              rules.where((r) => r.type == TxnType.expense).toList();
           final now = DateTime.now();
           final period = financialPeriod(incomeRules, now);
           return StreamBuilder<List<TxnRow>>(
@@ -54,8 +58,8 @@ class WeeklyPerformanceScreen extends StatelessWidget {
                                 in (catSnap.data ?? const <Category>[]))
                               c.id: c
                           };
-                          final s = StatisticsSummary.from(
-                              rows, contributions, now, period);
+                          final s = StatisticsSummary.from(rows, contributions,
+                              incomeRules, expenseRules, now, period);
                           // The SAME weekly budget the home card and the
                           // statistics card show (adapted to the cycle and
                           // capped by the real remaining balance) — not the raw

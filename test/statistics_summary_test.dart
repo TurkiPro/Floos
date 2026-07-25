@@ -59,7 +59,12 @@ void main() {
     test('allExpenseCount is zero for income-only input (drives empty state)',
         () {
       final s = StatisticsSummary.from(
-          [_income(1000, DateTime(2026, 7, 1))], const [], now, july);
+          [_income(1000, DateTime(2026, 7, 1))],
+          const [],
+          const <RecurrenceRule>[],
+          const <RecurrenceRule>[],
+          now,
+          july);
       expect(s.allExpenseCount, 0);
     });
 
@@ -70,7 +75,8 @@ void main() {
         // last month, excluded from this-month figures:
         _expense(999, DateTime(2026, 6, 10), kind: CategoryKind.essential),
       ];
-      final s = StatisticsSummary.from(rows, const [], now, july);
+      final s = StatisticsSummary.from(rows, const [], const <RecurrenceRule>[],
+          const <RecurrenceRule>[], now, july);
       expect(s.spentThisMonth, 320);
       expect(s.essentialThisMonth, 200);
       expect(s.luxuryThisMonth, 120);
@@ -79,7 +85,8 @@ void main() {
 
     test('daily average and projection use the day of month', () {
       final rows = [_expense(150, DateTime(2026, 7, 5))]; // now.day == 15
-      final s = StatisticsSummary.from(rows, const [], now, july);
+      final s = StatisticsSummary.from(rows, const [], const <RecurrenceRule>[],
+          const <RecurrenceRule>[], now, july);
       expect(s.dailyAvgThisMonth, closeTo(150 / 15, 1e-9));
       // July has 31 days.
       expect(s.projectedThisMonth, closeTo(150 / 15 * 31, 1e-9));
@@ -87,7 +94,8 @@ void main() {
 
     test('projectedVsLastMonth is 0 when last month had no spend', () {
       final rows = [_expense(150, DateTime(2026, 7, 5))];
-      final s = StatisticsSummary.from(rows, const [], now, july);
+      final s = StatisticsSummary.from(rows, const [], const <RecurrenceRule>[],
+          const <RecurrenceRule>[], now, july);
       expect(s.projectedVsLastMonth, 0);
     });
 
@@ -98,6 +106,8 @@ void main() {
           _expense(100, DateTime(2026, 7, 2))
         ],
         [_contrib(500, DateTime(2026, 7, 3))],
+        const <RecurrenceRule>[],
+        const <RecurrenceRule>[],
         now,
         july,
       );
@@ -106,6 +116,8 @@ void main() {
       final noIncome = StatisticsSummary.from(
         [_expense(100, DateTime(2026, 7, 2))],
         [_contrib(500, DateTime(2026, 7, 3))],
+        const <RecurrenceRule>[],
+        const <RecurrenceRule>[],
         now,
         july,
       );
@@ -120,6 +132,8 @@ void main() {
           _contrib(400, DateTime(2026, 7, 2)), // internal -> counts
           _contrib(5000, DateTime(2026, 7, 3), external: true), // ignored
         ],
+        const <RecurrenceRule>[],
+        const <RecurrenceRule>[],
         now,
         july,
       );
@@ -134,7 +148,8 @@ void main() {
         // a top-level category (id 2):
         _expense(70, DateTime(2026, 7, 6), id: 2),
       ];
-      final s = StatisticsSummary.from(rows, const [], now, july);
+      final s = StatisticsSummary.from(rows, const [], const <RecurrenceRule>[],
+          const <RecurrenceRule>[], now, july);
       // Parent 1 aggregates 150, ranks above category 2's 70.
       expect(s.topCategories.first.key, 1);
       expect(s.topCategories.first.value, 150);
@@ -149,7 +164,8 @@ void main() {
         _expense(80, DateTime(2026, 7, 2)),
         _expense(210, DateTime(2026, 7, 3)),
       ];
-      final s = StatisticsSummary.from(rows, const [], now, july);
+      final s = StatisticsSummary.from(rows, const [], const <RecurrenceRule>[],
+          const <RecurrenceRule>[], now, july);
       expect(s.biggestExpense?.txn.amount, 210);
     });
 
@@ -158,6 +174,8 @@ void main() {
       final s = StatisticsSummary.from(
         [_expense(300, DateTime(2026, 7, 15, 14, 30))],
         const [],
+        const <RecurrenceRule>[],
+        const <RecurrenceRule>[],
         now,
         july,
       );
@@ -168,7 +186,12 @@ void main() {
 
     test('monthlyTrend has 6 entries, oldest -> newest, ending this month', () {
       final s = StatisticsSummary.from(
-          [_expense(10, DateTime(2026, 7, 1))], const [], now, july);
+          [_expense(10, DateTime(2026, 7, 1))],
+          const [],
+          const <RecurrenceRule>[],
+          const <RecurrenceRule>[],
+          now,
+          july);
       expect(s.monthlyTrend, hasLength(6));
       expect(s.monthlyTrend.last.key.year, 2026);
       expect(s.monthlyTrend.last.key.month, 7);

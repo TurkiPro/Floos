@@ -56,11 +56,15 @@ Future<DateTime?> _nextSalaryDate(AppDatabase db, DateTime now) async {
 /// with the home status card so the badge and the card can't disagree).
 Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
   final rows = await db.transactionDao.watchAllWithCategory().first;
-  final incomeRules = await db.recurrenceDao.watchByType(TxnType.income).first;
+  final allRules = await db.recurrenceDao.watchAll().first;
+  final incomeRules = allRules.where((r) => r.type == TxnType.income).toList();
+  final expenseRules =
+      allRules.where((r) => r.type == TxnType.expense).toList();
   final contributions = await db.savingsDao.watchAllContributions().first;
   final status = weeklyBudgetStatus(
     rows: rows,
     incomeRules: incomeRules,
+    expenseRules: expenseRules,
     contributions: contributions,
     now: now,
   );

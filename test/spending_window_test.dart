@@ -1,8 +1,93 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:floos/data/enums.dart';
 import 'package:floos/domain/spending_window.dart';
 
 void main() {
   final today = DateTime(2026, 7, 15);
+
+  group('monthlyEquivalent', () {
+    test('monthly passes through', () {
+      expect(
+          monthlyEquivalent(Frequency.monthly, 3000, 1), closeTo(3000, 1e-9));
+    });
+
+    test('weekly scales by 52/12', () {
+      expect(monthlyEquivalent(Frequency.weekly, 100, 1),
+          closeTo(100 * 52 / 12, 1e-9));
+    });
+
+    test('yearly is a twelfth', () {
+      expect(
+          monthlyEquivalent(Frequency.yearly, 12000, 1), closeTo(1000, 1e-9));
+    });
+
+    test('daily uses the average month length', () {
+      expect(monthlyEquivalent(Frequency.daily, 10, 1), closeTo(304.4, 1e-9));
+    });
+
+    test('an interval divides the cost (every 2 months = half)', () {
+      expect(
+          monthlyEquivalent(Frequency.monthly, 3000, 2), closeTo(1500, 1e-9));
+    });
+  });
+
+  group('incomeWeeklyBase', () {
+    final start = DateTime(2026, 7, 1);
+    final end = DateTime(2026, 8, 1); // 31-day cycle => 31/7 weeks
+
+    test('disposable income spread over the cycle weeks', () {
+      // (6000 − 2000 − 0) ÷ (31/7) = 4000 * 7 / 31.
+      expect(
+        incomeWeeklyBase(
+          salaryMonthly: 6000,
+          obligationsMonthly: 2000,
+          savedThisCycle: 0,
+          periodStart: start,
+          periodEnd: end,
+        ),
+        closeTo(4000 * 7 / 31, 1e-9),
+      );
+    });
+
+    test('savings this cycle reduce the disposable base', () {
+      expect(
+        incomeWeeklyBase(
+          salaryMonthly: 6000,
+          obligationsMonthly: 2000,
+          savedThisCycle: 1500,
+          periodStart: start,
+          periodEnd: end,
+        ),
+        closeTo(2500 * 7 / 31, 1e-9),
+      );
+    });
+
+    test('never negative when obligations exceed the salary', () {
+      expect(
+        incomeWeeklyBase(
+          salaryMonthly: 1000,
+          obligationsMonthly: 1200,
+          savedThisCycle: 0,
+          periodStart: start,
+          periodEnd: end,
+        ),
+        0,
+      );
+    });
+
+    test('a zero-length period divides by one week, no divide-by-zero', () {
+      expect(
+        incomeWeeklyBase(
+          salaryMonthly: 700,
+          obligationsMonthly: 0,
+          savedThisCycle: 0,
+          periodStart: start,
+          periodEnd: start,
+        ),
+        closeTo(700, 1e-9),
+      );
+    });
+  });
 
   group('weeklySpend', () {
     test('recommended = essential/weeks + luxury/weeks * 0.85', () {

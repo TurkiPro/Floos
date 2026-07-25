@@ -3,6 +3,7 @@ import '../data/enums.dart';
 import 'date_grouping.dart';
 import 'financial_period.dart';
 import 'spending_window.dart';
+import 'weekly_budget_status.dart';
 
 /// All statistics, computed once in a single pass over the transactions.
 class StatisticsSummary {
@@ -74,6 +75,8 @@ class StatisticsSummary {
   static StatisticsSummary from(
     List<TxnRow> rows,
     List<SavingsContribution> contributions,
+    List<RecurrenceRule> incomeRules,
+    List<RecurrenceRule> expenseRules,
     DateTime now,
     FinancialPeriod period,
   ) {
@@ -93,15 +96,11 @@ class StatisticsSummary {
         period.start.year, period.start.month, period.start.day - periodDays);
     final windowStart =
         DateTime(today.year, today.month, today.day - spendingWindowDays);
-    // Salary-day-anchored week start (weeks run from the cycle start), for the
-    // adaptive weekly budget and "spent before this week".
-    final weekStart = cycleWeekStart(period.start, now);
 
     var allExpenseCount = 0;
     var spentThisMonth = 0.0, lastMonthSpent = 0.0, monthIncome = 0.0;
     var essentialThisMonth = 0.0, luxuryThisMonth = 0.0;
     var essentialWindow = 0.0, luxuryWindow = 0.0;
-    var spentBeforeThisWeek = 0.0;
     var txnCountThisMonth = 0;
     DateTime? earliestInWindow;
     TxnRow? biggestExpense;
@@ -152,9 +151,6 @@ class StatisticsSummary {
       // rule as the badge), so the "suggested weekly budget" reflects only
       // discretionary spending.
       final isRecurring = r.txn.recurrenceId != null;
-      if (!isRecurring && inThisMonth(date) && date.isBefore(weekStart)) {
-        spentBeforeThisWeek += amount;
-      }
       if (!isRecurring &&
           !date.isBefore(windowStart) &&
           date.isBefore(tomorrow)) {
@@ -193,15 +189,6 @@ class StatisticsSummary {
       earliestInWindow: earliestInWindow,
       today: today,
     );
-    // The weekly budget adapts to the month so far (see adaptiveWeeklyBudget):
-    // over/under-spending earlier redistributes across the remaining weeks.
-    final adaptiveWeekly = adaptiveWeeklyBudget(
-      recommended: window.recommended,
-      spentBeforeThisWeek: spentBeforeThisWeek,
-      periodStart: period.start,
-      periodEnd: period.end,
-      now: now,
-    );
 
     // Average spend per weekday over the window: divide each weekday's total
     // by how many times that weekday actually occurred in the window.
@@ -233,21 +220,21 @@ class StatisticsSummary {
     final allowance = monthIncome > 0 ? unspentIncome / daysLeft : null;
     final savingsRate = monthIncome > 0 ? monthSaved / monthIncome : null;
 
-    // The weekly budget must never assume money you've already spent or set
-    // aside is still available. Cap it at the real balance left for the rest of
-    // the cycle (income − spending − savings), pro-rated so it can't exceed that
-    // balance near payday — otherwise a flat 7-day figure reads as "imaginary"
-    // when it's larger than everything you have left. When the cap bites and
-    // there are savings behind it, flag it so the card can explain the drop.
-    final cappedWeekly = monthIncome > 0
-        ? balanceCappedWeekly(
-            adaptive: adaptiveWeekly,
-            remainingForCycle: unspentIncome,
-            daysLeft: daysLeft,
-          )
-        : adaptiveWeekly;
-    final weeklyReducedBySavings =
-        monthSaved > 0 && cappedWeekly < adaptiveWeekly;
+    // The weekly budget is the exact figure the home card and the app-icon
+    // badge show — computed by the one shared function so this screen can never
+    // disagree with them. It's income-based (salary − obligations − savings ÷
+    // the cycle's weeks), adapted to the cycle so far, then capped at the real
+    // remaining balance. Since savings are subtracted in that base, any saving
+    // this cycle lowers the budget — flag it so the card can explain the drop.
+    final wbs = weeklyBudgetStatus(
+      rows: rows,
+      incomeRules: incomeRules,
+      expenseRules: expenseRules,
+      contributions: contributions,
+      now: now,
+    );
+    final recommendedWeekly = wbs.budget;
+    final weeklyReducedBySavings = monthSaved > 0;
 
     final topCategories = byTop.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
@@ -267,7 +254,7 @@ class StatisticsSummary {
       projectedThisMonth: projected,
       lastMonthSpent: lastMonthSpent,
       projectedVsLastMonth: projectedVsLast,
-      recommendedWeekly: cappedWeekly,
+      recommendedWeekly: recommendedWeekly,
       weeklyReducedBySavings: weeklyReducedBySavings,
       currentWeeklyPace: window.pace,
       essentialThisMonth: essentialThisMonth,

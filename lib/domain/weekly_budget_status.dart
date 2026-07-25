@@ -29,13 +29,15 @@ class WeeklyBudgetStatus {
       budget > 0 ? (spent / budget).clamp(0.0, 1.0) : (spent > 0 ? 1.0 : 0.0);
 }
 
-/// Computes [WeeklyBudgetStatus] from live data — the same salary-cycle,
-/// balance-capped weekly budget the badge and statistics screen use, plus what's
-/// been spent since this week's payday-anchored start. Pure, so the home card,
-/// the badge, and tests all agree on the number.
+/// Computes [WeeklyBudgetStatus] from live data. The weekly budget is your
+/// disposable income — (monthly salary − this cycle's monthly obligations − what
+/// you've actually saved this cycle) ÷ the cycle's weeks — then adapted to how
+/// the cycle has gone, and finally capped at your real remaining balance. Pure,
+/// so the home card, the badge, and the statistics screen all agree.
 WeeklyBudgetStatus weeklyBudgetStatus({
   required List<TxnRow> rows,
   required List<RecurrenceRule> incomeRules,
+  required List<RecurrenceRule> expenseRules,
   required List<SavingsContribution> contributions,
   required DateTime now,
 }) {
@@ -44,17 +46,13 @@ WeeklyBudgetStatus weeklyBudgetStatus({
   // Exclusive upper bound: manual adds default to DateTime.now() (with a
   // time-of-day), so a row stamped today at 14:30 must still count.
   final tomorrow = DateTime(now.year, now.month, now.day + 1);
-  final windowStart =
-      DateTime(today.year, today.month, today.day - spendingWindowDays);
   final weekStart = cycleWeekStart(period.start, now);
   final cycleStart = dateOnly(period.start);
 
-  var essentialWindow = 0.0, luxuryWindow = 0.0, spentThisWeek = 0.0;
-  var spentBeforeThisWeek = 0.0;
+  var spentThisWeek = 0.0, spentBeforeThisWeek = 0.0;
   // This cycle's income and total spend, for grounding the budget in the real
-  // remaining balance (below).
+  // remaining balance (the cap, below).
   var periodIncome = 0.0, periodExpense = 0.0;
-  DateTime? earliest;
 
   for (final r in rows) {
     final date = r.txn.date;
@@ -64,58 +62,67 @@ WeeklyBudgetStatus weeklyBudgetStatus({
       if (period.contains(date)) periodIncome += amount;
       continue;
     }
-    // Every expense this cycle — recurring obligations included — reduces the
-    // balance the weekly budget is capped by.
     if (period.contains(date)) periodExpense += amount;
 
-    // Fixed monthly obligations (rent, subscriptions, bills) are planned, not
+    // Fixed obligations (rent, bills, subscriptions) are planned, not
     // discretionary, so they never count against the weekly budget.
     if (r.txn.recurrenceId != null) continue;
 
     if (!date.isBefore(weekStart) && date.isBefore(tomorrow)) {
       spentThisWeek += amount;
     }
-    // Discretionary spend in this cycle's weeks BEFORE the current one — drives
-    // the adaptive redistribution.
+    // Discretionary spend in this cycle's weeks BEFORE the current one drives the
+    // adaptive redistribution.
     if (!date.isBefore(cycleStart) && date.isBefore(weekStart)) {
       spentBeforeThisWeek += amount;
     }
-    if (!date.isBefore(windowStart) && date.isBefore(tomorrow)) {
-      if (r.category.kind == CategoryKind.luxury) {
-        luxuryWindow += amount;
-      } else {
-        essentialWindow += amount;
-      }
-      if (earliest == null || date.isBefore(earliest)) earliest = date;
-    }
   }
 
-  final window = weeklySpend(
-    essentialWindow: essentialWindow,
-    luxuryWindow: luxuryWindow,
-    earliestInWindow: earliest,
-    today: today,
+  // Money actually set aside this cycle (external deposits already existed, so
+  // they don't reduce this cycle's spendable income).
+  var saved = 0.0;
+  for (final c in contributions) {
+    if (!c.external && period.contains(c.date)) saved += c.amount;
+  }
+
+  // Salary = the largest active recurring income, as a monthly figure.
+  RecurrenceRule? salary;
+  for (final r in incomeRules) {
+    if (r.type != TxnType.income || !r.active) continue;
+    if (salary == null || r.amount > salary.amount) salary = r;
+  }
+  final salaryMonthly = salary == null
+      ? 0.0
+      : monthlyEquivalent(salary.frequency, salary.amount, salary.interval);
+
+  // Obligations = every active recurring expense, as a monthly figure.
+  var obligationsMonthly = 0.0;
+  for (final r in expenseRules) {
+    if (r.type != TxnType.expense || !r.active) continue;
+    obligationsMonthly += monthlyEquivalent(r.frequency, r.amount, r.interval);
+  }
+
+  // The forward-looking base: disposable income ÷ the cycle's weeks.
+  final base = incomeWeeklyBase(
+    salaryMonthly: salaryMonthly,
+    obligationsMonthly: obligationsMonthly,
+    savedThisCycle: saved,
+    periodStart: period.start,
+    periodEnd: period.end,
   );
 
-  // Adapt the flat weekly baseline to the cycle so far: over/under-spending in
-  // earlier weeks lowers/raises what's budgeted for the rest of the cycle.
+  // Adapt to the cycle so far: over/under-spending earlier lowers/raises what's
+  // budgeted for the weeks that remain.
   final adaptive = adaptiveWeeklyBudget(
-    recommended: window.recommended,
+    recommended: base,
     spentBeforeThisWeek: spentBeforeThisWeek,
     periodStart: period.start,
     periodEnd: period.end,
     now: now,
   );
 
-  // Money set aside this cycle (external deposits already existed, so they don't
-  // reduce this cycle's spendable income).
-  var saved = 0.0;
-  for (final c in contributions) {
-    if (!c.external && period.contains(c.date)) saved += c.amount;
-  }
-
-  // Cap the behavioural budget at the real balance left for the rest of the
-  // cycle — only when income is known, otherwise the behavioural figure stands.
+  // Never promise more than the real balance left for the rest of the cycle —
+  // only once income has actually landed to cap against.
   final periodDays = period.end.difference(cycleStart).inDays;
   final daysLeft = period.end
       .difference(today)

@@ -66,16 +66,20 @@ class StatisticsScreen extends StatelessWidget {
                   final contributions =
                       contribSnap.data ?? const <SavingsContribution>[];
                   return StreamBuilder<List<RecurrenceRule>>(
-                    stream: db.recurrenceDao.watchByType(TxnType.income),
+                    stream: db.recurrenceDao.watchAll(),
                     builder: (context, rulesSnap) {
+                      final rules = rulesSnap.data ?? const <RecurrenceRule>[];
                       final incomeRules =
-                          rulesSnap.data ?? const <RecurrenceRule>[];
+                          rules.where((r) => r.type == TxnType.income).toList();
+                      final expenseRules = rules
+                          .where((r) => r.type == TxnType.expense)
+                          .toList();
                       final now = DateTime.now();
                       final period = financialPeriod(incomeRules, now);
                       // Stats follow the salary cycle too (same period as the
                       // home dashboard), not the calendar month.
-                      final s = StatisticsSummary.from(
-                          rows, contributions, now, period);
+                      final s = StatisticsSummary.from(rows, contributions,
+                          incomeRules, expenseRules, now, period);
                       // Per-category slices of this period's spend, for the
                       // top-categories card and its drill-downs.
                       final breakdown = categoryBreakdown(rows
@@ -384,8 +388,9 @@ class StatisticsScreen extends StatelessWidget {
                   color: scheme.primary)),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'محسوبة من متوسط إنفاقك (أساسياتك + ٨٥٪ من كمالياتك)، وتتكيّف مع '
-            'شهرك: تجاوزك في أسابيع سابقة يخفّضها، وتوفيرك يرفعها.',
+            'محسوبة من دخلك: (راتبك − التزاماتك الشهرية − ما ادّخرته هذه الدورة) '
+            '÷ أسابيع الدورة، وتتكيّف مع شهرك: تجاوزك في أسابيع سابقة يخفّضها، '
+            'وما لم تصرفه يرفعها.',
             style: TextStyle(
                 fontSize: AppTextSizes.label, color: scheme.onSurfaceVariant),
           ),
