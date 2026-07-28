@@ -39,6 +39,10 @@ List<BudgetLine> budgetProgress(
   final spentByTop = <int, double>{};
   for (final r in rows) {
     if (r.txn.type != TxnType.expense) continue;
+    // Committed obligations (rows from a recurring rule) aren't budgeted here —
+    // they have their own line, and counting them would blow a category's budget
+    // on money the user never chose in the moment.
+    if (r.txn.recurrenceId != null) continue;
     if (!period.contains(r.txn.date)) continue;
     final topId = r.category.parentId ?? r.category.id;
     spentByTop[topId] = (spentByTop[topId] ?? 0) + r.txn.amount;

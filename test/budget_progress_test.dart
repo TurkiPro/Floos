@@ -34,6 +34,21 @@ TxnRow _expense(double amount, DateTime date, {int id = 1, int? parentId}) =>
       category: _cat(id: id, parentId: parentId),
     );
 
+// A recurring obligation lands with a recurrenceId, so it's committed and must
+// not count against a category budget.
+TxnRow _recurring(double amount, DateTime date, {int id = 1}) => TxnRow(
+      txn: Txn(
+        id: 1,
+        amount: amount,
+        categoryId: id,
+        type: TxnType.expense,
+        date: date,
+        recurrenceId: 9,
+        createdAt: date,
+      ),
+      category: _cat(id: id),
+    );
+
 CategoryBudget _budget(int categoryId, double amount) =>
     CategoryBudget(id: categoryId, categoryId: categoryId, amount: amount);
 
@@ -53,6 +68,18 @@ void main() {
       expect(lines.single.budgeted, 500);
       expect(lines.single.remaining, 200);
       expect(lines.single.isOver, isFalse);
+    });
+
+    test('committed (recurring) spend is not counted against the budget', () {
+      final budgets = [_budget(1, 500)];
+      final rows = [
+        _expense(200, DateTime(2026, 7, 3), id: 1), // discretionary -> counts
+        _recurring(1000, DateTime(2026, 7, 5), id: 1), // committed -> excluded
+      ];
+      final lines = budgetProgress(budgets, rows, period);
+      expect(lines.single.spent, 200);
+      expect(lines.single.isOver, isFalse,
+          reason: 'the 1000 obligation must not blow the budget');
     });
 
     test('rolls sub-category spend up to the parent budget', () {

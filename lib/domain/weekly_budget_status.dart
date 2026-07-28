@@ -1,5 +1,6 @@
 import '../data/database.dart';
 import '../data/enums.dart';
+import 'budget_envelope.dart';
 import 'financial_period.dart';
 import 'recurrence_math.dart';
 import 'spending_window.dart';
@@ -78,34 +79,22 @@ WeeklyBudgetStatus weeklyBudgetStatus({
     }
   }
 
-  // Money actually set aside this cycle (external deposits already existed, so
-  // they don't reduce this cycle's spendable income).
-  var saved = 0.0;
-  for (final c in contributions) {
-    if (!c.external && period.contains(c.date)) saved += c.amount;
-  }
-
-  // Salary = the largest active recurring income, as a monthly figure.
-  RecurrenceRule? salary;
-  for (final r in incomeRules) {
-    if (r.type != TxnType.income || !r.active) continue;
-    if (salary == null || r.amount > salary.amount) salary = r;
-  }
-  final salaryMonthly = salary == null
-      ? 0.0
-      : monthlyEquivalent(salary.frequency, salary.amount, salary.interval);
-
-  // Obligations = every active recurring expense, as a monthly figure.
-  var obligationsMonthly = 0.0;
-  for (final r in expenseRules) {
-    if (r.type != TxnType.expense || !r.active) continue;
-    obligationsMonthly += monthlyEquivalent(r.frequency, r.amount, r.interval);
-  }
+  // Salary − monthly obligations − what's been set aside this cycle: the shared
+  // disposable envelope (the budget advisor sizes itself against the very same
+  // figure, so the two can't disagree). [saved] also grounds the balance cap
+  // below.
+  final env = monthlyEnvelope(
+    incomeRules: incomeRules,
+    expenseRules: expenseRules,
+    contributions: contributions,
+    period: period,
+  );
+  final saved = env.saved;
 
   // The forward-looking base: disposable income ÷ the cycle's weeks.
   final base = incomeWeeklyBase(
-    salaryMonthly: salaryMonthly,
-    obligationsMonthly: obligationsMonthly,
+    salaryMonthly: env.salary,
+    obligationsMonthly: env.obligations,
     savedThisCycle: saved,
     periodStart: period.start,
     periodEnd: period.end,

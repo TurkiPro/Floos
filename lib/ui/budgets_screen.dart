@@ -6,6 +6,7 @@ import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
 import '../domain/budget_advisor.dart';
+import '../domain/budget_envelope.dart';
 import '../domain/budget_progress.dart';
 import '../domain/financial_period.dart';
 import '../domain/parse_amount.dart';
@@ -48,61 +49,83 @@ class BudgetsScreen extends StatelessWidget {
               // Income rules feed both the day-one seed and the salary-cycle
               // windows the history median is taken over (see suggestBudgets).
               return StreamBuilder<List<RecurrenceRule>>(
-                stream: db.recurrenceDao.watchByType(TxnType.income),
-                builder: (context, incomeSnap) {
+                stream: db.recurrenceDao.watchAll(),
+                builder: (context, rulesSnap) {
+                  final rules = rulesSnap.data ?? const <RecurrenceRule>[];
                   final incomeRules =
-                      incomeSnap.data ?? const <RecurrenceRule>[];
+                      rules.where((r) => r.type == TxnType.income).toList();
+                  final expenseRules =
+                      rules.where((r) => r.type == TxnType.expense).toList();
                   return StreamBuilder<List<TxnRow>>(
                     stream: db.transactionDao.watchAllWithCategory(),
                     builder: (context, txnSnap) {
                       final rows = txnSnap.data ?? const <TxnRow>[];
-                      // Track budgets over the salary cycle (like the home and
-                      // stats screens), not the calendar month.
-                      final period = financialPeriod(incomeRules, now);
-                      final lines = {
-                        for (final l in budgetProgress(budgets, rows, period))
-                          l.categoryId: l,
-                      };
-                      final suggestions = {
-                        for (final s in suggestBudgets(
-                          rows: rows,
-                          topExpenseCats: topExpense,
-                          incomeRules: incomeRules,
-                          now: now,
-                          lifestyleFactor: settings.lifestyleFactor,
-                        ))
-                          s.categoryId: s,
-                      };
-                      return ListView(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        children: [
-                          _AdvisorHeader(
-                            settings: settings,
-                            suggestions: suggestions.values.toList(),
-                            money: money,
-                            onApplyAll: () => _applyAll(
-                                context, db, suggestions.values, budgetByCat),
-                          ),
-                          const SizedBox(height: AppSpacing.md),
-                          for (final cat in topExpense)
-                            _BudgetTile(
-                              category: cat,
-                              budget: budgetByCat[cat.id],
-                              line: lines[cat.id],
-                              suggestion: suggestions[cat.id],
-                              money: money,
-                              onEdit: () => _editBudget(context, db, cat,
-                                  budgetByCat[cat.id]?.amount),
-                              onApplySuggestion: suggestions[cat.id] == null
-                                  ? null
-                                  : () => _applyOne(
-                                      context,
-                                      db,
-                                      cat.id,
-                                      suggestions[cat.id]!.amount,
+                      return StreamBuilder<List<SavingsContribution>>(
+                        stream: db.savingsDao.watchAllContributions(),
+                        builder: (context, contribSnap) {
+                          final contributions =
+                              contribSnap.data ?? const <SavingsContribution>[];
+                          // Track budgets over the salary cycle (like the home
+                          // and stats screens), not the calendar month.
+                          final period = financialPeriod(incomeRules, now);
+                          final lines = {
+                            for (final l
+                                in budgetProgress(budgets, rows, period))
+                              l.categoryId: l,
+                          };
+                          final suggestions = {
+                            for (final s in suggestBudgets(
+                              rows: rows,
+                              topExpenseCats: topExpense,
+                              incomeRules: incomeRules,
+                              expenseRules: expenseRules,
+                              contributions: contributions,
+                              now: now,
+                              lifestyleFactor: settings.lifestyleFactor,
+                            ))
+                              s.categoryId: s,
+                          };
+                          // Fixed monthly obligations, shown as their own line —
+                          // never counted against a category budget.
+                          final committed = monthlyEnvelope(
+                            incomeRules: incomeRules,
+                            expenseRules: expenseRules,
+                            contributions: contributions,
+                            period: period,
+                          ).obligations;
+                          return ListView(
+                            padding: const EdgeInsets.all(AppSpacing.lg),
+                            children: [
+                              _AdvisorHeader(
+                                settings: settings,
+                                suggestions: suggestions.values.toList(),
+                                committed: committed,
+                                money: money,
+                                onApplyAll: () => _applyAll(context, db,
+                                    suggestions.values, budgetByCat),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              for (final cat in topExpense)
+                                _BudgetTile(
+                                  category: cat,
+                                  budget: budgetByCat[cat.id],
+                                  line: lines[cat.id],
+                                  suggestion: suggestions[cat.id],
+                                  money: money,
+                                  onEdit: () => _editBudget(context, db, cat,
                                       budgetByCat[cat.id]?.amount),
-                            ),
-                        ],
+                                  onApplySuggestion: suggestions[cat.id] == null
+                                      ? null
+                                      : () => _applyOne(
+                                          context,
+                                          db,
+                                          cat.id,
+                                          suggestions[cat.id]!.amount,
+                                          budgetByCat[cat.id]?.amount),
+                                ),
+                            ],
+                          );
+                        },
                       );
                     },
                   );
@@ -227,11 +250,13 @@ class _BudgetEdit {
 class _AdvisorHeader extends StatelessWidget {
   final AppSettings settings;
   final List<BudgetSuggestion> suggestions;
+  final double committed;
   final NumberFormat money;
   final VoidCallback onApplyAll;
   const _AdvisorHeader({
     required this.settings,
     required this.suggestions,
+    required this.committed,
     required this.money,
     required this.onApplyAll,
   });
@@ -242,11 +267,39 @@ class _AdvisorHeader extends StatelessWidget {
     final caption =
         TextStyle(fontSize: AppTextSizes.label, color: scheme.onSurfaceVariant);
 
+    // Your fixed monthly obligations — surfaced so you can see them, but they're
+    // deliberately outside the per-category budgets below.
+    final committedLine = committed <= 0
+        ? null
+        : Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: Row(
+              children: [
+                Icon(Icons.lock_outline,
+                    size: 16, color: scheme.onSurfaceVariant),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Text(
+                    'التزاماتك الثابتة: ${money.format(committed)} ⃁ شهريًا — '
+                    'خارج ميزانياتك أدناه.',
+                    style: caption,
+                  ),
+                ),
+              ],
+            ),
+          );
+
     // No income and no history: nothing to suggest yet.
     if (suggestions.isEmpty) {
-      return Text(
-        'أضف دخلاً متكررًا (كالراتب) وسنقترح لك ميزانية لكل فئة، ثم نضبطها تلقائيًا حسب إنفاقك الفعلي.',
-        style: caption,
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (committedLine != null) committedLine,
+          Text(
+            'أضف دخلاً متكررًا (كالراتب) وسنقترح لك ميزانية لكل فئة، ثم نضبطها تلقائيًا حسب إنفاقك الفعلي.',
+            style: caption,
+          ),
+        ],
       );
     }
 
@@ -258,6 +311,7 @@ class _AdvisorHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (committedLine != null) committedLine,
         if (allHistory)
           Text('هذه الاقتراحات مبنية على إنفاقك الفعلي.', style: caption)
         else ...[

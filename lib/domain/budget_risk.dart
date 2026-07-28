@@ -44,6 +44,9 @@ List<BudgetRisk> budgetRisks(
   final spentByTop = <int, double>{};
   for (final r in rows) {
     if (r.txn.type != TxnType.expense) continue;
+    // Committed obligations aren't budgeted (see budgetProgress), so they can't
+    // put a category "on track to blow it".
+    if (r.txn.recurrenceId != null) continue;
     if (!period.contains(r.txn.date)) continue;
     final topId = r.category.parentId ?? r.category.id;
     spentByTop[topId] = (spentByTop[topId] ?? 0) + r.txn.amount;
