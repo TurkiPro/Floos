@@ -16,9 +16,24 @@ class ThousandsInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
-    // Western digits, '.' decimal, no grouping — then keep only [0-9.].
-    var norm =
-        normalizeAmountInput(newValue.text).replaceAll(RegExp(r'[^0-9.]'), '');
+    // Western digits, '.' decimal, no grouping — keep digits, '.', and the +/−
+    // operators so the field doubles as a quick calculator (e.g. "45+12+8").
+    final raw = normalizeAmountInput(newValue.text)
+        .replaceAll(RegExp(r'[^0-9.+\-]'), '');
+    if (raw.isEmpty) return const TextEditingValue();
+
+    // While the user is writing an expression (a binary + or −), pass it through
+    // untouched — grouping mid-expression would fight the operators. A lone
+    // leading '−' isn't a binary operator. parseAmount evaluates it on save.
+    if (raw.contains('+') || raw.lastIndexOf('-') > 0) {
+      return TextEditingValue(
+        text: raw,
+        selection: TextSelection.collapsed(offset: raw.length),
+      );
+    }
+
+    // Plain number: drop any stray sign, then group as before.
+    var norm = raw.replaceAll(RegExp(r'[+\-]'), '');
     if (norm.isEmpty) return const TextEditingValue();
 
     // Collapse to a single decimal point (keep the first).

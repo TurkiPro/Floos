@@ -30,6 +30,22 @@ void main() {
       expect(parseAmount(''), isNull);
       expect(parseAmount('   '), isNull);
     });
+
+    test('evaluates a simple additive expression (calculator)', () {
+      expect(parseAmount('45+12+8'), 65);
+      expect(parseAmount('50-8'), 42);
+      expect(parseAmount('10.5+3'), 13.5);
+      expect(parseAmount('100-30-20'), 50);
+      // Arabic digits and separators work inside an expression too.
+      expect(parseAmount('١٢+٨'), 20);
+    });
+
+    test('malformed expressions are null', () {
+      expect(parseAmount('1++2'), isNull);
+      expect(parseAmount('1..2'), isNull);
+      expect(parseAmount('+'), isNull);
+      expect(parseAmount('12+'), isNull);
+    });
   });
 
   group('parseCount', () {

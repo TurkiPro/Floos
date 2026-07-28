@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../data/database.dart';
+import '../domain/savings_math.dart';
 import 'add_contribution_sheet.dart';
 import 'theme/tokens.dart';
 import 'widgets/swipe_to_delete.dart';
@@ -36,13 +37,25 @@ class GoalDetailScreen extends StatelessWidget {
             padding: const EdgeInsets.all(AppSpacing.lg),
             // The only source for this goal's balance -- always
             // SUM(contributions), never a stored field.
-            child: StreamBuilder<double>(
-              stream: db.savingsDao.watchTotal(goal.id),
+            child: StreamBuilder<List<SavingsContribution>>(
+              stream: db.savingsDao.watchContributions(goal.id),
               builder: (context, snapshot) {
-                final total = snapshot.data ?? 0.0;
+                final contributions =
+                    snapshot.data ?? const <SavingsContribution>[];
+                final total =
+                    contributions.fold<double>(0, (a, c) => a + c.amount);
                 final ratio = goal.targetAmount > 0
                     ? (total / goal.targetAmount).clamp(0.0, 1.0)
                     : 0.0;
+                // "At your recent pace, ≈ <date>." Only while the goal is still
+                // open and there's a real saving pace to project from.
+                final eta = ratio < 1
+                    ? goalEta(
+                        contributions: contributions,
+                        target: goal.targetAmount,
+                        now: DateTime.now(),
+                      )
+                    : null;
                 final scheme = Theme.of(context).colorScheme;
                 return Container(
                   padding: const EdgeInsets.all(AppSpacing.lg),
@@ -70,6 +83,17 @@ class GoalDetailScreen extends StatelessWidget {
                             fontSize: AppTextSizes.label,
                             color: scheme.onSurfaceVariant),
                       ),
+                      if (eta != null) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          'بهذه الوتيرة، تقريبًا ${dateFmt.format(eta)}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: AppTextSizes.label,
+                              fontWeight: FontWeight.w600,
+                              color: scheme.primary),
+                        ),
+                      ],
                       const SizedBox(height: AppSpacing.md),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(AppRadii.chip),

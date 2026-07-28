@@ -1,5 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:floos/data/database.dart';
 import 'package:floos/domain/savings_math.dart';
+
+SavingsContribution _contrib(double amount, DateTime date,
+        {bool external = false}) =>
+    SavingsContribution(
+        id: 1, goalId: 1, amount: amount, date: date, external: external);
 
 void main() {
   group('monthsUntilDeadline', () {
@@ -59,6 +65,52 @@ void main() {
             deadline: DateTime(2026, 6, 1),
             now: DateTime(2026, 1, 1)),
         0,
+      );
+    });
+  });
+
+  group('goalEta', () {
+    test('projects the finish date from the actual saving pace', () {
+      // 1000 saved over 30 days => 1000/30 per day; 1000 still to go => 30 more
+      // days from now (31 Jan) => 2 Mar 2026.
+      final eta = goalEta(
+        contributions: [_contrib(1000, DateTime(2026, 1, 1))],
+        target: 2000,
+        now: DateTime(2026, 1, 31),
+      );
+      expect(eta, DateTime(2026, 3, 2));
+    });
+
+    test('is null once the goal is already met', () {
+      expect(
+        goalEta(
+          contributions: [_contrib(2000, DateTime(2026, 1, 1))],
+          target: 2000,
+          now: DateTime(2026, 1, 31),
+        ),
+        isNull,
+      );
+    });
+
+    test('external deposits count toward the balance but not the pace', () {
+      // Only an imported 5000 (external) and no internal saving => no real pace
+      // to project from, even though there's 1000 still to go.
+      expect(
+        goalEta(
+          contributions: [
+            _contrib(5000, DateTime(2026, 1, 1), external: true),
+          ],
+          target: 6000,
+          now: DateTime(2026, 1, 31),
+        ),
+        isNull,
+      );
+    });
+
+    test('is null with no contributions', () {
+      expect(
+        goalEta(contributions: const [], target: 1000, now: DateTime(2026, 1)),
+        isNull,
       );
     });
   });

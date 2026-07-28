@@ -13,6 +13,7 @@ import '../domain/parse_amount.dart';
 import '../domain/recurrence_engine.dart';
 import '../domain/recurrence_math.dart';
 import '../domain/savings_math.dart';
+import '../domain/upcoming_commitments.dart';
 import '../domain/weekly_budget_status.dart';
 import '../services/alerts_coordinator.dart';
 import 'add_transaction_sheet.dart';
@@ -170,6 +171,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   goals: goals,
                                   contributions: contributions,
                                   weekStatus: weekStatus,
+                                  upcoming: upcomingCommitments(
+                                      expenseRules, now, period.end),
                                 );
                               },
                             );
@@ -417,12 +420,14 @@ class _DashboardBody extends StatelessWidget {
   final List<SavingsGoal> goals;
   final List<SavingsContribution> contributions;
   final WeeklyBudgetStatus weekStatus;
+  final List<UpcomingCommitment> upcoming;
   const _DashboardBody({
     required this.data,
     required this.money,
     required this.goals,
     required this.contributions,
     required this.weekStatus,
+    required this.upcoming,
   });
 
   /// Goals still owed this month's deposit: income has landed, the goal has a
@@ -509,6 +514,12 @@ class _DashboardBody extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         _MonthStatsCard(data: data, money: money),
+        // What's still due to leave the account before the next payday — shown
+        // only when there's something coming.
+        if (upcoming.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.md),
+          _UpcomingCard(upcoming: upcoming, money: money),
+        ],
         // Optional at-a-glance weekly-budget status (toggle in Settings). Hidden
         // when there's nothing meaningful to show yet (no budget and no spend).
         if (context.watch<AppSettings>().showWeeklyStatusOnHome &&
@@ -826,6 +837,94 @@ class _WeeklyStatusCard extends StatelessWidget {
 /// Shown once income has landed this month: for each goal still owed a
 /// deposit, offer to transfer the full month's installment, a custom amount,
 /// or skip (which recomputes next month's larger installment automatically).
+/// "قادم هذه الدورة" — the recurring obligations still due before the next
+/// payday, soonest first, with the running total of what's about to leave.
+class _UpcomingCard extends StatelessWidget {
+  final List<UpcomingCommitment> upcoming;
+  final NumberFormat money;
+  const _UpcomingCard({required this.upcoming, required this.money});
+
+  String _whenLabel(DateTime date) {
+    final now = DateTime.now();
+    final d0 = DateTime(now.year, now.month, now.day);
+    final days =
+        DateTime(date.year, date.month, date.day).difference(d0).inDays;
+    if (days <= 0) return 'اليوم';
+    if (days == 1) return 'غدًا';
+    if (days == 2) return 'بعد يومين';
+    if (days <= 10) return 'بعد $days أيام';
+    return 'بعد $days يومًا';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final total = upcomingTotal(upcoming);
+    final shown = upcoming.take(3).toList();
+    final more = upcoming.length - shown.length;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        boxShadow: const [AppShadows.card],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.event_outlined, size: 20, color: scheme.primary),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text('قادم هذه الدورة',
+                    style: TextStyle(
+                        fontSize: AppTextSizes.row,
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onSurface)),
+              ),
+              Text('${money.format(total)} ⃁',
+                  style: TextStyle(
+                      fontSize: AppTextSizes.row,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.primary)),
+            ],
+          ),
+          for (final c in shown) ...[
+            const Divider(height: AppSpacing.lg),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(c.rule.title,
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      Text(_whenLabel(c.date),
+                          style: TextStyle(
+                              fontSize: AppTextSizes.label,
+                              color: scheme.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+                Text('${money.format(c.rule.amount)} ⃁',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ],
+          if (more > 0) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text('و $more أخرى',
+                style: TextStyle(
+                    fontSize: AppTextSizes.label,
+                    color: scheme.onSurfaceVariant)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _SavingsPromptCard extends StatelessWidget {
   final List<_PendingDeposit> pending;
   final NumberFormat money;

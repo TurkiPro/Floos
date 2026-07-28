@@ -12,7 +12,29 @@
 double? parseAmount(String raw) {
   final s = normalizeAmountInput(raw);
   if (s.isEmpty) return null;
-  return double.tryParse(s);
+  return _evaluate(s);
+}
+
+/// Evaluates a bare additive expression so the amount field doubles as a quick
+/// calculator: "45+12+8" → 65, "50-8" → 42. A plain number just parses. Only
+/// digits, '.', '+' and '-' are allowed — anything else (or a malformed
+/// expression like "1++2" or "1.2.3") is null.
+double? _evaluate(String s) {
+  if (!RegExp(r'^[0-9.+\-]+$').hasMatch(s)) return null;
+  // Split into signed terms; the joined matches must reconstruct the input
+  // exactly, which rejects doubled/dangling operators.
+  final terms = RegExp(r'[+-]?[0-9.]+').allMatches(s).toList();
+  if (terms.isEmpty) return null;
+  if (terms.map((m) => m.group(0)).join() != s) return null;
+  var total = 0.0;
+  for (final m in terms) {
+    final t = m.group(0)!;
+    final neg = t.startsWith('-');
+    final v = double.tryParse(t.replaceFirst(RegExp(r'^[+-]'), ''));
+    if (v == null) return null;
+    total += neg ? -v : v;
+  }
+  return total;
 }
 
 /// Same normalization for whole-number fields (e.g. a recurrence interval).
