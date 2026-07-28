@@ -9,6 +9,16 @@ import 'weekly_budget_status.dart';
 class StatisticsSummary {
   final int allExpenseCount;
   final double spentThisMonth;
+
+  /// This cycle's spend split by how controllable it is. [committedThisMonth] is
+  /// money already promised through a recurring rule (rent, bills,
+  /// subscriptions, family transfers); [discretionaryThisMonth] is everything
+  /// chosen in the moment. Their sum is [spentThisMonth]. The needs/wants split,
+  /// the top categories, and the biggest expense all describe the discretionary
+  /// part only — the money you can actually act on — so fixed obligations don't
+  /// drown out the signal. Same recurring test the weekly budget uses.
+  final double committedThisMonth;
+  final double discretionaryThisMonth;
   final double dailyAvgThisMonth;
   final double projectedThisMonth;
   final double lastMonthSpent;
@@ -45,6 +55,8 @@ class StatisticsSummary {
   const StatisticsSummary({
     required this.allExpenseCount,
     required this.spentThisMonth,
+    required this.committedThisMonth,
+    required this.discretionaryThisMonth,
     required this.dailyAvgThisMonth,
     required this.projectedThisMonth,
     required this.lastMonthSpent,
@@ -100,6 +112,7 @@ class StatisticsSummary {
     var allExpenseCount = 0;
     var spentThisMonth = 0.0, lastMonthSpent = 0.0, monthIncome = 0.0;
     var essentialThisMonth = 0.0, luxuryThisMonth = 0.0;
+    var committedThisMonth = 0.0, discretionaryThisMonth = 0.0;
     var essentialWindow = 0.0, luxuryWindow = 0.0;
     var txnCountThisMonth = 0;
     DateTime? earliestInWindow;
@@ -135,15 +148,28 @@ class StatisticsSummary {
         txnCountThisMonth++;
         final d0 = DateTime(date.year, date.month, date.day);
         byDayThisMonth[d0] = (byDayThisMonth[d0] ?? 0) + amount;
-        if (kind == CategoryKind.luxury) {
-          luxuryThisMonth += amount;
+
+        // Committed = money already promised through a recurring rule (rent,
+        // bills, subscriptions, family transfers). Discretionary = everything
+        // chosen in the moment. The needs/wants split, the top categories, and
+        // the biggest expense all describe the DISCRETIONARY money — the part
+        // you can actually act on — so obligations don't drown out the signal;
+        // they get their own line on the card. Same recurring test the weekly
+        // budget uses, so the two halves of the app finally agree.
+        if (r.txn.recurrenceId != null) {
+          committedThisMonth += amount;
         } else {
-          essentialThisMonth += amount;
-        }
-        final topId = r.category.parentId ?? r.category.id;
-        byTop[topId] = (byTop[topId] ?? 0) + amount;
-        if (biggestExpense == null || amount > biggestExpense.txn.amount) {
-          biggestExpense = r;
+          discretionaryThisMonth += amount;
+          if (kind == CategoryKind.luxury) {
+            luxuryThisMonth += amount;
+          } else {
+            essentialThisMonth += amount;
+          }
+          final topId = r.category.parentId ?? r.category.id;
+          byTop[topId] = (byTop[topId] ?? 0) + amount;
+          if (biggestExpense == null || amount > biggestExpense.txn.amount) {
+            biggestExpense = r;
+          }
         }
       }
 
@@ -250,6 +276,8 @@ class StatisticsSummary {
     return StatisticsSummary(
       allExpenseCount: allExpenseCount,
       spentThisMonth: spentThisMonth,
+      committedThisMonth: committedThisMonth,
+      discretionaryThisMonth: discretionaryThisMonth,
       dailyAvgThisMonth: dailyAvg,
       projectedThisMonth: projected,
       lastMonthSpent: lastMonthSpent,

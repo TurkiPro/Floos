@@ -49,6 +49,23 @@ TxnRow _expense(double amount, DateTime date,
 TxnRow _income(double amount, DateTime date) =>
     _row(_cat(id: 9, type: TxnType.income), amount, date);
 
+// A recurring obligation (rent/subscription): carries a recurrenceId, so it's
+// "committed", not discretionary.
+TxnRow _recurring(double amount, DateTime date,
+        {CategoryKind kind = CategoryKind.essential}) =>
+    TxnRow(
+      txn: Txn(
+        id: 1,
+        amount: amount,
+        categoryId: 1,
+        type: TxnType.expense,
+        date: date,
+        recurrenceId: 9,
+        createdAt: date,
+      ),
+      category: _cat(kind: kind),
+    );
+
 SavingsContribution _contrib(double amount, DateTime date,
         {bool external = false}) =>
     SavingsContribution(
@@ -66,6 +83,26 @@ void main() {
           now,
           july);
       expect(s.allExpenseCount, 0);
+    });
+
+    test('committed (recurring) spend is split out from discretionary', () {
+      final rows = [
+        _expense(100, DateTime(2026, 7, 3)), // discretionary essential
+        _recurring(200, DateTime(2026, 7, 5)), // a rent-like obligation
+        _expense(120, DateTime(2026, 7, 6), kind: CategoryKind.luxury),
+      ];
+      final s = StatisticsSummary.from(rows, const [], const <RecurrenceRule>[],
+          const <RecurrenceRule>[], now, july);
+      expect(s.spentThisMonth, 420); // the full total still includes it
+      expect(s.committedThisMonth, 200);
+      expect(s.discretionaryThisMonth, 220);
+      // The needs/wants split, the top categories, and the biggest expense all
+      // describe the discretionary money only — the 200 obligation is excluded
+      // even though it's the single largest row.
+      expect(s.essentialThisMonth, 100);
+      expect(s.luxuryThisMonth, 120);
+      expect(s.biggestExpense?.txn.amount, 120);
+      expect(s.topCategories.fold<double>(0, (a, e) => a + e.value), 220);
     });
 
     test('splits this-month spend into essentials and luxuries', () {
