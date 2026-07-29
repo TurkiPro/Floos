@@ -24,11 +24,16 @@ class AddTransactionSheet extends StatefulWidget {
 }
 
 class _AddTransactionSheetState extends State<AddTransactionSheet> {
+  // The sheet only ever adds expenses (income has its own page); [_type] is kept
+  // only so editing an existing row preserves whatever type it already had.
   TxnType _type = TxnType.expense;
   final _amountCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
   DateTime _date = DateTime.now();
   int? _categoryId;
+  // The note is collapsed behind a chip until wanted — most entries have none,
+  // so it shouldn't cost a permanent row and crowd the category picker.
+  bool _showNote = false;
 
   bool get _isEditing => widget.existing != null;
 
@@ -42,7 +47,56 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       _noteCtrl.text = e.note ?? '';
       _date = e.date;
       _categoryId = e.categoryId;
+      _showNote = (e.note ?? '').isNotEmpty;
     }
+  }
+
+  /// Appends a "+" or "−" to the amount (or swaps a trailing one), so a few
+  /// prices add up without leaving the number pad. parseAmount evaluates it.
+  void _appendOp(String op) {
+    final t = _amountCtrl.text;
+    if (t.isEmpty) return; // never start with an operator
+    final last = t.substring(t.length - 1);
+    final next = (last == '+' || last == '-')
+        ? t.substring(0, t.length - 1) + op
+        : t + op;
+    _amountCtrl.text = next;
+    _amountCtrl.selection = TextSelection.collapsed(offset: next.length);
+  }
+
+  Widget _opButton(String op) => SizedBox(
+        width: 44,
+        height: 32,
+        child: OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+          ),
+          onPressed: () => _appendOp(op),
+          // Display a proper minus glyph, but insert the ASCII '-' the parser
+          // understands.
+          child: Text(op == '-' ? '−' : op,
+              style:
+                  const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+        ),
+      );
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(2015),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) setState(() => _date = picked);
+  }
+
+  String _dateLabel() {
+    final now = DateTime.now();
+    final sameDay = _date.year == now.year &&
+        _date.month == now.month &&
+        _date.day == now.day;
+    return sameDay ? 'اليوم' : DateFormat('yyyy-MM-dd').format(_date);
   }
 
   @override
@@ -118,39 +172,66 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                         style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: AppSpacing.md),
                   ],
-                  SegmentedButton<TxnType>(
-                    segments: const [
-                      ButtonSegment(
-                          value: TxnType.expense, label: Text('مصروف')),
-                      ButtonSegment(value: TxnType.income, label: Text('دخل')),
-                    ],
-                    selected: {_type},
-                    onSelectionChanged: (s) => setState(() {
-                      _type = s.first;
-                      _categoryId = null;
-                    }),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  Center(
-                    child: IntrinsicWidth(
-                      child: TextField(
-                        controller: _amountCtrl,
-                        autofocus: !_isEditing,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        inputFormatters: const [ThousandsInputFormatter()],
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: AppTextSizes.heroMin,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        decoration: const InputDecoration(
-                          hintText: '0.00',
-                          suffixText: '⃁',
-                          border: InputBorder.none,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // A spacer the width of the operator buttons, so the amount
+                      // stays visually centred between them.
+                      const SizedBox(width: 44),
+                      Expanded(
+                        child: TextField(
+                          controller: _amountCtrl,
+                          autofocus: !_isEditing,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          inputFormatters: const [ThousandsInputFormatter()],
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: AppTextSizes.heroMin,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          decoration: const InputDecoration(
+                            hintText: '0.00',
+                            suffixText: '⃁',
+                            border: InputBorder.none,
+                          ),
                         ),
                       ),
-                    ),
+                      // Calculator operators, beside the amount (not below, to
+                      // stay clear of the number pad).
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _opButton('+'),
+                          const SizedBox(height: AppSpacing.xs),
+                          _opButton('-'),
+                        ],
+                      ),
+                    ],
+                  ),
+                  // Live result while an expression is being entered.
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _amountCtrl,
+                    builder: (context, value, _) {
+                      final t = value.text;
+                      if (!t.contains('+') && !t.contains('-')) {
+                        return const SizedBox.shrink();
+                      }
+                      final v = parseAmount(t);
+                      if (v == null) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.xs),
+                        child: Text(
+                          '= ${groupedAmount(v)} ⃁',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: AppTextSizes.label,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   CategoryPicker(
@@ -173,34 +254,41 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Date and note as compact chips, not two permanent rows — the
+                // date is "today" almost always and the note is usually empty,
+                // so they stay one tap away without crowding the picker above.
                 Row(
                   children: [
-                    Expanded(
-                        child: Text(
-                            'التاريخ: ${DateFormat('yyyy-MM-dd').format(_date)}')),
-                    TextButton(
-                      onPressed: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: _date,
-                          firstDate: DateTime(2015),
-                          lastDate: DateTime(2100),
-                        );
-                        if (picked != null) setState(() => _date = picked);
-                      },
-                      child: const Text('تغيير'),
+                    OutlinedButton.icon(
+                      onPressed: _pickDate,
+                      icon: const Icon(Icons.calendar_today_outlined, size: 16),
+                      label: Text(_dateLabel()),
+                      style: OutlinedButton.styleFrom(
+                          visualDensity: VisualDensity.compact),
                     ),
+                    const SizedBox(width: AppSpacing.sm),
+                    if (!_showNote)
+                      OutlinedButton.icon(
+                        onPressed: () => setState(() => _showNote = true),
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('ملاحظة'),
+                        style: OutlinedButton.styleFrom(
+                            visualDensity: VisualDensity.compact),
+                      ),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                TextField(
-                  controller: _noteCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'ملاحظة (اختياري)',
-                    border: OutlineInputBorder(),
-                    isDense: true,
+                if (_showNote) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    controller: _noteCtrl,
+                    autofocus: !_isEditing,
+                    decoration: const InputDecoration(
+                      labelText: 'ملاحظة (اختياري)',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
                   ),
-                ),
+                ],
                 const SizedBox(height: AppSpacing.md),
                 FilledButton(
                   onPressed: _save,
