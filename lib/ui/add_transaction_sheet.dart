@@ -64,22 +64,38 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     _amountCtrl.selection = TextSelection.collapsed(offset: next.length);
   }
 
-  Widget _opButton(String op) => SizedBox(
-        width: 44,
-        height: 32,
-        child: OutlinedButton(
-          style: OutlinedButton.styleFrom(
-            padding: EdgeInsets.zero,
-            visualDensity: VisualDensity.compact,
+  Widget _opButton(String op) {
+    // '+' takes the app's accent colour (whatever the user picked); '−' is
+    // always red — so add vs. subtract read at a glance. Borderless tinted
+    // circles, so they sit on the amount as deliberate affordances rather than
+    // boxed-on buttons. The glyph is a proper minus, but '-' (ASCII) is inserted.
+    final minus = op == '-';
+    final color =
+        minus ? Colors.red.shade400 : Theme.of(context).colorScheme.primary;
+    return Material(
+      color: color.withValues(alpha: 0.12),
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _appendOp(minus ? '-' : '+'),
+        child: SizedBox(
+          width: 38,
+          height: 38,
+          child: Center(
+            child: Text(
+              minus ? '−' : '+',
+              style: TextStyle(
+                fontSize: 22,
+                height: 1,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
           ),
-          onPressed: () => _appendOp(op),
-          // Display a proper minus glyph, but insert the ASCII '-' the parser
-          // understands.
-          child: Text(op == '-' ? '−' : op,
-              style:
-                  const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
         ),
-      );
+      ),
+    );
+  }
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -173,12 +189,12 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                     const SizedBox(height: AppSpacing.md),
                   ],
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // A spacer the width of the operator buttons, so the amount
-                      // stays visually centred between them.
-                      const SizedBox(width: 44),
-                      Expanded(
+                      // Sized to its content, so the whole [amount + ops] group
+                      // sits centred and the buttons stay right beside the digits.
+                      IntrinsicWidth(
                         child: TextField(
                           controller: _amountCtrl,
                           autofocus: !_isEditing,
@@ -197,13 +213,14 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                           ),
                         ),
                       ),
-                      // Calculator operators, beside the amount (not below, to
-                      // stay clear of the number pad).
+                      const SizedBox(width: AppSpacing.md),
+                      // Calculator operators hug the number (beside it, not below,
+                      // to stay clear of the pad). '+' takes the accent, '−' red.
                       Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           _opButton('+'),
-                          const SizedBox(height: AppSpacing.xs),
+                          const SizedBox(height: AppSpacing.sm),
                           _opButton('-'),
                         ],
                       ),
@@ -258,6 +275,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 // date is "today" almost always and the note is usually empty,
                 // so they stay one tap away without crowding the picker above.
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     OutlinedButton.icon(
                       onPressed: _pickDate,
