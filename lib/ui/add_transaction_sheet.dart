@@ -65,31 +65,27 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   }
 
   Widget _opButton(String op) {
-    // '+' takes the app's accent colour (whatever the user picked); '−' is
-    // always red — so add vs. subtract read at a glance. Borderless tinted
-    // circles, so they sit on the amount as deliberate affordances rather than
-    // boxed-on buttons. The glyph is a proper minus, but '-' (ASCII) is inserted.
+    // Just the symbol — no background. '+' takes the app's accent colour
+    // (whatever the user picked); '−' is always red, so add vs. subtract read at
+    // a glance. Heavy and large for presence. The glyph is a proper minus, but
+    // '-' (ASCII) is what gets inserted.
     final minus = op == '-';
     final color =
         minus ? Colors.red.shade400 : Theme.of(context).colorScheme.primary;
-    return Material(
-      color: color.withValues(alpha: 0.12),
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => _appendOp(minus ? '-' : '+'),
-        child: SizedBox(
-          width: 38,
-          height: 38,
-          child: Center(
-            child: Text(
-              minus ? '−' : '+',
-              style: TextStyle(
-                fontSize: 22,
-                height: 1,
-                fontWeight: FontWeight.w800,
-                color: color,
-              ),
+    return InkResponse(
+      onTap: () => _appendOp(minus ? '-' : '+'),
+      radius: 26,
+      child: SizedBox(
+        width: 40,
+        height: 36,
+        child: Center(
+          child: Text(
+            minus ? '−' : '+',
+            style: TextStyle(
+              fontSize: 34,
+              height: 1,
+              fontWeight: FontWeight.w900,
+              color: color,
             ),
           ),
         ),
