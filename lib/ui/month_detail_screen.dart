@@ -2,32 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
-import '../domain/calendar_format.dart';
 import '../domain/date_grouping.dart';
+import '../domain/financial_period.dart';
 import 'theme/tokens.dart';
 import 'widgets/day_group_card.dart';
 import 'widgets/net_summary_card.dart';
 
-/// Income/expense/net summary + day-grouped transaction list for one
-/// arbitrary month -- the same shape as HomeScreen's body, generalized to any
-/// [month] instead of always "this month".
+/// Income/expense/net summary + day-grouped transaction list for one salary
+/// cycle — the same shape as HomeScreen's body, generalized to any [cycle]
+/// instead of always "this cycle". [label] is the cycle's title (a month name,
+/// or a date range when it straddles two).
 class MonthDetailScreen extends StatelessWidget {
-  final MonthKey month;
-  const MonthDetailScreen({super.key, required this.month});
+  final FinancialPeriod cycle;
+  final String label;
+  const MonthDetailScreen(
+      {super.key, required this.cycle, required this.label});
 
   @override
   Widget build(BuildContext context) {
     final db = context.read<AppDatabase>();
     final money = NumberFormat('#,##0.00');
-    final hijri = context.watch<AppSettings>().useHijri;
 
     return Scaffold(
-      appBar: AppBar(title: Text(monthLabelFor(month, hijri: hijri))),
+      appBar: AppBar(title: Text(label)),
       body: StreamBuilder<List<TxnRow>>(
-        stream: db.transactionDao.watchForMonth(month),
+        stream: db.transactionDao.watchForRange(cycle.start, cycle.end),
         builder: (context, snapshot) {
           final rows = snapshot.data ?? const <TxnRow>[];
           double income = 0, expense = 0;
@@ -45,7 +46,7 @@ class MonthDetailScreen extends StatelessWidget {
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
               NetSummaryCard(
-                  title: 'صافي الشهر',
+                  title: 'صافي الدورة',
                   income: income,
                   expense: expense,
                   money: money),
@@ -53,7 +54,7 @@ class MonthDetailScreen extends StatelessWidget {
               if (rows.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
-                  child: Center(child: Text('لا توجد عمليات في هذا الشهر')),
+                  child: Center(child: Text('لا توجد عمليات في هذه الدورة')),
                 )
               else
                 for (final group in groups) ...[

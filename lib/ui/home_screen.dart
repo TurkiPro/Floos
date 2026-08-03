@@ -129,6 +129,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   MaterialPageRoute(builder: (_) => const StatisticsScreen()),
                 ),
                 salaryHint: _salaryHint(incomeRules, now),
+                cycle: period,
               ),
               // Three live streams feed the dashboard: all transactions (balance
               // + the period's income/spend + the expense list), all savings
@@ -173,6 +174,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   weekStatus: weekStatus,
                                   upcoming: upcomingCommitments(
                                       expenseRules, now, period.end),
+                                  period: period,
                                 );
                               },
                             );
@@ -217,9 +219,11 @@ class _HomeHeader extends StatelessWidget {
   final VoidCallback onSettings;
   final VoidCallback onStats;
   final String? salaryHint;
+  final FinancialPeriod cycle;
   const _HomeHeader({
     required this.onSettings,
     required this.onStats,
+    required this.cycle,
     this.salaryHint,
   });
 
@@ -229,11 +233,9 @@ class _HomeHeader extends StatelessWidget {
     final onAccent = scheme.onPrimary;
     final progress = Theme.of(context).extension<AccentPalette>()!.progress;
     final hijri = context.watch<AppSettings>().useHijri;
-    final now = DateTime.now();
-    final month = monthLabelFor(
-      MonthKey(year: now.year, month: now.month),
-      hijri: hijri,
-    );
+    // The current salary cycle (a month name when it lines up, a date range when
+    // it straddles two), never a bare calendar month.
+    final month = cycleLabelFor(cycle, hijri: hijri);
 
     return ClipRRect(
       borderRadius: const BorderRadius.only(
@@ -421,6 +423,7 @@ class _DashboardBody extends StatelessWidget {
   final List<SavingsContribution> contributions;
   final WeeklyBudgetStatus weekStatus;
   final List<UpcomingCommitment> upcoming;
+  final FinancialPeriod period;
   const _DashboardBody({
     required this.data,
     required this.money,
@@ -428,28 +431,32 @@ class _DashboardBody extends StatelessWidget {
     required this.contributions,
     required this.weekStatus,
     required this.upcoming,
+    required this.period,
   });
 
-  /// Goals still owed this month's deposit: income has landed, the goal has a
+  /// Goals still owed this cycle's deposit: income has landed, the goal has a
   /// deadline and isn't met, and the user hasn't already deposited or skipped
-  /// it this month. Amounts are recomputed live from the saved total.
+  /// it this cycle. Amounts are recomputed live from the saved total.
   List<_PendingDeposit> _pendingDeposits(BuildContext context, DateTime now) {
     if (!data.incomeReceivedThisMonth) return const [];
     final settings = context.watch<AppSettings>();
-    bool inMonth(DateTime d) => d.year == now.year && d.month == now.month;
 
     final savedByGoal = <int, double>{};
-    final contributedThisMonth = <int>{};
+    final contributedThisCycle = <int>{};
     for (final c in contributions) {
       savedByGoal[c.goalId] = (savedByGoal[c.goalId] ?? 0) + c.amount;
-      if (inMonth(c.date)) contributedThisMonth.add(c.goalId);
+      // Salary-cycle aware, not the calendar month: a deposit made earlier in
+      // this cycle — even if it landed in the previous calendar month (an early
+      // payday) — still counts, so the card stops asking for a goal you've
+      // already funded this cycle.
+      if (period.contains(c.date)) contributedThisCycle.add(c.goalId);
     }
 
     final pending = <_PendingDeposit>[];
     for (final goal in goals) {
       if (goal.targetDate == null) continue;
-      if (contributedThisMonth.contains(goal.id)) continue;
-      if (settings.isDepositSkipped(goal.id, now)) continue;
+      if (contributedThisCycle.contains(goal.id)) continue;
+      if (settings.isDepositSkipped(goal.id, period.start)) continue;
       final monthly = suggestedMonthlyDeposit(
         target: goal.targetAmount,
         saved: savedByGoal[goal.id] ?? 0,
@@ -529,7 +536,8 @@ class _DashboardBody extends StatelessWidget {
         ],
         if (pending.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.md),
-          _SavingsPromptCard(pending: pending, money: money),
+          _SavingsPromptCard(
+              pending: pending, money: money, cycleStart: period.start),
         ],
         const SizedBox(height: AppSpacing.lg),
         Padding(
@@ -928,7 +936,12 @@ class _UpcomingCard extends StatelessWidget {
 class _SavingsPromptCard extends StatelessWidget {
   final List<_PendingDeposit> pending;
   final NumberFormat money;
-  const _SavingsPromptCard({required this.pending, required this.money});
+
+  /// The salary cycle a "skip" is scoped to (so it clears next payday, not on a
+  /// calendar-month rollover).
+  final DateTime cycleStart;
+  const _SavingsPromptCard(
+      {required this.pending, required this.money, required this.cycleStart});
 
   Future<void> _deposit(
       BuildContext context, SavingsGoal goal, double amount) async {
@@ -1038,7 +1051,7 @@ class _SavingsPromptCard extends StatelessWidget {
                 TextButton(
                   onPressed: () => context
                       .read<AppSettings>()
-                      .skipDeposit(p.goal.id, DateTime.now()),
+                      .skipDeposit(p.goal.id, cycleStart),
                   child: const Text('تخطّي هذا الشهر'),
                 ),
               ],

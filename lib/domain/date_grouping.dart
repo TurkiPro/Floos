@@ -87,6 +87,9 @@ String monthLabel(MonthKey key) {
   return '${_arabicMonthNames[key.month - 1]} ${key.year}';
 }
 
+/// Just the Arabic (Gregorian) month name for [month] (1–12), e.g. "يوليو".
+String gregorianMonthName(int month) => _arabicMonthNames[month - 1];
+
 // DateTime.weekday is 1 = Monday … 7 = Sunday.
 const _arabicDayNames = [
   'الإثنين',

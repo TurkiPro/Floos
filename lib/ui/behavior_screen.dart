@@ -4,20 +4,23 @@ import 'package:provider/provider.dart';
 
 import '../app_settings.dart';
 import '../data/database.dart';
+import '../data/enums.dart';
 import '../domain/calendar_format.dart';
 import '../domain/category_breakdown.dart';
+import '../domain/financial_period.dart';
 import '../domain/period_summary.dart';
 import 'category_detail_screen.dart';
 import 'theme/tokens.dart';
 
-/// Which period the behaviour breakdown groups by.
-enum BehaviorScope { monthly, yearly }
+/// Which window the behaviour breakdown groups by: the salary cycle (the app's
+/// default unit) or the calendar year.
+enum BehaviorScope { cycle, yearly }
 
-/// Income vs spending vs savings vs what was left, one row per period.
-/// Used for both the per-month and per-year views -- the only difference is
-/// how the rows are aggregated and labelled. Each period expands to show its
-/// top spending categories (with per-category averages) and drills into any
-/// category's transactions.
+/// Income vs spending vs savings vs what was left, one row per window. Used for
+/// both the per-cycle and per-year views — the only difference is how the rows
+/// are aggregated and labelled. Each window expands to show its top spending
+/// categories (with per-category averages) and drills into any category's
+/// transactions.
 class BehaviorScreen extends StatelessWidget {
   final BehaviorScope scope;
   const BehaviorScreen({super.key, required this.scope});
@@ -27,11 +30,12 @@ class BehaviorScreen extends StatelessWidget {
     final db = context.read<AppDatabase>();
     final money = NumberFormat('#,##0');
     final hijri = context.watch<AppSettings>().useHijri;
-    final monthly = scope == BehaviorScope.monthly;
+    final byCycle = scope == BehaviorScope.cycle;
+    final now = DateTime.now();
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(monthly ? 'سلوك كل شهر' : 'سلوك كل سنة'),
+        title: Text(byCycle ? 'سلوك كل دورة' : 'سلوك كل سنة'),
       ),
       body: StreamBuilder<List<Category>>(
         stream: db.categoryDao.watchAll(),
@@ -48,33 +52,32 @@ class BehaviorScreen extends StatelessWidget {
                 builder: (context, contribSnap) {
                   final contributions =
                       contribSnap.data ?? const <SavingsContribution>[];
-                  final periods = monthly
-                      ? monthlySummaries(rows, contributions)
-                      : yearlySummaries(rows, contributions);
-                  if (periods.isEmpty) {
-                    return const Center(child: Text('لا توجد بيانات بعد'));
-                  }
-                  return ListView.builder(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
-                    itemCount: periods.length,
-                    itemBuilder: (context, i) {
-                      final p = periods[i];
-                      // This period's transactions, for its category breakdown.
-                      final periodRows = rows.where((r) {
-                        final d = r.txn.date;
-                        return monthly
-                            ? (d.year == p.year && d.month == p.month)
-                            : d.year == p.year;
-                      }).toList();
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                        child: _PeriodCard(
-                          period: p,
-                          periodRows: periodRows,
-                          byId: byId,
-                          money: money,
-                          hijri: hijri,
-                        ),
+                  return StreamBuilder<List<RecurrenceRule>>(
+                    stream: db.recurrenceDao.watchByType(TxnType.income),
+                    builder: (context, rulesSnap) {
+                      final incomeRules =
+                          rulesSnap.data ?? const <RecurrenceRule>[];
+                      final items = byCycle
+                          ? _cycleItems(rows, contributions, incomeRules, now)
+                          : _yearItems(rows, contributions);
+                      if (items.isEmpty) {
+                        return const Center(child: Text('لا توجد بيانات بعد'));
+                      }
+                      return ListView.builder(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        itemCount: items.length,
+                        itemBuilder: (context, i) {
+                          return Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: AppSpacing.md),
+                            child: _PeriodCard(
+                              item: items[i],
+                              byId: byId,
+                              money: money,
+                              hijri: hijri,
+                            ),
+                          );
+                        },
                       );
                     },
                   );
@@ -86,17 +89,83 @@ class BehaviorScreen extends StatelessWidget {
       ),
     );
   }
+
+  List<_BehaviorItem> _cycleItems(
+    List<TxnRow> rows,
+    List<SavingsContribution> contributions,
+    List<RecurrenceRule> incomeRules,
+    DateTime now,
+  ) {
+    return [
+      for (final cs in cycleSummaries(rows, contributions, incomeRules, now))
+        _BehaviorItem(
+          period: cs.period,
+          income: cs.income,
+          spent: cs.spent,
+          saved: cs.saved,
+          rows: [
+            for (final r in rows)
+              if (cs.period.contains(r.txn.date)) r
+          ],
+          weeks: cs.period.end.difference(cs.period.start).inDays / 7.0,
+        ),
+    ];
+  }
+
+  List<_BehaviorItem> _yearItems(
+    List<TxnRow> rows,
+    List<SavingsContribution> contributions,
+  ) {
+    return [
+      for (final p in yearlySummaries(rows, contributions))
+        _BehaviorItem(
+          year: p.year,
+          income: p.income,
+          spent: p.spent,
+          saved: p.saved,
+          rows: [
+            for (final r in rows)
+              if (r.txn.date.year == p.year) r
+          ],
+          weeks: DateTime(p.year + 1).difference(DateTime(p.year)).inDays / 7.0,
+        ),
+    ];
+  }
+}
+
+/// One window's numbers, decoupled from whether it's a cycle or a year.
+class _BehaviorItem {
+  final FinancialPeriod? period; // set for a cycle
+  final int? year; // set for a year
+  final double income;
+  final double spent;
+  final double saved;
+  final List<TxnRow> rows;
+  final double weeks;
+
+  const _BehaviorItem({
+    this.period,
+    this.year,
+    required this.income,
+    required this.spent,
+    required this.saved,
+    required this.rows,
+    required this.weeks,
+  });
+
+  double get remaining => income - spent - saved;
+  double? get savingsRate => income > 0 ? saved / income : null;
+  String title(bool hijri) =>
+      period != null ? cycleLabelFor(period!, hijri: hijri) : '$year';
 }
 
 class _PeriodCard extends StatefulWidget {
-  final PeriodSummary period;
-  final List<TxnRow> periodRows;
+  final _BehaviorItem item;
   final Map<int, Category> byId;
   final NumberFormat money;
   final bool hijri;
   const _PeriodCard({
-    required this.period,
-    required this.periodRows,
+    required this.item,
     required this.byId,
     required this.money,
     required this.hijri,
@@ -114,26 +183,19 @@ class _PeriodCardState extends State<_PeriodCard> {
 
   @override
   Widget build(BuildContext context) {
-    final period = widget.period;
+    final item = widget.item;
     final money = widget.money;
     final scheme = Theme.of(context).colorScheme;
-    final key = period.monthKey;
-    final title = key == null
-        ? '${period.year}'
-        : monthLabelFor(key, hijri: widget.hijri);
-    final periodWeeks = period.month == null
-        ? DateTime(period.year + 1).difference(DateTime(period.year)).inDays /
-            7.0
-        : DateTime(period.year, period.month! + 1, 0).day / 7.0;
+    final title = item.title(widget.hijri);
 
     // The bar shows how the income was split: spent / saved / left over.
-    final income = period.income;
-    final spentPct = income > 0 ? (period.spent / income).clamp(0.0, 1.0) : 0.0;
-    final savedPct = income > 0 ? (period.saved / income).clamp(0.0, 1.0) : 0.0;
+    final income = item.income;
+    final spentPct = income > 0 ? (item.spent / income).clamp(0.0, 1.0) : 0.0;
+    final savedPct = income > 0 ? (item.saved / income).clamp(0.0, 1.0) : 0.0;
     final leftPct = (1 - spentPct - savedPct).clamp(0.0, 1.0);
-    final rate = period.savingsRate;
+    final rate = item.savingsRate;
 
-    final breakdown = categoryBreakdown(widget.periodRows);
+    final breakdown = categoryBreakdown(item.rows);
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -191,14 +253,14 @@ class _PeriodCardState extends State<_PeriodCard> {
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
-              _stat(context, 'الدخل', period.income, AppColors.income),
-              _stat(context, 'المصروف', period.spent, _spentColor),
-              _stat(context, 'المدخر', period.saved, scheme.primary),
+              _stat(context, 'الدخل', item.income, AppColors.income),
+              _stat(context, 'المصروف', item.spent, _spentColor),
+              _stat(context, 'المدخر', item.saved, scheme.primary),
               _stat(
                 context,
                 'المتبقي',
-                period.remaining,
-                period.remaining >= 0 ? scheme.onSurface : Colors.red.shade400,
+                item.remaining,
+                item.remaining >= 0 ? scheme.onSurface : Colors.red.shade400,
               ),
             ],
           ),
@@ -227,8 +289,8 @@ class _PeriodCardState extends State<_PeriodCard> {
             if (_expanded)
               for (final stat in breakdown.take(5)) ...[
                 const SizedBox(height: AppSpacing.sm),
-                categoryStatRow(context, stat, period.spent, money, widget.byId,
-                    periodLabel: title, periodWeeks: periodWeeks),
+                categoryStatRow(context, stat, item.spent, money, widget.byId,
+                    periodLabel: title, periodWeeks: item.weeks),
               ],
           ],
         ],

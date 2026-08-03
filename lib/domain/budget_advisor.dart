@@ -102,6 +102,29 @@ List<FinancialPeriod> previousCycles(
   ];
 }
 
+/// Every salary cycle from the one containing [earliest] up to and including the
+/// current cycle — newest first — so history can be browsed by cycle instead of
+/// by calendar month. Boundaries step back one salary cadence at a time from the
+/// current cycle's start (an early/late payday shifts them all together); falls
+/// back to whole calendar months when there's no recurring income.
+List<FinancialPeriod> cyclesCovering(
+    List<RecurrenceRule> incomeRules, DateTime earliest, DateTime now) {
+  final current = financialPeriod(incomeRules, now);
+  final salary = _salaryRule(incomeRules);
+  final freq = salary?.frequency ?? Frequency.monthly;
+  final interval = salary == null || salary.interval < 1 ? 1 : salary.interval;
+  final earliestDay = dateOnly(earliest);
+  final out = <FinancialPeriod>[current];
+  var anchor = dateOnly(current.start);
+  var guard = 0;
+  while (anchor.isAfter(earliestDay) && guard++ < 1200) {
+    final start = _minusPeriods(anchor, freq, interval, 1);
+    out.add(FinancialPeriod(start, anchor));
+    anchor = start;
+  }
+  return out;
+}
+
 /// [d] shifted back by [k] whole periods of [freq]×[interval]. DateTime's
 /// constructor normalises any month/day overflow.
 DateTime _minusPeriods(DateTime d, Frequency freq, int interval, int k) {

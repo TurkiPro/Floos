@@ -221,7 +221,7 @@ void main() {
       expect(s.spentThisMonth, 300);
     });
 
-    test('monthlyTrend has 6 entries, oldest -> newest, ending this month', () {
+    test('cycleTrend has 6 entries, oldest -> newest, ending this cycle', () {
       final s = StatisticsSummary.from(
           [_expense(10, DateTime(2026, 7, 1))],
           const [],
@@ -229,10 +229,12 @@ void main() {
           const <RecurrenceRule>[],
           now,
           july);
-      expect(s.monthlyTrend, hasLength(6));
-      expect(s.monthlyTrend.last.key.year, 2026);
-      expect(s.monthlyTrend.last.key.month, 7);
-      expect(s.monthlyTrend.first.key.month, 2); // Feb 2026
+      expect(s.cycleTrend, hasLength(6));
+      // Last is the current cycle (July); it holds the one 10 ⃁ expense.
+      expect(s.cycleTrend.last.key.start, DateTime(2026, 7, 1));
+      expect(s.cycleTrend.last.value, 10);
+      // Oldest is five cycles back — February.
+      expect(s.cycleTrend.first.key.start, DateTime(2026, 2, 1));
     });
   });
 }

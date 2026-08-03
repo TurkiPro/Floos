@@ -234,8 +234,7 @@ class StatisticsScreen extends StatelessWidget {
 
     return Row(
       children: [
-        tile(Icons.calendar_month_outlined, 'سلوك كل شهر',
-            BehaviorScope.monthly),
+        tile(Icons.event_repeat_outlined, 'سلوك كل دورة', BehaviorScope.cycle),
         const SizedBox(width: AppSpacing.md),
         tile(Icons.event_note_outlined, 'سلوك كل سنة', BehaviorScope.yearly),
       ],
@@ -957,20 +956,20 @@ class StatisticsScreen extends StatelessWidget {
       BuildContext context, StatisticsSummary s, NumberFormat money) {
     final scheme = Theme.of(context).colorScheme;
     final maxVal =
-        s.monthlyTrend.fold<double>(1, (m, e) => e.value > m ? e.value : m);
+        s.cycleTrend.fold<double>(1, (m, e) => e.value > m ? e.value : m);
     return _card(
       context,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _label(context, 'الإنفاق خلال آخر ٦ أشهر'),
+          _label(context, 'الإنفاق خلال آخر ٦ دورات'),
           const SizedBox(height: AppSpacing.md),
           SizedBox(
             height: 120,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                for (final e in s.monthlyTrend)
+                for (final e in s.cycleTrend)
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -988,7 +987,7 @@ class StatisticsScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Text(_shortMonth(e.key),
+                          Text(_shortCycle(e.key),
                               style: TextStyle(
                                   fontSize: 10,
                                   color: scheme.onSurfaceVariant)),
@@ -1047,5 +1046,8 @@ class StatisticsScreen extends StatelessWidget {
     'نوف',
     'ديس',
   ];
-  String _shortMonth(MonthKey k) => _arMonthsShort[k.month - 1];
+
+  /// A compact axis label for a cycle: the short name of the month it starts in
+  /// (unique across the 6 trend cycles for a monthly salary).
+  String _shortCycle(FinancialPeriod p) => _arMonthsShort[p.start.month - 1];
 }

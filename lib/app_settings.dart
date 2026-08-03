@@ -134,14 +134,17 @@ class AppSettings extends ChangeNotifier {
 
   // ------------------------------------------------------ savings prompt
 
-  static String _depositKey(int goalId, DateTime month) =>
-      '$goalId:${month.year}-${month.month}';
+  // Keyed by the salary-cycle start, NOT the calendar month: a skip lasts for the
+  // cycle it was made in and clears itself the moment the next salary cycle
+  // begins — never on a calendar-month rollover.
+  static String _depositKey(int goalId, DateTime cycleStart) =>
+      '$goalId:${cycleStart.year}-${cycleStart.month}-${cycleStart.day}';
 
-  bool isDepositSkipped(int goalId, DateTime month) =>
-      _skippedDeposits.contains(_depositKey(goalId, month));
+  bool isDepositSkipped(int goalId, DateTime cycleStart) =>
+      _skippedDeposits.contains(_depositKey(goalId, cycleStart));
 
-  void skipDeposit(int goalId, DateTime month) {
-    _skippedDeposits.add(_depositKey(goalId, month));
+  void skipDeposit(int goalId, DateTime cycleStart) {
+    _skippedDeposits.add(_depositKey(goalId, cycleStart));
     _prefs.setStringList(_kSkippedDeposits, _skippedDeposits.toList());
     notifyListeners();
   }

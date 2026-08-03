@@ -7,7 +7,6 @@ import 'package:path_provider/path_provider.dart';
 
 import 'enums.dart';
 import 'tables.dart';
-import '../domain/date_grouping.dart';
 import '../domain/recurrence_math.dart';
 
 part 'database.g.dart';
@@ -209,19 +208,6 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
   /// Wipes all transactions -- used only by the dev data tools in Settings.
   Future<void> clearAll() => delete(transactions).go();
 
-  /// Every distinct month that has at least one transaction, most recent
-  /// first. Only pulls the `date` column (not full rows) and does the
-  /// distinct/sort in Dart -- consistent with how the rest of the app treats
-  /// dates (recurrence math, day grouping) as plain Dart `DateTime` values
-  /// rather than relying on SQLite date functions.
-  Stream<List<MonthKey>> watchActiveMonths() {
-    final query = selectOnly(transactions)..addColumns([transactions.date]);
-    return query.watch().map((rows) {
-      final dates = rows.map((r) => r.read(transactions.date)!).toList();
-      return distinctMonthsDesc(dates);
-    });
-  }
-
   /// Every transaction joined with its category, newest first, uncapped.
   /// Backs the home dashboard, which needs both all-time totals (for the
   /// running balance) and the current month's expense list from one stream.
@@ -247,9 +233,11 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
   /// month-detail browsing -- a ranged query rather than filtering
   /// [watchRecent], since that stream is capped and would silently show an
   /// incomplete picture for a month older than the cap.
-  Stream<List<TxnRow>> watchForMonth(MonthKey month) {
-    final start = DateTime(month.year, month.month, 1);
-    final end = DateTime(month.year, month.month + 1, 1);
+  /// Transactions in the half-open window [start, end), joined with their
+  /// category, newest first. Backs cycle-detail browsing — a ranged query
+  /// rather than filtering the capped [watchRecent], and salary-cycle windows
+  /// don't line up with calendar months, so it takes arbitrary bounds.
+  Stream<List<TxnRow>> watchForRange(DateTime start, DateTime end) {
     final query = select(transactions).join([
       innerJoin(categories, categories.id.equalsExp(transactions.categoryId)),
     ])

@@ -1,6 +1,6 @@
 import '../data/database.dart';
 import '../data/enums.dart';
-import 'date_grouping.dart';
+import 'budget_advisor.dart' show previousCycles;
 import 'financial_period.dart';
 import 'spending_window.dart';
 import 'weekly_budget_status.dart';
@@ -50,7 +50,8 @@ class StatisticsSummary {
   final int? topWeekday;
   final double topWeekdayAvg;
   final List<MapEntry<int, double>> topCategories; // topLevelId -> amount
-  final List<MapEntry<MonthKey, double>> monthlyTrend;
+  /// Total spend per salary cycle for the last up to 6 cycles, oldest → newest.
+  final List<MapEntry<FinancialPeriod, double>> cycleTrend;
 
   const StatisticsSummary({
     required this.allExpenseCount,
@@ -81,7 +82,7 @@ class StatisticsSummary {
     required this.topWeekday,
     required this.topWeekdayAvg,
     required this.topCategories,
-    required this.monthlyTrend,
+    required this.cycleTrend,
   });
 
   static StatisticsSummary from(
@@ -118,7 +119,6 @@ class StatisticsSummary {
     DateTime? earliestInWindow;
     TxnRow? biggestExpense;
     final byTop = <int, double>{};
-    final byMonth = <MonthKey, double>{};
     final byDayThisMonth = <DateTime, double>{};
     final weekdayTotals = <int, double>{};
 
@@ -135,9 +135,6 @@ class StatisticsSummary {
 
       allExpenseCount++;
       final kind = r.category.kind;
-
-      final mk = MonthKey(year: date.year, month: date.month);
-      byMonth[mk] = (byMonth[mk] ?? 0) + amount;
 
       if (!date.isBefore(prevStart) && date.isBefore(period.start)) {
         lastMonthSpent += amount;
@@ -265,13 +262,24 @@ class StatisticsSummary {
     final topCategories = byTop.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
-    // Last 6 months including this one, oldest -> newest for the bar row.
-    final trend = <MapEntry<MonthKey, double>>[];
-    for (var i = 5; i >= 0; i--) {
-      final d = DateTime(now.year, now.month - i, 1);
-      final mk = MonthKey(year: d.year, month: d.month);
-      trend.add(MapEntry(mk, byMonth[mk] ?? 0));
-    }
+    // Last up to 6 salary cycles including this one, oldest -> newest, each with
+    // its total spend — the bar row browses by cycle, never the calendar month.
+    final trendPeriods = <FinancialPeriod>[
+      ...previousCycles(incomeRules, now, 5).reversed,
+      period,
+    ];
+    final trend = [
+      for (final p in trendPeriods)
+        MapEntry(
+          p,
+          rows.fold<double>(
+              0,
+              (sum, r) =>
+                  r.txn.type == TxnType.expense && p.contains(r.txn.date)
+                      ? sum + r.txn.amount
+                      : sum),
+        ),
+    ];
 
     return StatisticsSummary(
       allExpenseCount: allExpenseCount,
@@ -303,7 +311,7 @@ class StatisticsSummary {
       topWeekday: topWeekday,
       topWeekdayAvg: topWeekdayAvg,
       topCategories: topCategories.take(5).toList(),
-      monthlyTrend: trend,
+      cycleTrend: trend,
     );
   }
 

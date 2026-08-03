@@ -8,6 +8,7 @@ import '../domain/savings_math.dart';
 import 'add_contribution_sheet.dart';
 import 'add_goal_sheet.dart';
 import 'goal_detail_screen.dart';
+import 'savings_behavior_screen.dart';
 import 'theme/tokens.dart';
 import 'widgets/day_section.dart';
 import 'widgets/swipe_to_delete.dart';
@@ -25,6 +26,13 @@ class SavingsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('الادخار'),
         actions: [
+          IconButton(
+            tooltip: 'سلوك الادخار',
+            icon: const Icon(Icons.insights_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SavingsBehaviorScreen()),
+            ),
+          ),
           IconButton(
             tooltip: 'إيداع',
             icon: const Icon(Icons.add_card_outlined),

@@ -1,6 +1,8 @@
 import '../data/database.dart';
 import '../data/enums.dart';
+import 'budget_advisor.dart' show cyclesCovering;
 import 'date_grouping.dart';
+import 'financial_period.dart';
 
 /// How one period (a month or a year) behaved: what came in, what went out,
 /// what was set aside, and what was left over at the end of it.
@@ -29,6 +31,75 @@ class PeriodSummary {
 
   MonthKey? get monthKey =>
       month == null ? null : MonthKey(year: year, month: month!);
+}
+
+/// How one salary cycle behaved: its window plus income/spent/saved. The
+/// cycle-based counterpart of [PeriodSummary], carrying the [FinancialPeriod] so
+/// callers can label it (a month name, or a date range when it straddles two).
+class CycleSummary {
+  final FinancialPeriod period;
+  final double income;
+  final double spent;
+  final double saved;
+  const CycleSummary({
+    required this.period,
+    required this.income,
+    required this.spent,
+    required this.saved,
+  });
+
+  double get remaining => income - spent - saved;
+  double? get savingsRate => income > 0 ? saved / income : null;
+}
+
+/// One summary per salary cycle that has any activity, newest first — the
+/// cycle-based history the whole app browses by (never the calendar month).
+List<CycleSummary> cycleSummaries(
+  List<TxnRow> rows,
+  List<SavingsContribution> contributions,
+  List<RecurrenceRule> incomeRules,
+  DateTime now,
+) {
+  DateTime? earliest;
+  void see(DateTime d) {
+    if (earliest == null || d.isBefore(earliest!)) earliest = d;
+  }
+
+  for (final r in rows) {
+    see(r.txn.date);
+  }
+  for (final c in contributions) {
+    if (!c.external) see(c.date);
+  }
+  if (earliest == null) return const [];
+
+  final cycles = cyclesCovering(incomeRules, earliest!, now); // newest first
+  final out = <CycleSummary>[];
+  for (final p in cycles) {
+    var income = 0.0, spent = 0.0, saved = 0.0;
+    var active = false;
+    for (final r in rows) {
+      if (!p.contains(r.txn.date)) continue;
+      active = true;
+      if (r.txn.type == TxnType.income) {
+        income += r.txn.amount;
+      } else {
+        spent += r.txn.amount;
+      }
+    }
+    for (final c in contributions) {
+      if (c.external || !p.contains(c.date)) continue;
+      active = true;
+      saved += c.amount;
+    }
+    // Skip cycles with no activity at all (a gap between the user's active
+    // cycles must not appear as an empty row).
+    if (active) {
+      out.add(
+          CycleSummary(period: p, income: income, spent: spent, saved: saved));
+    }
+  }
+  return out;
 }
 
 /// One summary per month that has any activity, newest first.
