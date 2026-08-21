@@ -49,23 +49,44 @@ void main() {
     // Exercise the plugin init paths the same way main() does. These are the
     // calls that can throw MissingPluginException or fail a timezone lookup on
     // a real device; if any of them blow up, this test fails loudly.
-    await NotificationService.init();
-    await AppLockService.isAvailable();
-    await refreshAlerts(db, settings);
+    //
+    // Each is guarded by a timeout: on a CI simulator a native call can block
+    // forever (e.g. an iOS permission modal nothing can dismiss), which would
+    // wedge the whole capture with no clue where. The timeout unblocks it, the
+    // markers below pin the exact phase in the run log, and the screenshots
+    // still get taken.
+    debugPrint('SHOT-PHASE: notification init');
+    await NotificationService.init().timeout(const Duration(seconds: 20),
+        onTimeout: () {
+      debugPrint('SHOT-PHASE: notification init TIMED OUT');
+    });
+    debugPrint('SHOT-PHASE: app-lock isAvailable');
+    await AppLockService.isAvailable()
+        .timeout(const Duration(seconds: 20), onTimeout: () => false);
+    debugPrint('SHOT-PHASE: refreshAlerts');
+    await refreshAlerts(db, settings).timeout(const Duration(seconds: 20),
+        onTimeout: () {
+      debugPrint('SHOT-PHASE: refreshAlerts TIMED OUT');
+    });
 
+    debugPrint('SHOT-PHASE: pumpWidget');
     await tester.pumpWidget(FloosApp(db: db, settings: settings));
+    debugPrint('SHOT-PHASE: initial settle');
     await tester.pumpAndSettle(const Duration(seconds: 2));
 
     // Capture is only supported on the mobile targets. Skipping it elsewhere
     // lets the whole navigation path be validated on the desktop dev machine,
     // instead of only ever finding a bad finder inside a 10-minute CI run.
     Future<void> shoot(String name) async {
+      debugPrint('SHOT-PHASE: settling for $name');
       await tester.pumpAndSettle();
+      debugPrint('SHOT-PHASE: capturing $name');
       if (Platform.isAndroid || Platform.isIOS) {
         await binding.takeScreenshot(name);
       } else {
         debugPrint('SHOOT (skipped on this platform): $name');
       }
+      debugPrint('SHOT-PHASE: captured $name');
     }
 
     // 1. Home — the salary-cycle header, balance + savings, the cycle split,
