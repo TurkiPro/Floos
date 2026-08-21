@@ -135,6 +135,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The runner's DEFAULT Xcode is now 26, whose only simulators are iOS 26 —
+      # and Flutter 3.44.4 can't discover the Dart VM Service on those, so
+      # flutter drive hangs at "Waiting for VM Service port to be available".
+      # GitHub images ship several Xcodes; switch to 16 (iOS 18 runtime) BEFORE
+      # anything builds so pub get, the pre-build, the picked simulator and the
+      # drive all use one compatible toolchain. If no 15/16 is installed the log
+      # says so and we stay on the default (still worth the verbose run's info).
+      - name: Use a Flutter-compatible Xcode (avoid the iOS 26 simulator)
+        run: |
+          echo "--- Installed Xcodes ---"; ls -d /Applications/Xcode*.app || true
+          SEL=""
+          for xc in /Applications/Xcode_16*.app /Applications/Xcode_15*.app; do
+            [ -d "$xc" ] && SEL="$xc" && break
+          done
+          if [ -n "$SEL" ]; then
+            echo "Selecting $SEL"
+            sudo xcode-select -s "$SEL/Contents/Developer"
+          else
+            echo "::warning::No Xcode 15/16 on this runner; staying on default (likely iOS 26 only)."
+          fi
+          echo "--- Active Xcode ---"; xcodebuild -version
+          echo "--- iOS runtimes ---"; xcrun simctl list runtimes | grep -i ios || true
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -177,13 +200,6 @@ jobs:
 
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
-
-          # Bring up the Simulator UI on the booted device. A purely headless
-          # simctl-booted simulator can leave the app unable to finish launching
-          # and publish its Dart VM Service — which is exactly where flutter drive
-          # was hanging (Xcode build done, then no connection, no test output).
-          open -a Simulator --args -CurrentDeviceUDID "$UDID" || true
-          sleep 8
 
       - name: Run app on simulator and capture
         # --verbose so that if it still hangs after the Xcode build, the log
