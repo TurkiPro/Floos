@@ -108,4 +108,106 @@ void main() {
     expect(after.firstWhere((r) => r.txn.id == 1).txn.recurrenceId, isNull,
         reason: 'deleting a rule nulls its transactions post-migration');
   });
+
+  // The exact path a store user on 1.0.1 (schema 7) takes to 1.1.0 (schema 12):
+  // v8 override columns, v10 reflections table, v11 investments table, and the
+  // v12 last_paid_date column + back-fill. Builds a real v7 database with data
+  // and asserts it survives and every added feature works.
+  test('a v7 (1.0.1) database upgrades to the current schema', () async {
+    final dir = Directory.systemTemp.createTempSync('floos_v7');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final path = '${dir.path}/floos.sqlite';
+
+    // A date value the way it's stored on disk; the exact epoch scale doesn't
+    // matter to the assertions (they compare values drift itself reads back).
+    final salaryStamp = DateTime(2026, 7, 1).millisecondsSinceEpoch ~/ 1000;
+
+    final db7 = raw.sqlite3.open(path);
+    db7.execute('''
+      CREATE TABLE categories (
+        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL, icon_key TEXT NOT NULL, color_value INTEGER NOT NULL,
+        type INTEGER NOT NULL, parent_id INTEGER REFERENCES categories(id),
+        kind INTEGER NOT NULL DEFAULT 0, archived INTEGER NOT NULL DEFAULT 0,
+        sort_order INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE recurrence_rules (
+        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL,
+        amount REAL NOT NULL, category_id INTEGER NOT NULL REFERENCES categories(id),
+        type INTEGER NOT NULL, frequency INTEGER NOT NULL,
+        interval INTEGER NOT NULL DEFAULT 1, start_date INTEGER NOT NULL,
+        end_date INTEGER, last_materialized INTEGER,
+        active INTEGER NOT NULL DEFAULT 1, note TEXT);
+      CREATE TABLE transactions (
+        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, amount REAL NOT NULL,
+        category_id INTEGER NOT NULL REFERENCES categories(id),
+        type INTEGER NOT NULL, date INTEGER NOT NULL, note TEXT,
+        recurrence_id INTEGER REFERENCES recurrence_rules(id) ON DELETE SET NULL,
+        created_at INTEGER NOT NULL);
+      CREATE TABLE savings_goals (
+        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+        target_amount REAL NOT NULL, target_date INTEGER,
+        archived INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE savings_contributions (
+        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+        goal_id INTEGER NOT NULL REFERENCES savings_goals(id),
+        amount REAL NOT NULL, date INTEGER NOT NULL, note TEXT,
+        external INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE category_budgets (
+        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+        category_id INTEGER NOT NULL UNIQUE REFERENCES categories(id),
+        amount REAL NOT NULL);
+    ''');
+    db7.execute(
+        "INSERT INTO categories (id, name, icon_key, color_value, type) "
+        "VALUES (1, 'طعام', 'food', 0, 0), (9, 'راتب', 'salary', 0, 1);");
+    // A monthly salary rule with a materialized transaction — the v12 back-fill
+    // must set its last_paid_date from that transaction.
+    db7.execute(
+        "INSERT INTO recurrence_rules (id, title, amount, category_id, type, frequency, start_date, last_materialized) "
+        "VALUES (1, 'راتب', 6000, 9, 1, 2, $salaryStamp, $salaryStamp);");
+    db7.execute(
+        "INSERT INTO transactions (id, amount, category_id, type, date, recurrence_id, created_at) "
+        "VALUES (1, 6000, 9, 1, $salaryStamp, 1, $salaryStamp);");
+    db7.execute(
+        "INSERT INTO transactions (id, amount, category_id, type, date, created_at) "
+        "VALUES (2, 50, 1, 0, $salaryStamp, $salaryStamp);");
+    db7.execute(
+        "INSERT INTO savings_goals (id, name, target_amount) VALUES (1, 'هدف', 1000);");
+    db7.execute(
+        "INSERT INTO savings_contributions (id, goal_id, amount, date, external) "
+        "VALUES (1, 1, 200, $salaryStamp, 0), (2, 1, 5000, $salaryStamp, 1);");
+    db7.execute(
+        "INSERT INTO category_budgets (id, category_id, amount) VALUES (1, 1, 500);");
+    db7.execute('PRAGMA user_version = 7;');
+    db7.close();
+
+    final db = AppDatabase.forTesting(NativeDatabase(File(path)));
+    addTearDown(db.close);
+
+    // Data survived the 7 -> 12 chain.
+    final txns = await db.transactionDao.watchRecent().first;
+    expect(txns, hasLength(2));
+    final t1 = txns.firstWhere((r) => r.txn.id == 1);
+    expect(t1.txn.recurrenceId, 1);
+    expect((await db.budgetDao.getAll()).single.amount, 500);
+    final contribs = await db.savingsDao.watchContributions(1).first;
+    expect(
+        contribs.map((c) => c.external).toList(), containsAll([true, false]));
+
+    // v12: last_paid_date back-filled from the rule's most recent transaction.
+    final rule =
+        (await db.recurrenceDao.activeRules()).firstWhere((r) => r.id == 1);
+    expect(rule.lastPaidDate, t1.txn.date,
+        reason: 'v12 back-fills last_paid_date from the ledger');
+    // v8: the override columns exist and read as null.
+    expect(rule.nextOverrideDate, isNull);
+
+    // v10 reflections + v11 investments tables exist and work.
+    await db.weeklyReflectionDao.setNote(DateTime(2026, 7, 1), 'ملاحظة');
+    expect((await db.weeklyReflectionDao.watchAll().first), isNotEmpty);
+    await db.investmentDao
+        .add(name: 'سهم', amount: 100, date: DateTime(2026, 7, 1));
+    expect((await db.investmentDao.watchAll().first), isNotEmpty);
+  });
 }

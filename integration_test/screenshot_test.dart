@@ -42,6 +42,9 @@ void main() {
 
     SharedPreferences.setMockInitialValues({});
     final settings = AppSettings(await SharedPreferences.getInstance());
+    // Show the weekly-budget status card on home, so it can be captured and
+    // tapped through to the weekly-performance screen.
+    settings.setShowWeeklyStatusOnHome(true);
 
     // Exercise the plugin init paths the same way main() does. These are the
     // calls that can throw MissingPluginException or fail a timezone lookup on
@@ -65,34 +68,43 @@ void main() {
       }
     }
 
-    // 1. Home: header, balance + savings, the monthly split, the income-day
-    //    savings prompt, and the day-grouped expense list.
+    // 1. Home — the salary-cycle header, balance + savings, the cycle split,
+    //    the weekly-budget status, and the day-grouped expense list.
     await shoot('01_home');
 
-    // 2. Statistics.
+    // 2. Statistics — committed vs. discretionary, the weekly budget, and the
+    //    per-cycle spending trend.
     await tester.tap(find.byIcon(Icons.insights_outlined).first);
     await tester.pumpAndSettle();
     await shoot('02_statistics');
     await _back(tester);
 
-    // 3. Savings goals, with the auto-computed monthly deposit.
-    await tester.tap(find.text('الأهداف'));
-    await tester.pumpAndSettle();
-    await shoot('03_savings');
-    await _back(tester);
-
-    // 4. Income page.
-    await tester.tap(find.text('الدخل').first);
-    await tester.pumpAndSettle();
-    await shoot('04_income');
-    await _back(tester);
-
-    // 5. Categories, showing the sub-category tree.
+    // 3. Budgets — the advisor's one-tap suggestions, learned from your spending.
     await tester.tap(find.byIcon(Icons.settings_outlined).first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('الفئات'));
+    await tester.tap(find.text('الميزانيات'));
     await tester.pumpAndSettle();
-    await shoot('05_categories');
+    await shoot('03_budgets');
+    await _back(tester);
+    await _back(tester);
+
+    // 4. Weekly performance — each week judged against its own frozen budget.
+    await tester.tap(find.text('ميزانية الأسبوع'));
+    await tester.pumpAndSettle();
+    await shoot('04_weekly');
+    await _back(tester);
+
+    // 5. Savings goals — progress and the projected finish date.
+    await tester.tap(find.text('الأهداف'));
+    await tester.pumpAndSettle();
+    await shoot('05_savings');
+
+    // 6. Savings behaviour — rate vs. norm, streak, best cycle, per-cycle trend.
+    await tester.tap(find.byIcon(Icons.insights_outlined).first);
+    await tester.pumpAndSettle();
+    await shoot('06_savings_behavior');
+    await _back(tester);
+    await _back(tester);
   });
 }
 
