@@ -142,21 +142,29 @@ jobs:
       # anything builds so pub get, the pre-build, the picked simulator and the
       # drive all use one compatible toolchain. If no 15/16 is installed the log
       # says so and we stay on the default (still worth the verbose run's info).
-      - name: Use a Flutter-compatible Xcode (avoid the iOS 26 simulator)
+      - name: Use Xcode 16 and free space for the iOS 18 runtime
         run: |
           echo "--- Installed Xcodes ---"; ls -d /Applications/Xcode*.app || true
+          echo "--- Disk before ---"; df -h /
           SEL=""
           for xc in /Applications/Xcode_16*.app /Applications/Xcode_15*.app; do
             [ -d "$xc" ] && SEL="$xc" && break
           done
-          if [ -n "$SEL" ]; then
-            echo "Selecting $SEL"
-            sudo xcode-select -s "$SEL/Contents/Developer"
-          else
-            echo "::warning::No Xcode 15/16 on this runner; staying on default (likely iOS 26 only)."
+          if [ -z "$SEL" ]; then
+            echo "::error::No Xcode 15/16 on this runner — can't get an iOS 18 simulator."
+            exit 1
           fi
+          echo "Selecting $SEL"
+          sudo xcode-select -s "$SEL/Contents/Developer"
+          # The iOS 18 runtime is a ~7 GB download and the runner has only a few
+          # GB free — that's why -downloadPlatform kept failing. Reclaim ~20 GB by
+          # deleting the OTHER Xcodes (and the bundled iOS 26 runtime we can't use
+          # anyway), leaving room for the download.
+          for xc in /Applications/Xcode*.app; do
+            if [ "$xc" != "$SEL" ]; then echo "Removing $xc"; sudo rm -rf "$xc"; fi
+          done
+          echo "--- Disk after cleanup ---"; df -h /
           echo "--- Active Xcode ---"; xcodebuild -version
-          echo "--- iOS runtimes ---"; xcrun simctl list runtimes | grep -i ios || true
 
       # The image keeps the Xcode 16 app but trims its iOS 18 simulator runtime,
       # so a simulator build fails with "iOS 18.0 is not installed". Download the
