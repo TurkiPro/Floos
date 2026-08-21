@@ -22,6 +22,9 @@ jobs:
   android:
     name: Android screenshots (Play)
     runs-on: ubuntu-latest
+    # A healthy run is ~20 min; this fails a genuine hang (e.g. pumpAndSettle
+    # never settling) in minutes-with-logs instead of GitHub's 6-hour default.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -119,6 +122,10 @@ jobs:
   ios:
     name: iOS screenshots (App Store)
     runs-on: macos-latest
+    # Cold iOS builds on a fresh macOS runner are slow (see the pre-build step),
+    # so this is more generous than Android — but still bounded, so a real hang
+    # fails fast instead of sitting for hours.
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
 
@@ -130,6 +137,15 @@ jobs:
 
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
+
+      # Compile the iOS app (and run CocoaPods) BEFORE the capture step, exactly
+      # like the Android job's pre-build. Without this the whole cold Xcode build
+      # happens inside "Run app on simulator and capture", which on a fresh
+      # macos-latest runner takes 12-18 min — making a slow build visually
+      # indistinguishable from a hang. flutter drive then reuses these artifacts,
+      # so the capture step is nearly incremental. Simulator builds aren't signed.
+      - name: Pre-build the app (separates the cold Xcode build from capture)
+        run: flutter build ios --debug --simulator
 
       # Which iPhones exist depends on the Xcode baked into the runner image, and
       # that image moves: `macos-latest` rolled to macOS 26, the iPhone 16 family
