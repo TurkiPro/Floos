@@ -75,9 +75,10 @@ class AppShadows {
 /// fetches nothing at runtime. IBM Plex Sans Arabic is the shipped default;
 /// Cairo and Readex Pro are offered so the user can pick the look they like.
 enum AppFont {
-  plexArabic('IBM Plex Sans Arabic', 'الافتراضي', ['Tajawal']),
-  cairo('Cairo', 'Cairo', ['IBM Plex Sans Arabic', 'Tajawal']),
-  readexPro('Readex Pro', 'Readex Pro', ['IBM Plex Sans Arabic', 'Tajawal']);
+  plexArabic('IBM Plex Sans Arabic', 'الافتراضي', ['Tajawal', 'Saudi Riyal']),
+  cairo('Cairo', 'Cairo', ['IBM Plex Sans Arabic', 'Tajawal', 'Saudi Riyal']),
+  readexPro(
+      'Readex Pro', 'Readex Pro', ['IBM Plex Sans Arabic', 'Tajawal', 'Saudi Riyal']);
 
   const AppFont(this.family, this.label, this.fallback);
 

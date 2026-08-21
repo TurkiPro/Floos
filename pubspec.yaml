@@ -1,7 +1,7 @@
 name: floos
 description: "تطبيق بسيط لتتبع المصاريف — a minimal expense tracker."
 publish_to: "none"
-version: 1.1.0+25
+version: 1.1.1+26
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -137,4 +137,14 @@ flutter:
         - asset: assets/fonts/ReadexPro-SemiBold.ttf
           weight: 600
         - asset: assets/fonts/ReadexPro-Bold.ttf
+          weight: 700
+    # The official Saudi Riyal sign (U+20C1). Bundled only as a glyph fallback:
+    # the new symbol was encoded in Unicode 17 (2025), so none of the families
+    # above carry it and it renders as tofu ▯ on Android/older devices. This font
+    # maps the symbol at U+20C1 (regular + bold), so every amount's ' ⃁' suffix
+    # falls back to it. SIL OFL 1.1 (see SaudiRiyal-OFL.txt); by Emran Alhaddad.
+    - family: Saudi Riyal
+      fonts:
+        - asset: assets/fonts/SaudiRiyal-Regular.ttf
+        - asset: assets/fonts/SaudiRiyal-Bold.ttf
           weight: 700

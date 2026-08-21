@@ -24,6 +24,11 @@ Future<File> writeTransactionsPdf(AppDatabase db) async {
       pw.Font.ttf(await rootBundle.load('assets/fonts/Tajawal-Regular.ttf'));
   final bold =
       pw.Font.ttf(await rootBundle.load('assets/fonts/Tajawal-Bold.ttf'));
+  // Tajawal predates the Saudi Riyal sign (U+20C1), so the ' ⃁' suffix on the
+  // totals would print as tofu ▯ without this fallback — same reason the app's
+  // on-screen text theme carries the Saudi Riyal family.
+  final riyal =
+      pw.Font.ttf(await rootBundle.load('assets/fonts/SaudiRiyal-Regular.ttf'));
 
   var totalIncome = 0.0, totalExpense = 0.0;
   for (final r in rows) {
@@ -39,7 +44,8 @@ Future<File> writeTransactionsPdf(AppDatabase db) async {
   final doc = pw.Document();
   doc.addPage(
     pw.MultiPage(
-      theme: pw.ThemeData.withFont(base: base, bold: bold),
+      theme: pw.ThemeData.withFont(
+          base: base, bold: bold, fontFallback: [riyal]),
       textDirection: pw.TextDirection.rtl,
       pageFormat: PdfPageFormat.a4,
       build: (context) => [
