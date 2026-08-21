@@ -121,7 +121,13 @@ jobs:
 
   ios:
     name: iOS screenshots (App Store)
-    runs-on: macos-latest
+    # Pinned, NOT macos-latest: latest rolled to macOS 26, whose iOS 26 simulator
+    # hangs flutter drive at "Waiting for VM Service port to be available" — the
+    # app launches, but the tool can't discover its Dart VM Service over mDNS on
+    # that simulator with Flutter 3.44.4. macos-15 (Xcode 16 / iOS 18 sim) pairs
+    # correctly with our Flutter version and connects directly. This job only
+    # captures screenshots; the release IPA is built by release.yml on its own.
+    runs-on: macos-15
     # Cold iOS builds on a fresh macOS runner are slow (see the pre-build step),
     # so this is more generous than Android — but still bounded, so a real hang
     # fails fast instead of sitting for hours.
