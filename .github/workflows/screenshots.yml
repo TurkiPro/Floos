@@ -158,6 +158,21 @@ jobs:
           echo "--- Active Xcode ---"; xcodebuild -version
           echo "--- iOS runtimes ---"; xcrun simctl list runtimes | grep -i ios || true
 
+      # The image keeps the Xcode 16 app but trims its iOS 18 simulator runtime,
+      # so a simulator build fails with "iOS 18.0 is not installed". Download the
+      # runtime for the now-active (16) Xcode. It's a few-minute ~7 GB pull, but
+      # iOS 18 is the only runtime Flutter 3.44.4 connects to (26 hangs on mDNS).
+      # Skipped automatically if a usable iOS 18 runtime is somehow already there.
+      - name: Install the iOS 18 simulator runtime
+        run: |
+          if xcrun simctl list runtimes | grep -qiE "iOS 18"; then
+            echo "iOS 18 runtime already present — skipping download."
+          else
+            echo "Downloading the iOS platform for the active Xcode…"
+            xcodebuild -downloadPlatform iOS
+          fi
+          echo "--- iOS runtimes after ---"; xcrun simctl list runtimes | grep -i ios || true
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
