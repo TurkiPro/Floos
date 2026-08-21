@@ -44,8 +44,8 @@ Future<File> writeTransactionsPdf(AppDatabase db) async {
   final doc = pw.Document();
   doc.addPage(
     pw.MultiPage(
-      theme: pw.ThemeData.withFont(
-          base: base, bold: bold, fontFallback: [riyal]),
+      theme:
+          pw.ThemeData.withFont(base: base, bold: bold, fontFallback: [riyal]),
       textDirection: pw.TextDirection.rtl,
       pageFormat: PdfPageFormat.a4,
       build: (context) => [

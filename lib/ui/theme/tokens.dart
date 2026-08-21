@@ -77,8 +77,8 @@ class AppShadows {
 enum AppFont {
   plexArabic('IBM Plex Sans Arabic', 'الافتراضي', ['Tajawal', 'Saudi Riyal']),
   cairo('Cairo', 'Cairo', ['IBM Plex Sans Arabic', 'Tajawal', 'Saudi Riyal']),
-  readexPro(
-      'Readex Pro', 'Readex Pro', ['IBM Plex Sans Arabic', 'Tajawal', 'Saudi Riyal']);
+  readexPro('Readex Pro', 'Readex Pro',
+      ['IBM Plex Sans Arabic', 'Tajawal', 'Saudi Riyal']);
 
   const AppFont(this.family, this.label, this.fallback);
 
