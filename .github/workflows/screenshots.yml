@@ -165,13 +165,17 @@ jobs:
       # Skipped automatically if a usable iOS 18 runtime is somehow already there.
       - name: Install the iOS 18 simulator runtime
         run: |
-          if xcrun simctl list runtimes | grep -qiE "iOS 18"; then
-            echo "iOS 18 runtime already present — skipping download."
-          else
-            echo "Downloading the iOS platform for the active Xcode…"
-            xcodebuild -downloadPlatform iOS
+          echo "--- runtimes BEFORE ---"; xcrun simctl list runtimes
+          # Always download — don't guard on `simctl list`, which lists iOS 18 as
+          # an available-but-not-installed entry and would wrongly skip it.
+          echo "Downloading the iOS platform for the active Xcode…"
+          xcodebuild -downloadPlatform iOS
+          echo "--- runtimes AFTER ---"; xcrun simctl list runtimes
+          # Fail loudly here (not 15 min later in the build) if it didn't take.
+          if ! xcrun simctl list runtimes | grep -iE "iOS 18" | grep -viq "not installed\|unavailable"; then
+            echo "::error::iOS 18 runtime still not installed after download."
+            exit 1
           fi
-          echo "--- iOS runtimes after ---"; xcrun simctl list runtimes | grep -i ios || true
 
       - uses: subosito/flutter-action@v2
         with:
