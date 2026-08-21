@@ -177,6 +177,41 @@ void main() {
     expect(after.spentThisWeek, 100);
   });
 
+  test('the budget is capped at the real balance, not just cycle-remaining',
+      () async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+    final at = DateTime(2026, 7, 28); // a few days before payday
+
+    // Salary landed this cycle...
+    await db.recurrenceDao.add(
+      title: 'راتب',
+      amount: 6000,
+      categoryId: essentialCat,
+      type: TxnType.income,
+      frequency: Frequency.monthly,
+      startDate: DateTime(2026, 7, 1),
+    );
+    await db.transactionDao.add(
+      amount: 6000,
+      categoryId: essentialCat,
+      type: TxnType.income,
+      date: DateTime(2026, 7, 1),
+    );
+    // ...but a big spend in the PREVIOUS cycle drained the account. This cycle's
+    // "remaining" still looks like 6000; the real balance is only 3000.
+    await db.transactionDao.add(
+      amount: 3000,
+      categoryId: essentialCat,
+      type: TxnType.expense,
+      date: DateTime(2026, 6, 15),
+    );
+
+    final budget = await computeWeeklyBudget(db, at);
+    // Bounded by the real balance (6000 − 3000), not the cycle-remaining (6000).
+    expect(budget.recommended, closeTo(3000, 1e-9));
+  });
+
   test('overspending past the balance zeroes this week\'s budget', () async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);

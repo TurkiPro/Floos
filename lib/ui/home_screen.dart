@@ -164,6 +164,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   incomeRules: incomeRules,
                                   expenseRules: expenseRules,
                                   contributions: contributions,
+                                  investments: investments,
                                   now: now,
                                 );
                                 return _DashboardBody(

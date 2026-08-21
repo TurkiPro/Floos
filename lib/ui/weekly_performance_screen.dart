@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 
 import '../data/database.dart';
 import '../data/enums.dart';
+import '../domain/budget_envelope.dart';
 import '../domain/financial_period.dart';
+import '../domain/spending_window.dart';
 import '../domain/statistics_summary.dart';
 import '../domain/weekly_performance.dart';
 import 'theme/tokens.dart';
@@ -60,22 +62,35 @@ class WeeklyPerformanceScreen extends StatelessWidget {
                           };
                           final s = StatisticsSummary.from(rows, contributions,
                               incomeRules, expenseRules, now, period);
-                          // The SAME weekly budget the home card and the
-                          // statistics card show (adapted to the cycle and
-                          // capped by the real remaining balance) — not the raw
-                          // behavioural baseline, which read as a second,
-                          // contradictory "weekly budget".
+                          // The home/stats "this week" figure, shown only as the
+                          // intro reference.
                           final weeklyBudget = s.recommendedWeekly;
+                          // The uncapped income base each week adapts from — so
+                          // every week gets ITS OWN budget (frozen once past),
+                          // instead of today's single number stamped on them all.
+                          final env = monthlyEnvelope(
+                            incomeRules: incomeRules,
+                            expenseRules: expenseRules,
+                            contributions: contributions,
+                            period: period,
+                          );
+                          final baseWeekly = incomeWeeklyBase(
+                            salaryMonthly: env.salary,
+                            obligationsMonthly: env.obligations,
+                            savedThisCycle: env.saved,
+                            periodStart: period.start,
+                            periodEnd: period.end,
+                          );
                           final weeks = weeklyPerformance(
                             rows: rows,
                             byId: byId,
-                            weeklyBudget: weeklyBudget,
+                            baseWeekly: baseWeekly,
                             now: now,
                             periodStart: period.start,
                             periodEnd: period.end,
                           ).reversed.toList(); // newest week first
 
-                          if (weeks.isEmpty || weeklyBudget <= 0) {
+                          if (weeks.isEmpty || baseWeekly <= 0) {
                             return const Center(
                                 child: Padding(
                               padding: EdgeInsets.all(AppSpacing.xl),

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:floos/data/database.dart';
 import 'package:floos/data/enums.dart';
+import 'package:floos/domain/spending_window.dart';
 import 'package:floos/domain/weekly_performance.dart';
 import 'package:floos/domain/weekly_series.dart';
 
@@ -32,53 +33,89 @@ TxnRow _exp(double amount, DateTime date, {int? recurrenceId}) => TxnRow(
 void main() {
   group('weeklyPerformance', () {
     // July 2026 cycle anchored on 1 July; now = 16 July. Weeks: 1–7, 8–14,
-    // 15–21 (current, clamped to 15–16).
+    // 15–21 (current).
     final now = DateTime(2026, 7, 16);
     final start = DateTime(2026, 7, 1);
     final end = DateTime(2026, 8, 1);
 
-    test('splits into salary-anchored weeks with pro-rated budgets', () {
+    double adaptive(double spentBefore, DateTime ws) => adaptiveWeeklyBudget(
+          recommended: 700,
+          spentBeforeThisWeek: spentBefore,
+          periodStart: start,
+          periodEnd: end,
+          now: ws,
+        );
+
+    test('each week gets its own budget, adapted as of that week', () {
       final weeks = weeklyPerformance(
         rows: [
           _exp(800, DateTime(2026, 7, 2)), // week 1
           _exp(400, DateTime(2026, 7, 7)), // week 1
           _exp(999, DateTime(2026, 7, 8),
-              recurrenceId: 5), // week 2, recurring -> excluded
+              recurrenceId: 5), // recurring -> excluded
         ],
         byId: {1: _cat()},
-        weeklyBudget: 700,
+        baseWeekly: 700,
         now: now,
         periodStart: start,
         periodEnd: end,
       );
       expect(weeks.length, 3);
-      expect(weeks[0].weekStart, DateTime(2026, 7, 1));
-      expect(weeks[0].budget, closeTo(700, 1e-9)); // full 7-day week
+      // Week 1: no prior spend -> the base itself.
+      expect(weeks[0].budget, closeTo(700, 1e-9));
       expect(weeks[0].spent, 1200);
       expect(weeks[0].over, isTrue);
-      expect(weeks[1].budget, closeTo(700, 1e-9));
+      // Week 2: week 1's 1200 overspend lowers THIS week's budget below the base.
+      expect(
+          weeks[1].budget, closeTo(adaptive(1200, DateTime(2026, 7, 8)), 1e-9));
+      expect(weeks[1].budget, lessThan(700));
       expect(weeks[1].spent, 0); // the recurring 999 is excluded
-      // A week still in progress is judged against its WHOLE allowance, not the
-      // days elapsed — otherwise this screen and the home card reach opposite
-      // verdicts on the same week.
       expect(weeks[2].current, isTrue);
-      expect(weeks[2].budget, closeTo(700, 1e-9));
     });
 
-    test('a short final week of the cycle is still pro-rated to its length',
-        () {
+    test("a past week's budget is frozen — later weeks don't change it", () {
+      List<WeekPerformance> run(List<TxnRow> rows) => weeklyPerformance(
+            rows: rows,
+            byId: {1: _cat()},
+            baseWeekly: 700,
+            now: DateTime(2026, 7, 20),
+            periodStart: start,
+            periodEnd: end,
+          );
+      final a = run([_exp(300, DateTime(2026, 7, 2))]); // week 1 only
+      final b = run([
+        _exp(300, DateTime(2026, 7, 2)), // same week 1
+        _exp(5000, DateTime(2026, 7, 17)), // a LATER week blows its budget
+      ]);
+      final w1a = a.firstWhere((w) => w.index == 1);
+      final w1b = b.firstWhere((w) => w.index == 1);
+      // The later week's overspend must not move week 1's already-passed budget.
+      expect(w1b.budget, closeTo(w1a.budget, 1e-9));
+    });
+
+    test('a short final week is pro-rated to its length', () {
       // Cycle 1–24 July: weeks 1–8, 8–15, 15–22, then a 2-day tail 22–24.
+      final s = DateTime(2026, 7, 1);
+      final e = DateTime(2026, 7, 24);
       final weeks = weeklyPerformance(
         rows: const [],
         byId: {1: _cat()},
-        weeklyBudget: 700,
+        baseWeekly: 700,
         now: DateTime(2026, 7, 24),
-        periodStart: DateTime(2026, 7, 1),
-        periodEnd: DateTime(2026, 7, 24),
+        periodStart: s,
+        periodEnd: e,
       );
-      expect(weeks.last.weekStart, DateTime(2026, 7, 22));
-      // Genuinely a 2-day week (the cycle ends), so 700 * 2/7.
-      expect(weeks.last.budget, closeTo(200, 1e-9));
+      final last = weeks.last;
+      expect(last.weekStart, DateTime(2026, 7, 22));
+      // Its own adaptive budget (nothing spent all cycle), pro-rated by 2/7.
+      final adaptiveLast = adaptiveWeeklyBudget(
+        recommended: 700,
+        spentBeforeThisWeek: 0,
+        periodStart: s,
+        periodEnd: e,
+        now: DateTime(2026, 7, 22),
+      );
+      expect(last.budget, closeTo(adaptiveLast * 2 / 7, 1e-9));
     });
 
     test('per-day breakdown slots every day of the week', () {
@@ -88,7 +125,7 @@ void main() {
           _exp(400, DateTime(2026, 7, 7))
         ],
         byId: {1: _cat()},
-        weeklyBudget: 700,
+        baseWeekly: 700,
         now: now,
         periodStart: start,
         periodEnd: end,
@@ -98,7 +135,6 @@ void main() {
       expect(w1.days[1].total, 800); // 2 July is day index 1
       expect(w1.days[6].total, 400); // 7 July is day index 6
       expect(w1.days[0].total, 0); // 1 July, empty
-      // The slice carries the category name/colour for the chart legend.
       expect(w1.days[1].slices.first.name, 'c');
       expect(w1.days[1].slices.first.categoryId, 1);
     });

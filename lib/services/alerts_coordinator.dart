@@ -61,11 +61,13 @@ Future<WeeklyBudget> computeWeeklyBudget(AppDatabase db, DateTime now) async {
   final expenseRules =
       allRules.where((r) => r.type == TxnType.expense).toList();
   final contributions = await db.savingsDao.watchAllContributions().first;
+  final investments = await db.investmentDao.watchAll().first;
   final status = weeklyBudgetStatus(
     rows: rows,
     incomeRules: incomeRules,
     expenseRules: expenseRules,
     contributions: contributions,
+    investments: investments,
     now: now,
   );
   return WeeklyBudget(status.budget, status.spent);

@@ -40,6 +40,10 @@ WeeklyBudgetStatus weeklyBudgetStatus({
   required List<RecurrenceRule> incomeRules,
   required List<RecurrenceRule> expenseRules,
   required List<SavingsContribution> contributions,
+  // Internal (non-external) investments reduce the real balance too; optional
+  // because the only callers with anything but external portfolio entries are
+  // the home card and the badge, which pass them.
+  List<Investment> investments = const [],
   required DateTime now,
 }) {
   final period = financialPeriod(incomeRules, now);
@@ -54,15 +58,20 @@ WeeklyBudgetStatus weeklyBudgetStatus({
   // This cycle's income and total spend, for grounding the budget in the real
   // remaining balance (the cap, below).
   var periodIncome = 0.0, periodExpense = 0.0;
+  // All-time income/expense, for the *actual* current balance (same formula as
+  // the home «الرصيد») — the budget is capped so it can never exceed it.
+  var allIncome = 0.0, allExpense = 0.0;
 
   for (final r in rows) {
     final date = r.txn.date;
     final amount = r.txn.amount;
 
     if (r.txn.type == TxnType.income) {
+      allIncome += amount;
       if (period.contains(date)) periodIncome += amount;
       continue;
     }
+    allExpense += amount;
     if (period.contains(date)) periodExpense += amount;
 
     // Fixed obligations (rent, bills, subscriptions) are planned, not
@@ -110,8 +119,26 @@ WeeklyBudgetStatus weeklyBudgetStatus({
     now: now,
   );
 
-  // Never promise more than the real balance left for the rest of the cycle —
-  // only once income has actually landed to cap against.
+  // The real money on hand: the current account balance (same formula as the
+  // home «الرصيد» — all income − all spend − what's in savings/investments).
+  var internalSaved = 0.0;
+  for (final c in contributions) {
+    if (!c.external) internalSaved += c.amount;
+  }
+  var internalInvested = 0.0;
+  for (final inv in investments) {
+    if (!inv.external) internalInvested += inv.amount;
+  }
+  final actualBalance =
+      allIncome - allExpense - internalSaved - internalInvested;
+
+  // Never promise more than is left for the rest of the cycle, and never more
+  // than is actually in the account — the LOWER of the two, so carry-over from
+  // past cycles can't make the budget exceed the real balance. Only caps once
+  // income has landed.
+  final cycleRemaining = periodIncome - periodExpense - saved;
+  final spendable =
+      actualBalance < cycleRemaining ? actualBalance : cycleRemaining;
   final periodDays = period.end.difference(cycleStart).inDays;
   final daysLeft = period.end
       .difference(today)
@@ -120,7 +147,7 @@ WeeklyBudgetStatus weeklyBudgetStatus({
   final budget = periodIncome > 0
       ? balanceCappedWeekly(
           adaptive: adaptive,
-          remainingForCycle: periodIncome - periodExpense - saved,
+          remainingForCycle: spendable,
           daysLeft: daysLeft,
         )
       : adaptive;
