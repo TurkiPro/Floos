@@ -172,12 +172,24 @@ jobs:
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
 
+          # Bring up the Simulator UI on the booted device. A purely headless
+          # simctl-booted simulator can leave the app unable to finish launching
+          # and publish its Dart VM Service — which is exactly where flutter drive
+          # was hanging (Xcode build done, then no connection, no test output).
+          open -a Simulator --args -CurrentDeviceUDID "$UDID" || true
+          sleep 8
+
       - name: Run app on simulator and capture
+        # --verbose so that if it still hangs after the Xcode build, the log
+        # shows exactly what flutter drive is waiting on (installing / launching
+        # / "Waiting for a connection from Flutter"), instead of silence. Drop
+        # this flag once the run is green.
         run: |
           flutter drive \
             --driver=test_driver/integration_test.dart \
             --target=integration_test/screenshot_test.dart \
-            -d "$SIM_UDID"
+            -d "$SIM_UDID" \
+            --verbose
 
       # Apple validates screenshots on exact pixel dimensions, so print what we
       # actually produced — that tells you which store slot these fill.
