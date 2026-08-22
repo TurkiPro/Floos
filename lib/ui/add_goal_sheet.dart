@@ -6,9 +6,14 @@ import '../domain/parse_amount.dart';
 import 'theme/tokens.dart';
 import 'widgets/amount_input.dart';
 
+/// Add or edit a savings goal. When [existing] is given the sheet opens in edit
+/// mode — prefilled, saving over the same row (so its contributions and every
+/// derived total stay attached), with a delete action. Otherwise it creates a
+/// new goal.
 class AddGoalSheet extends StatefulWidget {
   final AppDatabase db;
-  const AddGoalSheet({super.key, required this.db});
+  final SavingsGoal? existing;
+  const AddGoalSheet({super.key, required this.db, this.existing});
 
   @override
   State<AddGoalSheet> createState() => _AddGoalSheetState();
@@ -18,6 +23,17 @@ class _AddGoalSheetState extends State<AddGoalSheet> {
   final _nameCtrl = TextEditingController();
   final _targetCtrl = TextEditingController();
   DateTime? _targetDate;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    if (e != null) {
+      _nameCtrl.text = e.name;
+      _targetCtrl.text = groupedAmount(e.targetAmount);
+      _targetDate = e.targetDate;
+    }
+  }
 
   @override
   void dispose() {
@@ -35,17 +51,54 @@ class _AddGoalSheetState extends State<AddGoalSheet> {
       );
       return;
     }
-    await widget.db.savingsDao.addGoal(
-      name: name,
-      targetAmount: target,
-      targetDate: _targetDate,
+    final e = widget.existing;
+    if (e != null) {
+      await widget.db.savingsDao.updateGoal(
+        e.id,
+        name: name,
+        targetAmount: target,
+        targetDate: _targetDate,
+      );
+    } else {
+      await widget.db.savingsDao.addGoal(
+        name: name,
+        targetAmount: target,
+        targetDate: _targetDate,
+      );
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _delete() async {
+    final e = widget.existing;
+    if (e == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف الهدف؟'),
+        content: const Text(
+            'سيُحذف الهدف وجميع إيداعاته، وتعود مبالغها إلى رصيدك. لا يمكن التراجع.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('إلغاء'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('حذف', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
     );
+    if (confirmed != true) return;
+    await widget.db.savingsDao.deleteGoal(e.id);
     if (mounted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
     final fmt = DateFormat('yyyy-MM-dd');
+    final editing = widget.existing != null;
     return Padding(
       padding: EdgeInsets.only(
         left: AppSpacing.lg,
@@ -58,12 +111,12 @@ class _AddGoalSheetState extends State<AddGoalSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('هدف ادخار جديد',
+            Text(editing ? 'تعديل الهدف' : 'هدف ادخار جديد',
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: AppSpacing.lg),
             TextField(
               controller: _nameCtrl,
-              autofocus: true,
+              autofocus: !editing,
               decoration: const InputDecoration(
                 labelText: 'اسم الهدف (مثال: رحلة)',
                 border: OutlineInputBorder(),
@@ -110,6 +163,15 @@ class _AddGoalSheetState extends State<AddGoalSheet> {
             ),
             const SizedBox(height: AppSpacing.lg),
             FilledButton(onPressed: _save, child: const Text('حفظ')),
+            if (editing) ...[
+              const SizedBox(height: AppSpacing.sm),
+              TextButton.icon(
+                onPressed: _delete,
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                label: const Text('حذف الهدف',
+                    style: TextStyle(color: Colors.red)),
+              ),
+            ],
           ],
         ),
       ),

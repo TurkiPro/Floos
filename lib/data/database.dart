@@ -429,6 +429,13 @@ class SavingsDao extends DatabaseAccessor<AppDatabase> with _$SavingsDaoMixin {
         .watch();
   }
 
+  /// A single goal, live — so a detail screen reflects edits in place and pops
+  /// itself (null) when the goal is deleted. Never a stored snapshot.
+  Stream<SavingsGoal?> watchGoal(int id) {
+    return (select(savingsGoals)..where((g) => g.id.equals(id)))
+        .watchSingleOrNull();
+  }
+
   /// Wipes all goals and contributions -- used only by the dev data tools.
   Future<void> clearAll() async {
     await delete(savingsContributions).go();
@@ -445,6 +452,35 @@ class SavingsDao extends DatabaseAccessor<AppDatabase> with _$SavingsDaoMixin {
       targetAmount: targetAmount,
       targetDate: Value(targetDate),
     ));
+  }
+
+  /// Edits a goal in place — name, target, deadline — keeping its id so its
+  /// contributions and every derived total stay attached. Passing a null
+  /// targetDate clears the deadline.
+  Future<void> updateGoal(
+    int id, {
+    required String name,
+    required double targetAmount,
+    DateTime? targetDate,
+  }) {
+    return (update(savingsGoals)..where((g) => g.id.equals(id))).write(
+      SavingsGoalsCompanion(
+        name: Value(name),
+        targetAmount: Value(targetAmount),
+        targetDate: Value(targetDate),
+      ),
+    );
+  }
+
+  /// Deletes a goal and all its contributions. Every saved/balance total is a
+  /// SUM over the ledger, so the money each internal deposit had moved into the
+  /// goal returns to the spendable balance and net worth is unchanged. The
+  /// contributions go with it (the FK would otherwise reject the delete), so
+  /// it isn't undoable — the UI confirms first.
+  Future<void> deleteGoal(int id) async {
+    await (delete(savingsContributions)..where((c) => c.goalId.equals(id)))
+        .go();
+    await (delete(savingsGoals)..where((g) => g.id.equals(id))).go();
   }
 
   Future<int> addContribution({

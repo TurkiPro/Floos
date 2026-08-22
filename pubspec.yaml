@@ -1,7 +1,7 @@
 name: floos
 description: "تطبيق بسيط لتتبع المصاريف — a minimal expense tracker."
 publish_to: "none"
-version: 1.1.1+26
+version: 1.1.2+27
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
