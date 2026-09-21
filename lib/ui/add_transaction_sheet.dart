@@ -74,9 +74,11 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     final color =
         minus ? Colors.red.shade400 : Theme.of(context).colorScheme.primary;
     return TapBounce(
-      // A touch deeper than the default: these get tapped repeatedly while
-      // adding up a few prices, so the feedback should be unmistakable.
-      scale: 0.86,
+      // Far shallower than the default. These are big glyphs tapped in quick
+      // succession while adding up prices, so the same depth that reads as
+      // responsive on a small icon reads as jarring here — the movement is
+      // proportional to the glyph, and this one is 34pt.
+      scale: 0.98,
       child: InkResponse(
         onTap: () => _appendOp(minus ? '-' : '+'),
         radius: 26,

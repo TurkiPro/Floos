@@ -25,6 +25,7 @@ import 'theme/tokens.dart';
 import 'weekly_performance_screen.dart';
 import 'widgets/day_group_card.dart';
 import 'widgets/tap_bounce.dart';
+import 'widgets/wallet_easter_egg.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -289,8 +290,7 @@ class _HomeHeader extends StatelessWidget {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.account_balance_wallet_rounded,
-                              color: onAccent, size: 28),
+                          WalletEasterEgg(color: onAccent, size: 28),
                           const SizedBox(width: AppSpacing.sm),
                           Text(
                             'فلوس',
