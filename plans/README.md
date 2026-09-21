@@ -15,6 +15,14 @@ fetching, a lock that only covers Home), and **derived numbers go quietly
 stale or wrong at the edges** (today's spending excluded from the weekly
 budget, alerts not re-armed after mutations).
 
+**Batch 4 (020–022)** is different in kind: it is a *feature*, requested by the
+maintainer on 2026-09-21, not an audit finding. It makes batch transaction
+entry possible by pasting bank SMS. The three plans are one feature split by
+risk — a pure parser, then a schema change, then the UI — so the part most
+likely to be wrong is fully tested before anything can write to the ledger.
+Execute strictly in order. See "Batch 4 notes" below for the two findings that
+shaped the design; read them before starting 020.
+
 ## Execution order & status
 
 | Plan | Title | Priority | Effort | Depends on | Status |
@@ -39,6 +47,9 @@ budget, alerts not re-armed after mutations).
 | 019 | Accept Arabic-Indic digits everywhere an amount is typed | P2 | S | — | DONE (on main `3e91d26`) |
 | 013 | Make the category color the user picks actually show up | P2 | M | — | DONE (on main `bf2df61`; verified on Windows) |
 | 016 | Ship backup & restore in Settings (direction) | P2 | L | 011 | DONE (on main `cc96582`; OS share/restore walkthrough deferred to device) |
+| 020 | Parse batches of bank SMS into draft transactions (pure domain) | P2 | M | — | TODO |
+| 021 | Remember what each party means, and make an import undoable (schema v13) | P2 | L | 020 | TODO |
+| 022 | A bank-message import page in Settings — paste, review, commit, undo | P2 | L | 020, 021 | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale)
 
@@ -57,6 +68,56 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED 
   merge if concurrent.
 - 018 and 015 both touch `alerts_coordinator.dart` (different functions);
   land 018 first if running both.
+- **020 → 021 → 022 is a hard chain.** 021 stores a key the 020 parser
+  produces; 022 is useless without both. Do not start 022 before the other two
+  are on main.
+- 021 changes the schema (v13) and the backup format. If any other schema work
+  is in flight, land that first and renumber 021's migration.
+
+## Batch 4 notes (read before starting 020)
+
+Two findings from running a prototype parser against 13 real messages from the
+maintainer's bank. Both are counter-intuitive and both are load-bearing:
+
+- **Not every bank message is spending.** `إضافة اموال` (a card/wallet top-up)
+  and `حوالة صادرة` (an outgoing transfer) are the user's own money moving. In
+  the 13-message sample, real spending was 560.43 SAR; importing every row as
+  an expense gives 1,295.43 — a 131% inflation. The top-up case is *double
+  counting*: money loaded onto a card is spent later and reported again by its
+  own message. This is why 021 stores a **disposition** (including "ignore")
+  rather than a category, and why 020's classification matters more than its
+  extraction.
+- **Arabic keyword matching fails silently.** The prototype shipped two bugs in
+  ~20 lines of regex: `في` ("in") is a prefix of `فيزا` ("Visa"), which
+  swallowed the amount line of every Visa message; and `ال?بطاقة` never matched
+  a bare `بطاقة`, leaving the card field empty on 11 of 13 rows **with no
+  error at all**. Hence the fixture corpus in 020 — it is the real deliverable
+  of that plan, not the parser.
+
+Also worth knowing:
+
+- This feature makes the import the **second writer** to the transactions
+  ledger, alongside the recurrence engine that `README.md` calls the sole
+  writer of generated rows. 022's recurrence-collision check is what keeps a
+  subscription from being booked twice.
+- **An import is undoable as a whole.** That is why 021 adds an `ImportBatches`
+  table and a CASCADE batch pointer on both ledgers rather than leaving undo to
+  the UI. It also puts two deliberately different FK philosophies in
+  `Transactions`: `recurrenceId` is SET NULL (generated rows are real money and
+  outlive their rule), `importBatchId` is CASCADE (an import is one user action
+  and undo means it never happened). Neither is a mistake.
+- **A balance-gap / missing-message detector was considered and dropped.** The
+  samples show `رصيد` meaning two different things (an account balance vs. the
+  remaining value on a prepaid card) and the Visa messages carry no card number
+  to scope it by, so it could not be grounded well enough to warrant a warning
+  the user has to judge. Do not reintroduce it without new evidence.
+
+Approaches considered and rejected, so they are not re-litigated: **reading SMS
+directly** (impossible on iOS — no third-party API; a Play policy fight on
+Android, and a background writer besides the recurrence engine) and **OCR of
+screenshots** (ML Kit ships no Arabic text model, Apple Vision's Arabic support
+is unverified, and the usual ML Kit setup downloads models at runtime — the
+app's first network call).
 
 ## Findings vetted but not planned (fix opportunistically or on request)
 
