@@ -47,9 +47,9 @@ shaped the design; read them before starting 020.
 | 019 | Accept Arabic-Indic digits everywhere an amount is typed | P2 | S | — | DONE (on main `3e91d26`) |
 | 013 | Make the category color the user picks actually show up | P2 | M | — | DONE (on main `bf2df61`; verified on Windows) |
 | 016 | Ship backup & restore in Settings (direction) | P2 | L | 011 | DONE (on main `cc96582`; OS share/restore walkthrough deferred to device) |
-| 020 | Parse batches of bank SMS into draft transactions (pure domain) | P2 | M | — | TODO |
-| 021 | Remember what each party means, and make an import undoable (schema v13) | P2 | L | 020 | TODO |
-| 022 | A bank-message import page in Settings — paste, review, commit, undo | P2 | L | 020, 021 | TODO |
+| 020 | Parse batches of bank SMS into draft transactions (pure domain) | P2 | M | — | DONE (`5369cbf`) |
+| 021 | Remember what each party means, and make an import undoable (schema v13) | P2 | L | 020 | DONE (`212866a`; schema v13) |
+| 022 | A bank-message import page in Settings — paste, review, commit, undo | P2 | L | 020, 021 | DONE (`112c29d`; emulator run covered build/launch/RTL, flow covered by widget tests) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale)
 
@@ -118,6 +118,36 @@ Android, and a background writer besides the recurrence engine) and **OCR of
 screenshots** (ML Kit ships no Arabic text model, Apple Vision's Arabic support
 is unverified, and the usual ML Kit setup downloads models at runtime — the
 app's first network call).
+
+## Batch 4 as built — what differed from the plans
+
+All three landed. Four things worth knowing that the plans did not anticipate:
+
+- **The toolchain had to move first.** `intl` was pinned to 0.20.2 by Flutter
+  3.44.4's `flutter_localizations`, and the newer local SDK needed ^0.20.3, so
+  `pub` would not resolve at all. Bumped `intl` and `FLUTTER_VERSION` in all
+  three workflows to 3.47.2 together (`3270a9c`); no source changes were
+  needed and the suite stayed green.
+- **The v5 migration broke on the new column.** `m.alterTable(TableMigration(
+  transactions))` rebuilds the table from its *current* Dart shape, so it tried
+  to copy `import_batch_id`, which does not exist until v13. Declared as a
+  `newColumns` entry there and skipped in the v13 step for databases that took
+  that path. The migration test now also asserts the CASCADE fires on a
+  **migrated** database — the v4 and v7 paths add the column by different
+  mechanisms, so a fresh-install assertion covers neither.
+- **Duplicate detection had to fingerprint the written label, not the bank's
+  string.** Once a party has a display name, that name is what lands in the
+  transaction note — so comparing raw parties missed every duplicate for
+  exactly the merchants the user had bothered to name.
+- **`commitImport` and `ResolvedImportRow` live in `database.dart`**, not in
+  022's UI layer as sketched, so the write path sits next to the schema it
+  depends on.
+
+Device coverage is narrower than 022's test plan assumed: the Android emulator
+confirmed the build, launch, RTL rendering and the Settings tile, but the
+clipboard cannot be set from `adb` on API 36, so the paste-through-save flow is
+covered by `test/import_flow_test.dart` (four widget tests driving the real
+screens against the real fixtures) rather than by hand on a device.
 
 ## Findings vetted but not planned (fix opportunistically or on request)
 
