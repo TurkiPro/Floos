@@ -81,7 +81,13 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       scale: 0.98,
       child: InkResponse(
         onTap: () => _appendOp(minus ? '-' : '+'),
-        radius: 26,
+        // These are bare glyphs with no background, so a grey disc behind them
+        // reads as a stray blob rather than as a button surface. The highlight
+        // is the persistent one — it sits there for as long as the finger is
+        // down — so that goes entirely, leaving a brief ripple kept well inside
+        // the 40x36 box. The press itself is carried by the scale above.
+        highlightColor: Colors.transparent,
+        radius: 14,
         child: SizedBox(
           width: 40,
           height: 36,
