@@ -33,9 +33,14 @@ android {
 
     defaultConfig {
         applicationId = "com.turkisecurity.floos"
-        // 23 is the floor for BiometricPrompt, which local_auth uses for the
-        // Face ID / fingerprint app lock.
-        minSdk = 23
+        // Was pinned to 23 — the floor for BiometricPrompt, which local_auth
+        // uses for the fingerprint/face app lock. `flutter build` rewrites this
+        // line to flutter.minSdkVersion on every run, so the pin never survived
+        // a build and CI shipped the Flutter floor regardless. That floor is 24
+        // on Flutter 3.47, which still clears BiometricPrompt; it drops Android
+        // 6.0. Re-pin here only if you also stop the tool rewriting it, or the
+        // next build will silently undo you.
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

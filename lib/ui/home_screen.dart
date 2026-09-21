@@ -283,39 +283,53 @@ class _HomeHeader extends StatelessWidget {
               child: Row(
                 children: [
                   // Wordmark first => right side in RTL.
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          WalletEasterEgg(color: onAccent, size: 28),
-                          const SizedBox(width: AppSpacing.sm),
-                          Text(
-                            'فلوس',
-                            style: TextStyle(
-                              color: onAccent,
-                              fontSize: 34,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.5,
-                              height: 1.1,
+                  //
+                  // Expanded, not a bare Column plus a Spacer: unconstrained,
+                  // the column takes its intrinsic width, and the subtitle can
+                  // be long — a cycle that straddles two months renders as a
+                  // full date range, and the salary countdown is appended to
+                  // it. On a narrow phone that overflowed the row and pushed
+                  // the wallet glyph off the screen edge.
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            WalletEasterEgg(color: onAccent, size: 28),
+                            const SizedBox(width: AppSpacing.sm),
+                            Text(
+                              'فلوس',
+                              style: TextStyle(
+                                color: onAccent,
+                                fontSize: 34,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.5,
+                                height: 1.1,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        salaryHint == null ? month : '$month  •  $salaryHint',
-                        style: TextStyle(
-                          color: onAccent.withValues(alpha: 0.85),
-                          fontSize: AppTextSizes.label,
-                          fontWeight: FontWeight.w500,
+                          ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 2),
+                        Text(
+                          salaryHint == null ? month : '$month  •  $salaryHint',
+                          // Wraps to a second line rather than being cut off:
+                          // the countdown is the useful half and it sits at the
+                          // end, so truncating to one line would always be the
+                          // part that disappeared.
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: onAccent.withValues(alpha: 0.85),
+                            fontSize: AppTextSizes.label,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const Spacer(),
                   // Stats then settings => both sit on the left in RTL.
                   _CircleButton(
                     icon: Icons.insights_outlined,
