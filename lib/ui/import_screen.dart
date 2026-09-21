@@ -10,6 +10,7 @@ import '../services/alerts_coordinator.dart';
 import 'import_review_screen.dart';
 import 'theme/tokens.dart';
 import 'widgets/amount_input.dart';
+import 'widgets/tap_bounce.dart';
 
 /// Import a batch of bank notification messages by pasting them.
 ///
@@ -110,10 +111,12 @@ class _ImportScreenState extends State<ImportScreen> {
               ),
               if (_controller.text.isNotEmpty) ...[
                 const SizedBox(width: AppSpacing.sm),
-                IconButton(
-                  onPressed: _controller.clear,
-                  icon: const Icon(Icons.close),
-                  tooltip: 'مسح',
+                TapBounce(
+                  child: IconButton(
+                    onPressed: _controller.clear,
+                    icon: const Icon(Icons.close),
+                    tooltip: 'مسح',
+                  ),
                 ),
               ],
             ],

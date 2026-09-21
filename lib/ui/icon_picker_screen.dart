@@ -4,6 +4,7 @@ import 'icon_registry.dart';
 import 'theme/tokens.dart';
 import 'widgets/category_icon_tile.dart';
 import 'widgets/color_swatch_picker.dart';
+import 'widgets/tap_bounce.dart';
 
 /// Full-screen icon + colour chooser opened from the category sheet. Gives the
 /// browsing room a cramped inline grid never had: a live preview, colour
@@ -192,13 +193,15 @@ class _IconPickerScreenState extends State<IconPickerScreen> {
                           runSpacing: AppSpacing.md,
                           children: [
                             for (final key in group.keys)
-                              GestureDetector(
-                                onTap: () => setState(() => _iconKey = key),
-                                child: CategoryIconTile(
-                                  iconKey: key,
-                                  colorValue: _color.toARGB32(),
-                                  size: 46,
-                                  selected: key == _iconKey,
+                              TapBounce(
+                                child: GestureDetector(
+                                  onTap: () => setState(() => _iconKey = key),
+                                  child: CategoryIconTile(
+                                    iconKey: key,
+                                    colorValue: _color.toARGB32(),
+                                    size: 46,
+                                    selected: key == _iconKey,
+                                  ),
                                 ),
                               ),
                           ],

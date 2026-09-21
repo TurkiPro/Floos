@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/tokens.dart';
+import 'tap_bounce.dart';
 
 /// Curated, fixed swatch grid for picking a category color -- no new
 /// color-picker package added (none requested, and a full HSV/RGB picker is
@@ -110,9 +111,11 @@ class ColorSwatchPicker extends StatelessWidget {
       // Not tappable, visibly faded to read as "already used".
       return Opacity(opacity: 0.32, child: dot);
     }
-    return GestureDetector(
-      onTap: () => onChanged(color),
-      child: dot,
+    return TapBounce(
+      child: GestureDetector(
+        onTap: () => onChanged(color),
+        child: dot,
+      ),
     );
   }
 }

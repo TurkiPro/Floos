@@ -24,6 +24,7 @@ import 'statistics_screen.dart';
 import 'theme/tokens.dart';
 import 'weekly_performance_screen.dart';
 import 'widgets/day_group_card.dart';
+import 'widgets/tap_bounce.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -395,15 +396,17 @@ class _CircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: color.withValues(alpha: 0.16),
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          child: Icon(icon, color: color, size: 22),
+    return TapBounce(
+      child: Material(
+        color: color.withValues(alpha: 0.16),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            child: Icon(icon, color: color, size: 22),
+          ),
         ),
       ),
     );

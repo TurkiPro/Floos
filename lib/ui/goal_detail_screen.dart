@@ -8,6 +8,7 @@ import 'add_contribution_sheet.dart';
 import 'add_goal_sheet.dart';
 import 'theme/tokens.dart';
 import 'widgets/swipe_to_delete.dart';
+import 'widgets/tap_bounce.dart';
 
 class GoalDetailScreen extends StatelessWidget {
   final SavingsGoal goal;
@@ -38,15 +39,17 @@ class GoalDetailScreen extends StatelessWidget {
           appBar: AppBar(
             title: Text(g.name),
             actions: [
-              IconButton(
-                tooltip: 'تعديل الهدف',
-                icon: const Icon(Icons.edit_outlined),
-                onPressed: () => showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  useSafeArea: true,
-                  showDragHandle: true,
-                  builder: (_) => AddGoalSheet(db: db, existing: g),
+              TapBounce(
+                child: IconButton(
+                  tooltip: 'تعديل الهدف',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    useSafeArea: true,
+                    showDragHandle: true,
+                    builder: (_) => AddGoalSheet(db: db, existing: g),
+                  ),
                 ),
               ),
             ],

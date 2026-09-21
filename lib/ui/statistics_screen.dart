@@ -18,6 +18,7 @@ import 'category_detail_screen.dart';
 import 'theme/tokens.dart';
 import 'weekly_performance_screen.dart';
 import 'widgets/category_icon_tile.dart';
+import 'widgets/tap_bounce.dart';
 
 /// Spending analytics, all derived in a single pass over the transaction
 /// stream (no per-frame DB queries), so it stays cheap even as history grows.
@@ -37,17 +38,19 @@ class StatisticsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('الإحصائيات'),
         actions: [
-          IconButton(
-            tooltip: 'تصدير الإحصائيات',
-            icon: const Icon(Icons.file_download_outlined),
-            onPressed: () async {
-              final path = await exportStatsCsvToFile(db);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('تم تصدير الإحصائيات: $path')),
-                );
-              }
-            },
+          TapBounce(
+            child: IconButton(
+              tooltip: 'تصدير الإحصائيات',
+              icon: const Icon(Icons.file_download_outlined),
+              onPressed: () async {
+                final path = await exportStatsCsvToFile(db);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('تم تصدير الإحصائيات: $path')),
+                  );
+                }
+              },
+            ),
           ),
         ],
       ),

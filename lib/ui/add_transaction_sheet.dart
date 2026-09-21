@@ -11,6 +11,7 @@ import '../services/sound_service.dart';
 import 'theme/tokens.dart';
 import 'widgets/amount_input.dart';
 import 'widgets/category_picker.dart';
+import 'widgets/tap_bounce.dart';
 
 class AddTransactionSheet extends StatefulWidget {
   final AppDatabase db;
@@ -72,20 +73,25 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     final minus = op == '-';
     final color =
         minus ? Colors.red.shade400 : Theme.of(context).colorScheme.primary;
-    return InkResponse(
-      onTap: () => _appendOp(minus ? '-' : '+'),
-      radius: 26,
-      child: SizedBox(
-        width: 40,
-        height: 36,
-        child: Center(
-          child: Text(
-            minus ? '−' : '+',
-            style: TextStyle(
-              fontSize: 34,
-              height: 1,
-              fontWeight: FontWeight.w900,
-              color: color,
+    return TapBounce(
+      // A touch deeper than the default: these get tapped repeatedly while
+      // adding up a few prices, so the feedback should be unmistakable.
+      scale: 0.86,
+      child: InkResponse(
+        onTap: () => _appendOp(minus ? '-' : '+'),
+        radius: 26,
+        child: SizedBox(
+          width: 40,
+          height: 36,
+          child: Center(
+            child: Text(
+              minus ? '−' : '+',
+              style: TextStyle(
+                fontSize: 34,
+                height: 1,
+                fontWeight: FontWeight.w900,
+                color: color,
+              ),
             ),
           ),
         ),

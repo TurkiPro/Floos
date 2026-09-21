@@ -13,6 +13,7 @@ import '../domain/parse_amount.dart';
 import 'theme/tokens.dart';
 import 'widgets/amount_input.dart';
 import 'widgets/category_icon_tile.dart';
+import 'widgets/tap_bounce.dart';
 
 /// Set a monthly spending budget per top-level expense category and watch this
 /// month's spend against it. The page also *advises*: it proposes a budget per
@@ -434,11 +435,14 @@ class _BudgetTile extends StatelessWidget {
               if (showNudge)
                 // A discrete apply target for the suggestion; tapping elsewhere
                 // on the tile still opens the manual editor.
-                IconButton(
-                  tooltip: 'تطبيق المقترح',
-                  visualDensity: VisualDensity.compact,
-                  icon: Icon(Icons.check_circle_outline, color: scheme.primary),
-                  onPressed: onApplySuggestion,
+                TapBounce(
+                  child: IconButton(
+                    tooltip: 'تطبيق المقترح',
+                    visualDensity: VisualDensity.compact,
+                    icon:
+                        Icon(Icons.check_circle_outline, color: scheme.primary),
+                    onPressed: onApplySuggestion,
+                  ),
                 )
               else
                 Icon(Icons.edit_outlined,

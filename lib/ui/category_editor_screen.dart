@@ -6,6 +6,7 @@ import '../data/enums.dart';
 import 'add_category_sheet.dart';
 import 'theme/tokens.dart';
 import 'widgets/category_icon_tile.dart';
+import 'widgets/tap_bounce.dart';
 
 class CategoryEditorScreen extends StatefulWidget {
   const CategoryEditorScreen({super.key});
@@ -119,10 +120,12 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
           leading:
               CategoryIconTile(iconKey: c.iconKey, colorValue: c.colorValue),
           title: Text(c.name),
-          trailing: IconButton(
-            tooltip: 'إعادة تفعيل',
-            icon: const Icon(Icons.unarchive_outlined),
-            onPressed: () => db.categoryDao.unarchive(c.id),
+          trailing: TapBounce(
+            child: IconButton(
+              tooltip: 'إعادة تفعيل',
+              icon: const Icon(Icons.unarchive_outlined),
+              onPressed: () => db.categoryDao.unarchive(c.id),
+            ),
           ),
         );
       },

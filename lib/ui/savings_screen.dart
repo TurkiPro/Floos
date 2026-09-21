@@ -12,6 +12,7 @@ import 'savings_behavior_screen.dart';
 import 'theme/tokens.dart';
 import 'widgets/day_section.dart';
 import 'widgets/swipe_to_delete.dart';
+import 'widgets/tap_bounce.dart';
 
 class SavingsScreen extends StatelessWidget {
   const SavingsScreen({super.key});
@@ -26,22 +27,27 @@ class SavingsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('الادخار'),
         actions: [
-          IconButton(
-            tooltip: 'سلوك الادخار',
-            icon: const Icon(Icons.insights_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SavingsBehaviorScreen()),
+          TapBounce(
+            child: IconButton(
+              tooltip: 'سلوك الادخار',
+              icon: const Icon(Icons.insights_outlined),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                    builder: (_) => const SavingsBehaviorScreen()),
+              ),
             ),
           ),
-          IconButton(
-            tooltip: 'إيداع',
-            icon: const Icon(Icons.add_card_outlined),
-            onPressed: () => showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              useSafeArea: true,
-              showDragHandle: true,
-              builder: (_) => AddContributionSheet(db: db),
+          TapBounce(
+            child: IconButton(
+              tooltip: 'إيداع',
+              icon: const Icon(Icons.add_card_outlined),
+              onPressed: () => showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                useSafeArea: true,
+                showDragHandle: true,
+                builder: (_) => AddContributionSheet(db: db),
+              ),
             ),
           ),
         ],
@@ -286,17 +292,19 @@ class _GoalCard extends StatelessWidget {
                               fontWeight: FontWeight.w600),
                         ),
                       ),
-                      IconButton(
-                        tooltip: 'إضافة إيداع',
-                        icon: Icon(Icons.add_circle_outline,
-                            color: scheme.primary),
-                        onPressed: () => showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          useSafeArea: true,
-                          showDragHandle: true,
-                          builder: (_) =>
-                              AddContributionSheet(db: db, goalId: goal.id),
+                      TapBounce(
+                        child: IconButton(
+                          tooltip: 'إضافة إيداع',
+                          icon: Icon(Icons.add_circle_outline,
+                              color: scheme.primary),
+                          onPressed: () => showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            useSafeArea: true,
+                            showDragHandle: true,
+                            builder: (_) =>
+                                AddContributionSheet(db: db, goalId: goal.id),
+                          ),
                         ),
                       ),
                     ],
