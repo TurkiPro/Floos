@@ -702,8 +702,40 @@ class InvestmentDao extends DatabaseAccessor<AppDatabase>
   Future<void> clearAll() => delete(investments).go();
 }
 
+/// One reviewed row the user confirmed, ready to be written.
+///
+/// [party] is the bank's own string; [displayName] is what the user called it,
+/// if anything. Both are kept: the display name becomes the transaction note
+/// (so history is readable), while the raw party is what the rule is keyed on.
+class ResolvedImportRow {
+  final double amount;
+  final DateTime date;
+  final String? party;
+  final String? displayName;
+  final PartyDisposition disposition;
+  final int? categoryId;
+  final int? goalId;
+
+  /// Whether this row's party already had a rule before this import. A batch
+  /// that merely re-uses a rule must not take ownership of it, or undoing the
+  /// batch would delete a decision the user made earlier.
+  final bool ruleAlreadyExisted;
+
+  const ResolvedImportRow({
+    required this.amount,
+    required this.date,
+    required this.party,
+    required this.displayName,
+    required this.disposition,
+    this.categoryId,
+    this.goalId,
+    this.ruleAlreadyExisted = false,
+  });
+}
+
 /// Bank-message imports, and undoing one.
-@DriftAccessor(tables: [ImportBatches, Transactions, SavingsContributions])
+@DriftAccessor(
+    tables: [ImportBatches, Transactions, SavingsContributions, PartyRules])
 class ImportBatchDao extends DatabaseAccessor<AppDatabase>
     with _$ImportBatchDaoMixin {
   ImportBatchDao(super.db);
@@ -769,6 +801,74 @@ class ImportBatchDao extends DatabaseAccessor<AppDatabase>
   Future<void> undo(int batchId) {
     return transaction(() async {
       await (delete(importBatches)..where((b) => b.id.equals(batchId))).go();
+    });
+  }
+
+  /// Writes a confirmed batch, all of it or none of it.
+  ///
+  /// Returns the new batch id. Rows dispositioned [PartyDisposition.ignore]
+  /// are counted and deliberately NOT written: a card top-up is the user's own
+  /// money moving, and the spending it funds arrives as its own messages, so
+  /// booking it too would count the same riyals twice.
+  ///
+  /// Imported rows carry a null `recurrenceId` — they are not rule-generated,
+  /// and claiming otherwise would let a catch-up interact with them.
+  Future<int> commitImport(List<ResolvedImportRow> rows) {
+    return transaction(() async {
+      final booked =
+          rows.where((r) => r.disposition != PartyDisposition.ignore).toList();
+      final batchId = await create(
+        rowCount: booked.length,
+        totalAmount: booked.fold<double>(0, (acc, r) => acc + r.amount),
+        ignoredCount: rows.length - booked.length,
+      );
+
+      for (final row in rows) {
+        final label = (row.displayName?.trim().isNotEmpty ?? false)
+            ? row.displayName!.trim()
+            : row.party?.trim();
+
+        switch (row.disposition) {
+          case PartyDisposition.expense:
+          case PartyDisposition.income:
+            await into(transactions).insert(TransactionsCompanion.insert(
+              amount: row.amount,
+              categoryId: row.categoryId!,
+              type: row.disposition == PartyDisposition.income
+                  ? TxnType.income
+                  : TxnType.expense,
+              date: row.date,
+              note: Value(label),
+              importBatchId: Value(batchId),
+            ));
+          case PartyDisposition.savings:
+            await into(savingsContributions)
+                .insert(SavingsContributionsCompanion.insert(
+              goalId: row.goalId!,
+              amount: row.amount,
+              date: row.date,
+              note: Value(label),
+              importBatchId: Value(batchId),
+            ));
+          case PartyDisposition.ignore:
+            break; // counted above; never written
+        }
+
+        final party = row.party;
+        if (party != null && party.trim().isNotEmpty) {
+          await db.partyRuleDao.remember(
+            rawParty: party,
+            disposition: row.disposition,
+            displayName: row.displayName,
+            categoryId: row.categoryId,
+            goalId: row.goalId,
+            // Only a rule this import created belongs to it.
+            createdByBatchId: row.ruleAlreadyExisted ? null : batchId,
+          );
+        }
+      }
+
+      return batchId;
     });
   }
 }

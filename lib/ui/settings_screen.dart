@@ -17,6 +17,7 @@ import '../services/app_lock_service.dart';
 import '../services/notification_service.dart';
 import 'budgets_screen.dart';
 import 'category_editor_screen.dart';
+import 'import_screen.dart';
 import 'investments_screen.dart';
 import 'months_screen.dart';
 import 'recurring_screen.dart';
@@ -360,6 +361,10 @@ class SettingsScreen extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xl),
           _sectionLabel(context, 'البيانات'),
+          _navTile(context,
+              icon: Icons.content_paste_go,
+              label: 'استيراد من رسائل البنك',
+              onTap: () => _push(context, const ImportScreen())),
           _navTile(context,
               icon: Icons.backup_outlined,
               label: 'نسخة احتياطية',

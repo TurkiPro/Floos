@@ -170,6 +170,169 @@ void main() {
     expect((await db.importBatchDao.countsFor(batch)).txns, 1);
   });
 
+  group('commitImport', () {
+    test('routes each disposition to the right place', () async {
+      final goalId =
+          await db.savingsDao.addGoal(name: 'سيارة', targetAmount: 1000);
+      final batchId = await db.importBatchDao.commitImport([
+        ResolvedImportRow(
+          amount: 30,
+          date: DateTime(2026, 9, 12),
+          party: 'RED BOX',
+          displayName: 'ريد بوكس',
+          disposition: PartyDisposition.expense,
+          categoryId: 1,
+        ),
+        ResolvedImportRow(
+          amount: 100,
+          date: DateTime(2026, 9, 18),
+          party: '**7772',
+          displayName: 'ادخار',
+          disposition: PartyDisposition.savings,
+          goalId: goalId,
+        ),
+        // A card top-up: parsed, counted, deliberately not booked.
+        ResolvedImportRow(
+          amount: 600,
+          date: DateTime(2026, 9, 18),
+          party: 'ابل باي',
+          displayName: null,
+          disposition: PartyDisposition.ignore,
+        ),
+      ]);
+
+      final txns = await db.select(db.transactions).get();
+      expect(txns, hasLength(1));
+      expect(txns.single.amount, 30);
+      expect(txns.single.note, 'ريد بوكس',
+          reason: 'the display name makes history readable');
+      expect(txns.single.importBatchId, batchId);
+      expect(txns.single.recurrenceId, isNull,
+          reason: 'imported rows are not rule-generated');
+
+      final contribs = await db.select(db.savingsContributions).get();
+      expect(contribs, hasLength(1));
+      expect(contribs.single.goalId, goalId);
+
+      final batch = await db.importBatchDao.latest();
+      expect(batch!.rowCount, 2);
+      expect(batch.ignoredCount, 1);
+      expect(batch.totalAmount, 130, reason: 'the ignored 600 is excluded');
+    });
+
+    test('the ignored top-up never reaches the ledger', () async {
+      await db.importBatchDao.commitImport([
+        ResolvedImportRow(
+          amount: 600,
+          date: DateTime(2026, 9, 18),
+          party: 'ابل باي',
+          displayName: null,
+          disposition: PartyDisposition.ignore,
+        ),
+      ]);
+      // Booking this would double-count the purchases it funds.
+      expect(await txnCount(), 0);
+      expect(await db.select(db.savingsContributions).get(), isEmpty);
+    });
+
+    test('remembers each resolved party for next time', () async {
+      await db.importBatchDao.commitImport([
+        ResolvedImportRow(
+          amount: 30,
+          date: DateTime(2026, 9, 12),
+          party: 'RED BOX',
+          displayName: 'ريد بوكس',
+          disposition: PartyDisposition.expense,
+          categoryId: 1,
+        ),
+      ]);
+      final rule = await db.partyRuleDao.lookup('RED BOX');
+      expect(rule, isNotNull);
+      expect(rule!.displayName, 'ريد بوكس');
+      expect(rule.createdByBatchId, isNotNull);
+    });
+
+    test('a re-used rule is not claimed by the new batch', () async {
+      final first = await db.importBatchDao.create(rowCount: 0, totalAmount: 0);
+      await db.partyRuleDao.remember(
+        rawParty: 'RED BOX',
+        disposition: PartyDisposition.expense,
+        categoryId: 1,
+        createdByBatchId: first,
+      );
+
+      await db.importBatchDao.commitImport([
+        ResolvedImportRow(
+          amount: 30,
+          date: DateTime(2026, 9, 12),
+          party: 'RED BOX',
+          displayName: null,
+          disposition: PartyDisposition.expense,
+          categoryId: 1,
+          ruleAlreadyExisted: true,
+        ),
+      ]);
+
+      expect((await db.partyRuleDao.lookup('RED BOX'))!.createdByBatchId, first,
+          reason: 'ownership stays with the batch that created the rule');
+    });
+
+    test('a failure part-way writes nothing at all', () async {
+      await expectLater(
+        db.importBatchDao.commitImport([
+          ResolvedImportRow(
+            amount: 30,
+            date: DateTime(2026, 9, 12),
+            party: 'RED BOX',
+            displayName: null,
+            disposition: PartyDisposition.expense,
+            categoryId: 1,
+          ),
+          // Category 9999 does not exist: the FK rejects it.
+          ResolvedImportRow(
+            amount: 40,
+            date: DateTime(2026, 9, 13),
+            party: 'BAD',
+            displayName: null,
+            disposition: PartyDisposition.expense,
+            categoryId: 9999,
+          ),
+        ]),
+        throwsA(anything),
+      );
+
+      expect(await txnCount(), 0);
+      expect(await db.select(db.importBatches).get(), isEmpty);
+      expect(await db.partyRuleDao.getAll(), isEmpty);
+    });
+
+    test('a committed batch can be undone whole', () async {
+      final batchId = await db.importBatchDao.commitImport([
+        ResolvedImportRow(
+          amount: 30,
+          date: DateTime(2026, 9, 12),
+          party: 'RED BOX',
+          displayName: null,
+          disposition: PartyDisposition.expense,
+          categoryId: 1,
+        ),
+        ResolvedImportRow(
+          amount: 60.50,
+          date: DateTime(2026, 9, 12),
+          party: 'SALAT ASIA',
+          displayName: null,
+          disposition: PartyDisposition.expense,
+          categoryId: 1,
+        ),
+      ]);
+      expect(await txnCount(), 2);
+
+      await db.importBatchDao.undo(batchId);
+      expect(await txnCount(), 0);
+      expect(await db.partyRuleDao.getAll(), isEmpty);
+    });
+  });
+
   test('ignoredCount is recorded but writes nothing', () async {
     final batch = await db.importBatchDao.create(
       rowCount: 1,
