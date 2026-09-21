@@ -8,8 +8,56 @@ import 'domain/recurrence_engine.dart';
 import 'services/alerts_coordinator.dart';
 import 'services/notification_service.dart';
 
+/// Replaces Flutter's release-mode error box, which is a featureless grey
+/// rectangle, with something that actually says what broke.
+///
+/// A widget that throws while building is the other half of the blank-screen
+/// problem: main() can complete perfectly and the user still sees nothing they
+/// can report. This is deliberately self-contained — no Material, no
+/// Directionality inherited from above — because it has to render even when
+/// the failure happened above MaterialApp.
+Widget _visibleError(FlutterErrorDetails details) {
+  return Directionality(
+    textDirection: TextDirection.rtl,
+    child: ColoredBox(
+      color: const Color(0xFF3A0B0B),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'حدث خطأ في العرض',
+                  style: TextStyle(
+                    color: Color(0xFFFFD9D9),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SelectableText(
+                  details.exceptionAsString(),
+                  style: const TextStyle(
+                    color: Color(0xFFFFD9D9),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Do this before anything can build.
+  ErrorWidget.builder = _visibleError;
 
   final db = AppDatabase();
   final settings = AppSettings(await SharedPreferences.getInstance());
