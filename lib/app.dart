@@ -11,7 +11,19 @@ import 'ui/theme/tokens.dart';
 class FloosApp extends StatelessWidget {
   final AppDatabase db;
   final AppSettings settings;
-  const FloosApp({super.key, required this.db, required this.settings});
+
+  /// Anything that failed while the app was starting (see main()). Shown once,
+  /// dismissibly, over the home screen — the app still runs, but a failure this
+  /// early usually means the data layer is unhappy, and the user needs to be
+  /// able to read and report it rather than guess.
+  final List<String> startupFailures;
+
+  const FloosApp({
+    super.key,
+    required this.db,
+    required this.settings,
+    this.startupFailures = const [],
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -43,12 +55,91 @@ class FloosApp extends StatelessWidget {
             // The gate must wrap the Navigator (via builder:), not the home
             // route — otherwise every pushed screen (Settings, Statistics, a
             // sheet) renders above the lock and bypasses it.
-            builder: (context, child) =>
-                _LockGate(child: child ?? const SizedBox.shrink()),
+            builder: (context, child) => _LockGate(
+              child: _StartupFailureBanner(
+                failures: startupFailures,
+                child: child ?? const SizedBox.shrink(),
+              ),
+            ),
             home: const HomeScreen(),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Shows what failed during startup, over the app rather than instead of it.
+///
+/// The app stays usable underneath — a recurrence catch-up that could not run
+/// does not stop anyone reading their history — but the message is on screen
+/// and selectable, so it can be reported verbatim instead of described as
+/// "it stopped working".
+class _StartupFailureBanner extends StatefulWidget {
+  final List<String> failures;
+  final Widget child;
+  const _StartupFailureBanner({required this.failures, required this.child});
+
+  @override
+  State<_StartupFailureBanner> createState() => _StartupFailureBannerState();
+}
+
+class _StartupFailureBannerState extends State<_StartupFailureBanner> {
+  bool _dismissed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.failures.isEmpty || _dismissed) return widget.child;
+    final scheme = Theme.of(context).colorScheme;
+
+    return Stack(
+      children: [
+        widget.child,
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Material(
+            color: scheme.errorContainer,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'تعذّر إكمال بعض خطوات التشغيل',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onErrorContainer,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    // Selectable so the text can be copied into a report.
+                    SelectableText(
+                      widget.failures.join('\n\n'),
+                      style: TextStyle(
+                        fontSize: AppTextSizes.label,
+                        color: scheme.onErrorContainer,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: TextButton(
+                        onPressed: () => setState(() => _dismissed = true),
+                        child: const Text('إخفاء'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
