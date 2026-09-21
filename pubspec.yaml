@@ -19,7 +19,7 @@ dependencies:
   path: ^1.9.0
 
   # Number/date formatting.
-  intl: 0.20.2
+  intl: ^0.20.3
 
   # Lightweight DI for handing the database to the widget tree.
   provider: ^6.1.2
