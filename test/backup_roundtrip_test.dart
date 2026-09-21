@@ -129,6 +129,85 @@ void main() {
     expect(await target.budgetDao.getAll(), isEmpty);
   });
 
+  test('import batches and party rules round-trip, cascade still works',
+      () async {
+    final source = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(source.close);
+    final seeded = await _seed(source);
+
+    final batchId =
+        await source.importBatchDao.create(rowCount: 1, totalAmount: 30);
+    await source.partyRuleDao.remember(
+      rawParty: 'RED BOX',
+      disposition: PartyDisposition.expense,
+      categoryId: 1,
+      displayName: 'ريد بوكس',
+      createdByBatchId: batchId,
+    );
+    await source.partyRuleDao.remember(
+      rawParty: '**7772',
+      disposition: PartyDisposition.savings,
+      goalId: seeded.goalId,
+    );
+    await source.partyRuleDao.remember(
+      rawParty: 'ابل باي',
+      disposition: PartyDisposition.ignore,
+    );
+
+    final target = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(target.close);
+    await restoreBackupJson(target, await buildBackupJson(source));
+
+    final rules = await target.partyRuleDao.getAll();
+    expect(rules, hasLength(3));
+    final redBox = await target.partyRuleDao.lookup('RED BOX');
+    expect(redBox!.displayName, 'ريد بوكس');
+    expect(redBox.disposition, PartyDisposition.expense);
+    expect(redBox.createdByBatchId, batchId);
+    expect((await target.partyRuleDao.lookup('**7772'))!.goalId, seeded.goalId);
+    expect((await target.partyRuleDao.lookup('ابل باي'))!.disposition,
+        PartyDisposition.ignore);
+    expect((await target.importBatchDao.latest())!.id, batchId);
+
+    // The restored rows must still be undoable — a backup that preserved the
+    // values but lost the foreign-key action would look fine until someone
+    // tried to take an import back.
+    await target.importBatchDao.undo(batchId);
+    expect(await target.partyRuleDao.lookup('RED BOX'), isNull);
+    expect(await target.partyRuleDao.getAll(), hasLength(2));
+  });
+
+  test('a pre-v13 file without import sections restores with none', () async {
+    final source = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(source.close);
+    await _seed(source);
+    final batchId =
+        await source.importBatchDao.create(rowCount: 1, totalAmount: 30);
+    await source.partyRuleDao.remember(
+      rawParty: 'RED BOX',
+      disposition: PartyDisposition.expense,
+      categoryId: 1,
+      createdByBatchId: batchId,
+    );
+
+    // Strip both new sections, simulating a backup taken before v13. Every
+    // backup file the user already has looks like this, so this must not throw.
+    final map =
+        jsonDecode(await buildBackupJson(source)) as Map<String, dynamic>;
+    map.remove('importBatches');
+    map.remove('partyRules');
+    final legacyJson = jsonEncode(map);
+
+    final target = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(target.close);
+    await restoreBackupJson(target, legacyJson); // must not throw
+
+    expect(await target.partyRuleDao.getAll(), isEmpty);
+    expect(await target.importBatchDao.latest(), isNull);
+    // The rest of the file still restored.
+    expect(await target.budgetDao.getAll(), isNotEmpty);
+  });
+
   test('a corrupt row rolls the whole restore back, data intact', () async {
     final source = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(source.close);

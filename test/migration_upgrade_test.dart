@@ -1,10 +1,12 @@
 import 'dart:io';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as raw;
 
 import 'package:floos/data/database.dart';
+import 'package:floos/data/enums.dart';
 
 /// Exercises the real upgrade path against a hand-built v4 database — the one
 /// thing the rest of the suite can't cover, because every other test starts at
@@ -107,6 +109,12 @@ void main() {
     final after = await db.transactionDao.watchRecent().first;
     expect(after.firstWhere((r) => r.txn.id == 1).txn.recurrenceId, isNull,
         reason: 'deleting a rule nulls its transactions post-migration');
+
+    // The v12→v13 import tables, and — the part worth asserting — that their
+    // CASCADE actually fires on a MIGRATED database. This path reaches
+    // import_batch_id through the v5 table rebuild's `newColumns`, not through
+    // addColumn, so a fresh-install test would not prove it.
+    await expectImportCascadeWorks(db);
   });
 
   // The exact path a store user on 1.0.1 (schema 7) takes to 1.1.0 (schema 12):
@@ -209,5 +217,50 @@ void main() {
     await db.investmentDao
         .add(name: 'سهم', amount: 100, date: DateTime(2026, 7, 1));
     expect((await db.investmentDao.watchAll().first), isNotEmpty);
+
+    // v13, reached here through addColumn rather than the v5 rebuild.
+    await expectImportCascadeWorks(db);
   });
+}
+
+/// Asserts the v13 import tables exist on a migrated database AND that undo's
+/// ON DELETE CASCADE actually fires there.
+///
+/// This is worth its own helper because the two migration paths add
+/// `import_batch_id` by different mechanisms — the v4 path through the v5
+/// table rebuild's `newColumns`, the v7 path through `addColumn` — and a
+/// fresh-install schema could satisfy one while the other silently produced a
+/// column with no foreign-key action. Undo is a delete path on real financial
+/// rows, so "it worked on a new install" is not enough.
+Future<void> expectImportCascadeWorks(AppDatabase db) async {
+  final before = (await db.select(db.transactions).get()).length;
+
+  final batchId = await db.importBatchDao.create(rowCount: 1, totalAmount: 30);
+  await db.into(db.transactions).insert(TransactionsCompanion.insert(
+        amount: 30,
+        categoryId: 1,
+        type: TxnType.expense,
+        date: DateTime(2026, 9, 12),
+        importBatchId: Value(batchId),
+        // Supplied explicitly: the hand-built v7 fixture below declares
+        // created_at NOT NULL without the DEFAULT a real drift-created v7
+        // database carries, and this helper is about the cascade, not defaults.
+        createdAt: Value(DateTime(2026, 9, 12)),
+      ));
+  await db.partyRuleDao.remember(
+    rawParty: 'RED BOX',
+    disposition: PartyDisposition.expense,
+    categoryId: 1,
+    createdByBatchId: batchId,
+  );
+
+  expect((await db.select(db.transactions).get()).length, before + 1);
+  expect(await db.partyRuleDao.getAll(), hasLength(1));
+
+  await db.importBatchDao.undo(batchId);
+
+  expect((await db.select(db.transactions).get()).length, before,
+      reason: 'CASCADE removed the imported row on a migrated database');
+  expect(await db.partyRuleDao.getAll(), isEmpty,
+      reason: 'CASCADE removed the rule the batch created');
 }

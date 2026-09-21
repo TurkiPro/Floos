@@ -70,7 +70,76 @@ class Transactions extends Table {
   IntColumn get recurrenceId => integer()
       .nullable()
       .references(RecurrenceRules, #id, onDelete: KeyAction.setNull)();
+  // Non-null => this row came from a bank-message import. ON DELETE CASCADE:
+  // deleting the batch row IS how "undo this import" works.
+  //
+  // Note this is deliberately the opposite of [recurrenceId] above. A
+  // generated transaction is real money that outlives its rule, so that one
+  // is SET NULL. An import is a single user action over text the app parsed
+  // heuristically, so undoing it means those rows were never meant to exist.
+  IntColumn get importBatchId => integer()
+      .nullable()
+      .references(ImportBatches, #id, onDelete: KeyAction.cascade)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// One run of the bank-message importer.
+///
+/// Exists so a whole batch can be taken back in one action: everything the
+/// import wrote points here with ON DELETE CASCADE, so undo is a single row
+/// delete that cannot half-apply. The counts are stored rather than derived so
+/// the confirmation dialog can state what it is about to remove without a scan.
+@DataClassName('ImportBatch')
+class ImportBatches extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  DateTimeColumn get importedAt => dateTime().withDefault(currentDateAndTime)();
+  IntColumn get rowCount => integer()();
+  RealColumn get totalAmount => real()();
+  // Rows the user marked "ignore" — parsed, deliberately not written.
+  IntColumn get ignoredCount => integer().withDefault(const Constant(0))();
+}
+
+/// One remembered decision about a merchant or transfer destination, keyed by
+/// the normalized string the bank sends ("RED BOX", "**7772", "KR-133").
+///
+/// The stored decision is a DISPOSITION, not just a category: a bank message
+/// can be a purchase, income, a savings deposit, or nothing the ledger should
+/// record at all. [displayName] exists because the bank's own strings are
+/// frequently unreadable — a POS terminal code or an account number — and
+/// naming one once should fix it forever.
+@DataClassName('PartyRule')
+class PartyRules extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  // Normalized via partyKey(); unique, and the DAO upserts on it.
+  TextColumn get partyKey => text().withLength(min: 1, max: 120)();
+  // What the bank literally sent, kept for display and debugging.
+  TextColumn get rawParty => text().withLength(min: 1, max: 120)();
+  // The user's readable name for this party, if they gave one.
+  TextColumn get displayName => text().nullable()();
+  IntColumn get disposition => intEnum<PartyDisposition>()();
+  // Set when disposition is expense/income. CASCADE: a rule pointing at a
+  // deleted category can never be applied, so it goes with it.
+  IntColumn get categoryId => integer()
+      .nullable()
+      .references(Categories, #id, onDelete: KeyAction.cascade)();
+  // Set when disposition is savings.
+  IntColumn get goalId => integer()
+      .nullable()
+      .references(SavingsGoals, #id, onDelete: KeyAction.cascade)();
+  // The import that FIRST taught this rule. CASCADE so undoing that import
+  // also forgets what it learned — otherwise "undo, fix, re-import" would
+  // re-apply the same wrong category from the rule the bad import had just
+  // created. A rule a later batch merely re-used keeps its original batch here
+  // and is untouched when that later batch is undone.
+  IntColumn get createdByBatchId => integer()
+      .nullable()
+      .references(ImportBatches, #id, onDelete: KeyAction.cascade)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+        {partyKey}
+      ];
 }
 
 /// A user-set monthly spending budget for one top-level category. At most one
@@ -121,6 +190,11 @@ class SavingsContributions extends Table {
   // are excluded from the running balance and the savings rate — otherwise
   // they'd wrongly subtract from income the user never recorded.
   BoolColumn get external => boolean().withDefault(const Constant(false))();
+  // Non-null => this deposit came from a bank-message import. CASCADE, for the
+  // same reason as Transactions.importBatchId.
+  IntColumn get importBatchId => integer()
+      .nullable()
+      .references(ImportBatches, #id, onDelete: KeyAction.cascade)();
 }
 
 /// A single investment entry — money put into a stock, fund, portfolio, etc.,

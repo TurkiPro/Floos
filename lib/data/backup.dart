@@ -44,6 +44,8 @@ Future<String> buildBackupJson(AppDatabase db) async {
   final budgets = await db.select(db.categoryBudgets).get();
   final reflections = await db.select(db.weeklyReflections).get();
   final invsts = await db.select(db.investments).get();
+  final batchRows = await db.select(db.importBatches).get();
+  final partyRuleRows = await db.select(db.partyRules).get();
 
   final map = {
     'version': backupFormatVersion,
@@ -96,6 +98,7 @@ Future<String> buildBackupJson(AppDatabase db) async {
           'date': _ms(t.date),
           'note': t.note,
           'recurrenceId': t.recurrenceId,
+          'importBatchId': t.importBatchId,
           'createdAt': _ms(t.createdAt),
         },
     ],
@@ -119,6 +122,7 @@ Future<String> buildBackupJson(AppDatabase db) async {
           'date': _ms(c.date),
           'note': c.note,
           'external': c.external,
+          'importBatchId': c.importBatchId,
         },
     ],
     'categoryBudgets': [
@@ -146,6 +150,30 @@ Future<String> buildBackupJson(AppDatabase db) async {
           'date': _ms(i.date),
           'note': i.note,
           'external': i.external,
+        },
+    ],
+    'importBatches': [
+      for (final b in batchRows)
+        {
+          'id': b.id,
+          'importedAt': _ms(b.importedAt),
+          'rowCount': b.rowCount,
+          'totalAmount': b.totalAmount,
+          'ignoredCount': b.ignoredCount,
+        },
+    ],
+    'partyRules': [
+      for (final r in partyRuleRows)
+        {
+          'id': r.id,
+          'partyKey': r.partyKey,
+          'rawParty': r.rawParty,
+          'displayName': r.displayName,
+          'disposition': r.disposition.index,
+          'categoryId': r.categoryId,
+          'goalId': r.goalId,
+          'createdByBatchId': r.createdByBatchId,
+          'createdAt': _ms(r.createdAt),
         },
     ],
   };
@@ -225,6 +253,17 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
       ? (root['investments'] as List).cast<Map<String, dynamic>>()
       : const <Map<String, dynamic>>[];
 
+  // Import batches and party rules, likewise: a pre-v13 backup has neither,
+  // and must restore as "nothing imported, nothing remembered". This is why
+  // backupFormatVersion stays at 1 — bumping it would reject every backup file
+  // the user already has.
+  final batchRows = root['importBatches'] is List
+      ? (root['importBatches'] as List).cast<Map<String, dynamic>>()
+      : const <Map<String, dynamic>>[];
+  final partyRuleRows = root['partyRules'] is List
+      ? (root['partyRules'] as List).cast<Map<String, dynamic>>()
+      : const <Map<String, dynamic>>[];
+
   // Everything in one transaction: any failure (bad row, dangling FK) rolls the
   // whole thing back and the pre-existing data survives.
   await db.transaction(() async {
@@ -235,8 +274,12 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
     await db.delete(db.weeklyReflections).go();
     await db.delete(db.investments).go();
     await db.delete(db.categoryBudgets).go();
+    // Party rules reference categories, goals AND batches, so they go before
+    // all three; batches go before the two ledgers that point at them.
+    await db.delete(db.partyRules).go();
     await db.delete(db.transactions).go();
     await db.delete(db.savingsContributions).go();
+    await db.delete(db.importBatches).go();
     await db.delete(db.recurrenceRules).go();
     await db.delete(db.savingsGoals).go();
     await (db.delete(db.categories)..where((c) => c.parentId.isNotNull())).go();
@@ -295,6 +338,17 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
           ));
     }
 
+    // Import batches come before the two ledgers, which reference them.
+    for (final b in batchRows) {
+      await db.into(db.importBatches).insert(ImportBatchesCompanion.insert(
+            id: Value(b['id'] as int),
+            importedAt: Value(_date(b['importedAt'])),
+            rowCount: b['rowCount'] as int,
+            totalAmount: b['totalAmount'] as double,
+            ignoredCount: Value(b['ignoredCount'] as int? ?? 0),
+          ));
+    }
+
     for (final t in rowsOf('transactions')) {
       await db.into(db.transactions).insert(TransactionsCompanion.insert(
             id: Value(t['id'] as int),
@@ -304,6 +358,8 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
             date: _date(t['date']),
             note: Value(t['note'] as String?),
             recurrenceId: Value(t['recurrenceId'] as int?),
+            // Lenient: pre-v13 files have no import batch.
+            importBatchId: Value(t['importBatchId'] as int?),
             createdAt: Value(_date(t['createdAt'])),
           ));
     }
@@ -319,6 +375,8 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
             note: Value(c['note'] as String?),
             // Lenient: pre-v7 files have no external flag (default false).
             external: Value(c['external'] as bool? ?? false),
+            // Lenient: pre-v13 files have no import batch.
+            importBatchId: Value(c['importBatchId'] as int?),
           ));
     }
 
@@ -351,6 +409,21 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
             date: _date(i['date']),
             note: Value(i['note'] as String?),
             external: Value(i['external'] as bool? ?? false),
+          ));
+    }
+
+    // Party rules reference categories, goals and batches — last of all.
+    for (final r in partyRuleRows) {
+      await db.into(db.partyRules).insert(PartyRulesCompanion.insert(
+            id: Value(r['id'] as int),
+            partyKey: r['partyKey'] as String,
+            rawParty: r['rawParty'] as String,
+            displayName: Value(r['displayName'] as String?),
+            disposition: PartyDisposition.values[r['disposition'] as int],
+            categoryId: Value(r['categoryId'] as int?),
+            goalId: Value(r['goalId'] as int?),
+            createdByBatchId: Value(r['createdByBatchId'] as int?),
+            createdAt: Value(_date(r['createdAt'])),
           ));
     }
   });

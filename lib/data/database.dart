@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'enums.dart';
 import 'tables.dart';
+import '../domain/party_key.dart';
 import '../domain/recurrence_math.dart';
 
 part 'database.g.dart';
@@ -701,6 +702,180 @@ class InvestmentDao extends DatabaseAccessor<AppDatabase>
   Future<void> clearAll() => delete(investments).go();
 }
 
+/// Bank-message imports, and undoing one.
+@DriftAccessor(tables: [ImportBatches, Transactions, SavingsContributions])
+class ImportBatchDao extends DatabaseAccessor<AppDatabase>
+    with _$ImportBatchDaoMixin {
+  ImportBatchDao(super.db);
+
+  Future<int> create({
+    required int rowCount,
+    required double totalAmount,
+    int ignoredCount = 0,
+  }) {
+    return into(importBatches).insert(ImportBatchesCompanion.insert(
+      rowCount: rowCount,
+      totalAmount: totalAmount,
+      ignoredCount: Value(ignoredCount),
+    ));
+  }
+
+  /// The most recent import, or null if there has never been one. Only this
+  /// batch is offered for undo: older rows may have been edited since, and
+  /// silently deleting a row the user has since changed would be worse than
+  /// making them remove it by hand.
+  Future<ImportBatch?> latest() {
+    return (select(importBatches)
+          ..orderBy([
+            (b) => OrderingTerm.desc(b.importedAt),
+            (b) => OrderingTerm.desc(b.id),
+          ])
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  Stream<List<ImportBatch>> watchRecent({int limit = 20}) {
+    return (select(importBatches)
+          ..orderBy([
+            (b) => OrderingTerm.desc(b.importedAt),
+            (b) => OrderingTerm.desc(b.id),
+          ])
+          ..limit(limit))
+        .watch();
+  }
+
+  /// One-shot list, for backup export.
+  Future<List<ImportBatch>> getAll() => select(importBatches).get();
+
+  /// What [undo] would actually remove, for the confirmation dialog. Counted
+  /// live rather than trusting the stored `rowCount`, so a row deleted by hand
+  /// since the import isn't promised twice.
+  Future<({int txns, int contributions})> countsFor(int batchId) async {
+    final t = await (select(transactions)
+          ..where((r) => r.importBatchId.equals(batchId)))
+        .get();
+    final c = await (select(savingsContributions)
+          ..where((r) => r.importBatchId.equals(batchId)))
+        .get();
+    return (txns: t.length, contributions: c.length);
+  }
+
+  /// Takes back a whole import.
+  ///
+  /// This is a single row delete on purpose: the transactions, contributions
+  /// and first-learned party rules all reference the batch with ON DELETE
+  /// CASCADE, so the database removes them atomically and undo cannot
+  /// half-apply. Do not replace this with per-table deletes.
+  Future<void> undo(int batchId) {
+    return transaction(() async {
+      await (delete(importBatches)..where((b) => b.id.equals(batchId))).go();
+    });
+  }
+}
+
+/// What each merchant or transfer destination means.
+@DriftAccessor(tables: [PartyRules])
+class PartyRuleDao extends DatabaseAccessor<AppDatabase>
+    with _$PartyRuleDaoMixin {
+  PartyRuleDao(super.db);
+
+  /// Finds the remembered decision for [rawParty], or null.
+  ///
+  /// Exact match always wins; a prefix match is only a fallback, so a rule
+  /// saved under a full name still answers for the bank's truncated form
+  /// ("Ali bin Ab*" → "Ali bin Abi Taleb") without letting a short key
+  /// collide with everything.
+  Future<PartyRule?> lookup(String rawParty) async {
+    final key = partyKey(rawParty);
+    if (key.isEmpty) return null;
+    final exact = await (select(partyRules)
+          ..where((r) => r.partyKey.equals(key))
+          ..limit(1))
+        .getSingleOrNull();
+    if (exact != null) return exact;
+    final all = await select(partyRules).get();
+    for (final rule in all) {
+      if (partyMatches(rule.partyKey, key)) return rule;
+    }
+    return null;
+  }
+
+  /// Remembers (or updates) what [rawParty] means.
+  ///
+  /// [createdByBatchId] is only recorded when the rule is new. A batch that
+  /// merely re-uses an existing rule must not take ownership of it, or undoing
+  /// that batch would delete a decision the user made earlier.
+  Future<void> remember({
+    required String rawParty,
+    required PartyDisposition disposition,
+    String? displayName,
+    int? categoryId,
+    int? goalId,
+    int? createdByBatchId,
+  }) async {
+    switch (disposition) {
+      case PartyDisposition.expense:
+      case PartyDisposition.income:
+        if (categoryId == null) {
+          throw ArgumentError('$disposition needs a categoryId');
+        }
+        if (goalId != null) {
+          throw ArgumentError('$disposition cannot carry a goalId');
+        }
+      case PartyDisposition.savings:
+        if (goalId == null) throw ArgumentError('savings needs a goalId');
+        if (categoryId != null) {
+          throw ArgumentError('savings cannot carry a categoryId');
+        }
+      case PartyDisposition.ignore:
+        if (categoryId != null || goalId != null) {
+          throw ArgumentError('ignore takes neither a category nor a goal');
+        }
+    }
+
+    final key = partyKey(rawParty);
+    if (key.isEmpty) throw ArgumentError('party must not be blank');
+    final existing = await (select(partyRules)
+          ..where((r) => r.partyKey.equals(key))
+          ..limit(1))
+        .getSingleOrNull();
+
+    if (existing == null) {
+      await into(partyRules).insert(PartyRulesCompanion.insert(
+        partyKey: key,
+        rawParty: rawParty.trim(),
+        displayName: Value(displayName),
+        disposition: disposition,
+        categoryId: Value(categoryId),
+        goalId: Value(goalId),
+        createdByBatchId: Value(createdByBatchId),
+      ));
+      return;
+    }
+    await (update(partyRules)..where((r) => r.id.equals(existing.id))).write(
+      PartyRulesCompanion(
+        rawParty: Value(rawParty.trim()),
+        displayName: Value(displayName),
+        disposition: Value(disposition),
+        categoryId: Value(categoryId),
+        goalId: Value(goalId),
+        // Ownership stays with the import that first created this rule.
+      ),
+    );
+  }
+
+  Stream<List<PartyRule>> watchAll() {
+    return (select(partyRules)..orderBy([(r) => OrderingTerm.asc(r.partyKey)]))
+        .watch();
+  }
+
+  /// One-shot list, for backup export.
+  Future<List<PartyRule>> getAll() => select(partyRules).get();
+
+  Future<void> deleteById(int id) =>
+      (delete(partyRules)..where((r) => r.id.equals(id))).go();
+}
+
 @DriftDatabase(
   tables: [
     Categories,
@@ -711,6 +886,8 @@ class InvestmentDao extends DatabaseAccessor<AppDatabase>
     CategoryBudgets,
     WeeklyReflections,
     Investments,
+    ImportBatches,
+    PartyRules,
   ],
   daos: [
     CategoryDao,
@@ -720,6 +897,8 @@ class InvestmentDao extends DatabaseAccessor<AppDatabase>
     BudgetDao,
     WeeklyReflectionDao,
     InvestmentDao,
+    ImportBatchDao,
+    PartyRuleDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -727,7 +906,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -762,7 +941,16 @@ class AppDatabase extends _$AppDatabase {
               'WHERE recurrence_id IS NOT NULL '
               'AND recurrence_id NOT IN (SELECT id FROM recurrence_rules)',
             );
-            await m.alterTable(TableMigration(transactions));
+            // The rebuild recreates `transactions` from its CURRENT Dart
+            // shape, which includes every column added in later versions. Any
+            // such column has no counterpart in the old table to copy from, so
+            // it must be declared here or the copy fails with "no such column".
+            // The v13 step below skips re-adding it for the same reason.
+            await m.createTable(importBatches);
+            await m.alterTable(TableMigration(
+              transactions,
+              newColumns: [transactions.importBatchId],
+            ));
           }
           // v6 adds user-set monthly budgets per category.
           if (from < 6) {
@@ -814,6 +1002,28 @@ class AppDatabase extends _$AppDatabase {
               'SELECT MAX(date) FROM transactions '
               'WHERE transactions.recurrence_id = recurrence_rules.id)',
             );
+          }
+          // v13 adds the bank-message importer's storage: what each merchant
+          // or transfer destination means (so a pasted batch arrives
+          // pre-categorized), and a batch record both ledgers point at so a
+          // whole import can be undone in one action.
+          //
+          // Both new columns are nullable with no default, which is what makes
+          // ALTER TABLE ADD COLUMN legal while foreign keys are on. No
+          // back-fill: existing rows belong to no import, which is correct.
+          if (from < 13) {
+            // A database coming from v4 or earlier already created this table
+            // in the v5 step above (the rebuild there needs it to exist).
+            if (from >= 5) await m.createTable(importBatches);
+            await m.createTable(partyRules);
+            // Likewise: the v5 rebuild recreates `transactions` from the
+            // current Dart shape, so a database that passed through it already
+            // has this column and re-adding it would fail as a duplicate.
+            if (from >= 5) {
+              await m.addColumn(transactions, transactions.importBatchId);
+            }
+            await m.addColumn(
+                savingsContributions, savingsContributions.importBatchId);
           }
         },
         beforeOpen: (details) async {
