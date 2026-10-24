@@ -80,11 +80,36 @@ class DashboardSummary {
       if (!inv.external) internalInvested += inv.amount;
     }
 
+    final balance = allIncome - allExpense - internalSaved - internalInvested;
+
+    // What this cycle's own income has left, before any reckoning with the
+    // past.
+    final cycleRemaining = monthIncome - monthSpent - monthSaved;
+
+    // Capped at the real balance, exactly as the weekly budget is (see
+    // weekly_budget_status.dart). A deficit carried in from last cycle is paid
+    // off by the new salary the moment it lands, so that much of the salary is
+    // already spoken for and was never "remaining". Uncapped, the card insists
+    // the full salary is untouched while the balance below it says otherwise —
+    // and it errs by claiming more money exists than does, which is the
+    // dangerous direction for a budgeting app.
+    //
+    // Only caps once income has landed: before payday "remaining" is just this
+    // cycle's spending so far, and the balance is a different quantity (it
+    // still holds last cycle's leftovers) that would drag the figure somewhere
+    // meaningless. Same guard the weekly budget uses.
+    //
+    // A carried-in SURPLUS is deliberately not added. This card splits the
+    // cycle's income into left/spent/saved; money from previous cycles is real
+    // but it is not this cycle's income, and «الرصيد» above already shows it.
+    final monthRemaining =
+        monthIncome > 0 && balance < cycleRemaining ? balance : cycleRemaining;
+
     return DashboardSummary(
-      balance: allIncome - allExpense - internalSaved - internalInvested,
+      balance: balance,
       savingsTotal: allSaved,
       investedTotal: investedTotal,
-      monthRemaining: monthIncome - monthSpent - monthSaved,
+      monthRemaining: monthRemaining,
       monthSpent: monthSpent,
       monthSaved: monthSaved,
       monthExpenses: monthExpenses,

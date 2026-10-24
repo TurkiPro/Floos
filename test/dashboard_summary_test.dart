@@ -170,6 +170,85 @@ void main() {
       expect(d.balance, 1000 - 0 - 200); // only the non-external 200 leaves
     });
 
+    group('a deficit carried in from last cycle', () {
+      test('is taken out of what this cycle has left', () {
+        // Last cycle ended 1,203.58 overdrawn; this cycle's salary lands and
+        // 80 is spent. The salary immediately pays off that deficit, so it was
+        // never "remaining" — reporting the full 19,339 would claim more money
+        // exists than does.
+        final rows = [
+          _income(19419.00, DateTime(2026, 7, 1)),
+          _expense(80.00, DateTime(2026, 7, 2)),
+          // Last cycle: spent more than came in.
+          _income(19419.00, DateTime(2026, 6, 1)),
+          _expense(20622.58, DateTime(2026, 6, 15)),
+        ];
+
+        final d =
+            DashboardSummary.from(rows, const [], const <Investment>[], july);
+
+        expect(d.balance, closeTo(18135.42, 0.005));
+        expect(d.monthRemaining, closeTo(18135.42, 0.005),
+            reason: 'capped at the real balance, not 19,339');
+        expect(d.monthSpent, 80.00);
+      });
+
+      test('never makes remaining exceed the balance', () {
+        final rows = [
+          _income(1000, DateTime(2026, 7, 1)),
+          _expense(2000, DateTime(2026, 6, 10)),
+        ];
+        final d =
+            DashboardSummary.from(rows, const [], const <Investment>[], july);
+        expect(d.monthRemaining, lessThanOrEqualTo(d.balance));
+      });
+    });
+
+    test('a carried-in surplus is not added to this cycle', () {
+      // The opposite direction is left alone on purpose: leftover money from
+      // previous cycles is real, and «الرصيد» shows it, but it is not this
+      // cycle's income and this card splits this cycle's income.
+      final rows = [
+        _income(5000, DateTime(2026, 5, 1)), // untouched from an older cycle
+        _income(1000, DateTime(2026, 7, 1)),
+        _expense(200, DateTime(2026, 7, 3)),
+      ];
+      final d =
+          DashboardSummary.from(rows, const [], const <Investment>[], july);
+
+      expect(d.balance, 5800);
+      expect(d.monthRemaining, 800, reason: '1000 earned - 200 spent');
+    });
+
+    test('no cap before this cycle\'s income has landed', () {
+      // Pre-payday, "remaining" is just what has been spent so far. The
+      // balance still holds last cycle's leftovers and is a different
+      // quantity, so letting it drag this figure would be meaningless.
+      final rows = [
+        _income(1000, DateTime(2026, 5, 1)),
+        _expense(1500, DateTime(2026, 6, 20)), // balance is now -500
+        _expense(50, DateTime(2026, 7, 2)), // this cycle, before payday
+      ];
+      final d =
+          DashboardSummary.from(rows, const [], const <Investment>[], july);
+
+      expect(d.incomeReceivedThisMonth, isFalse);
+      expect(d.balance, -550);
+      expect(d.monthRemaining, -50, reason: 'this cycle only, uncapped');
+    });
+
+    test('savings this cycle still reduce what is left', () {
+      final rows = [
+        _income(1000, DateTime(2026, 7, 1)),
+        _expense(200, DateTime(2026, 7, 3)),
+      ];
+      final d = DashboardSummary.from(rows,
+          [_contrib(300, DateTime(2026, 7, 4))], const <Investment>[], july);
+
+      expect(d.monthRemaining, 500);
+      expect(d.balance, 500);
+    });
+
     test('empty input yields all zeros and an empty month list', () {
       final d =
           DashboardSummary.from(const [], const [], const <Investment>[], july);
