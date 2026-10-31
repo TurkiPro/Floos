@@ -6,6 +6,7 @@ import 'app_settings.dart';
 import 'data/database.dart';
 import 'domain/recurrence_engine.dart';
 import 'services/alerts_coordinator.dart';
+import 'services/device_backup_exclusion.dart';
 import 'services/notification_service.dart';
 
 /// Replaces Flutter's release-mode error box, which is a featureless grey
@@ -94,6 +95,15 @@ Future<void> main() async {
   // surfaces here.
   await attempt(
       'تحديث العمليات المتكررة', () => RecurrenceEngine(db).catchUp());
+
+  // Keep the database and its backups out of the device's cloud backup. iOS
+  // sweeps everything under Documents/ into iCloud by default, so this is what
+  // makes "the data stays on your device" true there — Android already blocks
+  // it in the manifest. Runs after the catch-up so the database file exists.
+  // A failure is surfaced rather than swallowed: it is a privacy control, and
+  // one nobody checks is how this was missed.
+  await attempt(
+      'استثناء البيانات من نسخ الجهاز', DeviceBackupExclusion.excludeAppData);
 
   // Re-arm the notification schedule and the icon badge from the fresh data.
   await attempt('تهيئة التنبيهات', NotificationService.init);

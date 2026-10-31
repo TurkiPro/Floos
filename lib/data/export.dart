@@ -9,8 +9,28 @@ import '../domain/period_summary.dart';
 import 'database.dart';
 import 'enums.dart';
 
+/// Characters that make Excel, Sheets and Numbers treat a cell as a formula
+/// rather than as text.
+const _formulaTriggers = {'=', '+', '-', '@', '\t', '\r'};
+
 String _csvField(String? v) {
-  final s = v ?? '';
+  var s = v ?? '';
+  // Neutralise formula injection before quoting. A cell beginning with one of
+  // these is executed by every major spreadsheet, and this file is explicitly
+  // built to be opened in one.
+  //
+  // This used to be self-inflicted only — your own category names and notes.
+  // It is not any more: the bank-message importer writes merchant strings
+  // taken from received SMS into the note column, so the content of a cell can
+  // now be chosen by whoever sent the message. A leading quote is the standard
+  // mitigation and is stripped again on import by the same spreadsheets.
+  //
+  // Only names and notes pass through here; amounts are written with
+  // toStringAsFixed, so a negative number never reaches this and never gets a
+  // quote in front of it.
+  if (s.isNotEmpty && _formulaTriggers.contains(s[0])) {
+    s = "'$s";
+  }
   if (s.contains(',') ||
       s.contains('"') ||
       s.contains('\n') ||

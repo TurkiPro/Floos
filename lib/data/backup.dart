@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../services/device_backup_exclusion.dart';
 import 'database.dart';
 import 'enums.dart';
 
@@ -191,6 +192,10 @@ Future<File> writeBackupFile(AppDatabase db) async {
   final stamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
   final file = File(p.join(dir.path, 'floos_backup_$stamp.json'));
   await file.writeAsString(json);
+  // This file is the entire database in plain text. Mark it the moment it
+  // exists, so it is never picked up by an iCloud backup that runs between now
+  // and the next launch. No-op off iOS.
+  await DeviceBackupExclusion.excludeFile(file.path);
   return file;
 }
 

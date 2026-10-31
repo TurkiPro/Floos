@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
@@ -606,6 +607,13 @@ class _DevFooterState extends State<_DevFooter>
   // Six taps toggle the dev tools — no on-screen countdown, just a bump on the
   // mark and an animated reveal (or hide on the next six taps).
   void _onMarkTap() {
+    // Debug builds only. These tools wipe the whole database — transactions,
+    // recurrence rules, savings, budgets, investments — and replace it with
+    // fake data. That is a developer convenience, not a feature, and six taps
+    // on a logo is a well-known gesture: it was reachable in release, on real
+    // financial data, with nothing but a confirm dialog in the way. The README
+    // already claimed this was debug-gated; now it is.
+    if (!kDebugMode) return;
     _taps++;
     if (_taps < _needed) return;
     _taps = 0;
