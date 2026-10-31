@@ -62,8 +62,11 @@ class WeeklyPerformanceScreen extends StatelessWidget {
                           };
                           final s = StatisticsSummary.from(rows, contributions,
                               incomeRules, expenseRules, now, period);
-                          // The home/stats "this week" figure, shown only as the
-                          // intro reference.
+                          // The one authoritative "this week" figure — the same
+                          // balance-capped number the home card and the badge
+                          // show. It is the intro line AND the current week's
+                          // budget below, so this screen cannot contradict the
+                          // home card, or itself.
                           final weeklyBudget = s.recommendedWeekly;
                           // The uncapped income base each week adapts from — so
                           // every week gets ITS OWN budget (frozen once past),
@@ -88,6 +91,7 @@ class WeeklyPerformanceScreen extends StatelessWidget {
                             now: now,
                             periodStart: period.start,
                             periodEnd: period.end,
+                            currentWeekBudget: weeklyBudget,
                           ).reversed.toList(); // newest week first
 
                           if (weeks.isEmpty || baseWeekly <= 0) {

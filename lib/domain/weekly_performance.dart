@@ -55,8 +55,21 @@ class WeekPerformance {
 /// Each week's budget is [baseWeekly] adapted for the cycle *as it stood at the
 /// start of that week* — it depends only on spending in the weeks BEFORE it, so
 /// a past week's number is frozen and never shifts when a later week over- or
-/// under-spends. (The home card's single figure is this same adaptation for the
-/// current week, then capped at the real remaining balance.)
+/// under-spends.
+///
+/// [currentWeekBudget] is the authoritative figure for the week still in
+/// progress — the balance-capped number the home card and the statistics screen
+/// show (see `weeklyBudgetStatus`). Pass it, and the current week is judged
+/// against exactly that.
+///
+/// It has to be passed in rather than derived here, because this function
+/// cannot compute it: the cap depends on the real account balance, which is not
+/// among its inputs. Deriving the current week locally is what let this screen
+/// and the home card reach OPPOSITE verdicts on the same week — one saying
+/// "over by 37", the other "on track by 19" — while the screen's own intro line
+/// quoted the home figure. Past weeks are deliberately left uncapped: they are
+/// finished history, and today's balance has no bearing on how a week that
+/// already ended went.
 List<WeekPerformance> weeklyPerformance({
   required List<TxnRow> rows,
   required Map<int, Category> byId,
@@ -64,6 +77,7 @@ List<WeekPerformance> weeklyPerformance({
   required DateTime now,
   required DateTime periodStart,
   required DateTime periodEnd,
+  double? currentWeekBudget,
 }) {
   final today = dateOnly(now);
   final tomorrow = DateTime(today.year, today.month, today.day + 1);
@@ -95,7 +109,14 @@ List<WeekPerformance> weeklyPerformance({
       periodEnd: periodEnd,
       now: ws,
     );
-    final budget = adaptive * weekLen / 7;
+    final isCurrent = windowEnd == upper && upper == tomorrow;
+    // The authoritative figure for the week in progress, used as given: it is
+    // already this week's whole allowance, and the cap it carries has itself
+    // accounted for a cycle ending mid-week (see balanceCappedWeekly), so
+    // pro-rating it again would shrink it twice.
+    final budget = (isCurrent && currentWeekBudget != null)
+        ? currentWeekBudget
+        : adaptive * weekLen / 7;
 
     var spent = 0.0; // discretionary spend up to today (the displayed figure)
     var fullWeekSpent = 0.0; // the whole week, to carry into later weeks
@@ -136,7 +157,7 @@ List<WeekPerformance> weeklyPerformance({
       index: idx,
       spent: spent,
       budget: budget,
-      current: windowEnd == upper && upper == tomorrow,
+      current: isCurrent,
       days: daySpends,
     ));
     spentBeforeThisWeek += fullWeekSpent;
