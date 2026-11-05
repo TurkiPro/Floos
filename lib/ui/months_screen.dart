@@ -8,6 +8,7 @@ import '../domain/calendar_format.dart';
 import '../domain/period_summary.dart';
 import 'month_detail_screen.dart';
 import 'search_screen.dart';
+import 'year_review_screen.dart';
 import 'theme/tokens.dart';
 
 /// Every salary cycle that has at least one transaction, newest first. Tapping a
@@ -49,10 +50,26 @@ class MonthsScreen extends StatelessWidget {
               if (cycles.isEmpty) {
                 return const Center(child: Text('لا توجد عمليات بعد'));
               }
+              // The first item is the way into the twelve-cycle review.
               return ListView.builder(
                 padding: const EdgeInsets.all(AppSpacing.lg),
-                itemCount: cycles.length,
-                itemBuilder: (context, i) {
+                itemCount: cycles.length + 1,
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                      child: ListTile(
+                        leading: const Icon(Icons.insights_outlined),
+                        title: const Text('ملخص آخر ١٢ دورة'),
+                        trailing: const Icon(Icons.chevron_left),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const YearReviewScreen()),
+                        ),
+                      ),
+                    );
+                  }
+                  final i = index - 1;
                   final cycle = cycles[i].period;
                   final label = cycleLabelFor(cycle, hijri: hijri);
                   return Card(
