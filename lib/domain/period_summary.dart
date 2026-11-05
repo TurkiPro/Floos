@@ -1,41 +1,11 @@
 import '../data/database.dart';
 import '../data/enums.dart';
 import 'budget_advisor.dart' show cyclesCovering;
-import 'date_grouping.dart';
 import 'financial_period.dart';
 
-/// How one period (a month or a year) behaved: what came in, what went out,
-/// what was set aside, and what was left over at the end of it.
-class PeriodSummary {
-  final int year;
-
-  /// Null for a yearly summary.
-  final int? month;
-  final double income;
-  final double spent;
-  final double saved;
-
-  const PeriodSummary({
-    required this.year,
-    required this.month,
-    required this.income,
-    required this.spent,
-    required this.saved,
-  });
-
-  /// What was left of the income once spending and saving are taken out.
-  double get remaining => income - spent - saved;
-
-  /// Share of income that was saved, or null when nothing came in.
-  double? get savingsRate => income > 0 ? saved / income : null;
-
-  MonthKey? get monthKey =>
-      month == null ? null : MonthKey(year: year, month: month!);
-}
-
-/// How one salary cycle behaved: its window plus income/spent/saved. The
-/// cycle-based counterpart of [PeriodSummary], carrying the [FinancialPeriod] so
-/// callers can label it (a month name, or a date range when it straddles two).
+/// How one salary cycle behaved: its window plus income/spent/saved, carrying
+/// the [FinancialPeriod] so callers can label it (a month name, or a date range
+/// when it straddles two).
 class CycleSummary {
   final FinancialPeriod period;
   final double income;
@@ -102,39 +72,96 @@ List<CycleSummary> cycleSummaries(
   return out;
 }
 
-/// One summary per year that has any activity, newest first.
-List<PeriodSummary> yearlySummaries(
+/// How many salary cycles make up one "year" in the behaviour view.
+const cyclesPerYear = 12;
+
+/// Twelve consecutive salary cycles taken together — the app's "year". Never a
+/// calendar year: a calendar year cuts a cycle in two at January, so its first
+/// and last months each carry half a salary's worth of spending.
+class CycleYearSummary {
+  /// From the start of the block's oldest cycle to the end of its newest.
+  final FinancialPeriod period;
+
+  /// How many cycles the block spans — twelve, except for the oldest block,
+  /// which stops where the history does.
+  final int cycleCount;
+
+  /// The block holding the current cycle, so still under way.
+  final bool inProgress;
+
+  final double income;
+  final double spent;
+  final double saved;
+
+  const CycleYearSummary({
+    required this.period,
+    required this.cycleCount,
+    required this.inProgress,
+    required this.income,
+    required this.spent,
+    required this.saved,
+  });
+
+  double get remaining => income - spent - saved;
+  double? get savingsRate => income > 0 ? saved / income : null;
+}
+
+/// The history in blocks of [cyclesPerYear] salary cycles, newest first,
+/// counted back from the current cycle — so the newest block is exactly the
+/// twelve cycles the year review shows. Blocks with no activity are skipped.
+///
+/// Totals follow the same rules as [cycleSummaries]: every transaction in the
+/// window, and savings contributions that came out of the balance.
+List<CycleYearSummary> cycleYearSummaries(
   List<TxnRow> rows,
   List<SavingsContribution> contributions,
+  List<RecurrenceRule> incomeRules,
+  DateTime now,
 ) {
-  final income = <int, double>{};
-  final spent = <int, double>{};
-  final saved = <int, double>{};
+  DateTime? earliest;
+  void see(DateTime d) {
+    if (earliest == null || d.isBefore(earliest!)) earliest = d;
+  }
 
   for (final r in rows) {
-    final y = r.txn.date.year;
-    if (r.txn.type == TxnType.income) {
-      income[y] = (income[y] ?? 0) + r.txn.amount;
-    } else {
-      spent[y] = (spent[y] ?? 0) + r.txn.amount;
-    }
+    see(r.txn.date);
   }
   for (final c in contributions) {
-    if (c.external) continue;
-    saved[c.date.year] = (saved[c.date.year] ?? 0) + c.amount;
+    if (!c.external) see(c.date);
   }
+  if (earliest == null) return const [];
 
-  final years = <int>{...income.keys, ...spent.keys, ...saved.keys}.toList()
-    ..sort((a, b) => b - a);
-
-  return [
-    for (final y in years)
-      PeriodSummary(
-        year: y,
-        month: null,
-        income: income[y] ?? 0,
-        spent: spent[y] ?? 0,
-        saved: saved[y] ?? 0,
-      ),
-  ];
+  final cycles = cyclesCovering(incomeRules, earliest!, now); // newest first
+  final out = <CycleYearSummary>[];
+  for (var i = 0; i < cycles.length; i += cyclesPerYear) {
+    final block = cycles.sublist(i,
+        i + cyclesPerYear > cycles.length ? cycles.length : i + cyclesPerYear);
+    final period = FinancialPeriod(block.last.start, block.first.end);
+    var income = 0.0, spent = 0.0, saved = 0.0;
+    var active = false;
+    for (final r in rows) {
+      if (!period.contains(r.txn.date)) continue;
+      active = true;
+      if (r.txn.type == TxnType.income) {
+        income += r.txn.amount;
+      } else {
+        spent += r.txn.amount;
+      }
+    }
+    for (final c in contributions) {
+      if (c.external || !period.contains(c.date)) continue;
+      active = true;
+      saved += c.amount;
+    }
+    if (!active) continue;
+    out.add(CycleYearSummary(
+      period: period,
+      cycleCount: block.length,
+      inProgress: i == 0,
+      income: income,
+      spent: spent,
+      saved: saved,
+    ));
+  }
+  return out;
 }

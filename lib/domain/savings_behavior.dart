@@ -52,6 +52,10 @@ class SavingsBehavior {
   final double bestCycleAmount;
   final DateTime? bestCycleStart;
 
+  /// The whole best cycle, so it can be labelled as a cycle (a date range when
+  /// it straddles two months), never as the calendar month it started in.
+  final FinancialPeriod? bestCycle;
+
   /// Gross money pulled from savings over the window, and how many cycles ended
   /// net-negative.
   final double withdrawnRecently;
@@ -70,6 +74,7 @@ class SavingsBehavior {
     required this.consistencyTotal,
     required this.bestCycleAmount,
     required this.bestCycleStart,
+    this.bestCycle,
     required this.withdrawnRecently,
     required this.withdrawalCycles,
     required this.trend,
@@ -192,11 +197,13 @@ SavingsBehavior savingsBehavior({
 
   var bestAmount = 0.0;
   DateTime? bestStart;
+  FinancialPeriod? bestCycle;
   for (final p in activePast) {
     final v = savedIn(p);
     if (v > bestAmount) {
       bestAmount = v;
       bestStart = p.start;
+      bestCycle = p;
     }
   }
 
@@ -228,6 +235,7 @@ SavingsBehavior savingsBehavior({
     consistencyTotal: consistencyTotal,
     bestCycleAmount: bestAmount,
     bestCycleStart: bestStart,
+    bestCycle: bestCycle,
     withdrawnRecently: withdrawn,
     withdrawalCycles: withdrawalCycles,
     trend: trend,

@@ -245,7 +245,7 @@ class StatisticsScreen extends StatelessWidget {
 
   // ---------------------------------------------------------------- chrome
 
-  /// Entry points to the per-month and per-year behaviour breakdowns.
+  /// Entry points to the per-cycle and twelve-cycle behaviour breakdowns.
   Widget _behaviorLinks(BuildContext context) {
     Widget tile(IconData icon, String label, BehaviorScope scope) => Expanded(
           child: Card(
@@ -278,7 +278,8 @@ class StatisticsScreen extends StatelessWidget {
       children: [
         tile(Icons.event_repeat_outlined, 'سلوك كل دورة', BehaviorScope.cycle),
         const SizedBox(width: AppSpacing.md),
-        tile(Icons.event_note_outlined, 'سلوك كل سنة', BehaviorScope.yearly),
+        tile(Icons.event_note_outlined, 'سلوك كل ١٢ دورة',
+            BehaviorScope.twelveCycles),
       ],
     );
   }

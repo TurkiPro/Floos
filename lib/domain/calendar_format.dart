@@ -77,6 +77,20 @@ String cycleLabelFor(FinancialPeriod period, {required bool hijri}) {
       '${dayMonthFor(lastDay, hijri: hijri)} $year$suffix';
 }
 
+/// A span of several salary cycles, with the year on both ends so a span
+/// crossing a new year reads unambiguously, e.g.
+/// "25 نوفمبر 2025 – 24 نوفمبر 2026".
+String cycleSpanLabelFor(FinancialPeriod period, {required bool hijri}) {
+  final start =
+      DateTime(period.start.year, period.start.month, period.start.day);
+  final end = DateTime(period.end.year, period.end.month, period.end.day);
+  final lastDay = DateTime(end.year, end.month, end.day - 1);
+  String year(DateTime d) =>
+      hijri ? '${HijriCalendar.fromDate(d).hYear}هـ' : '${d.year}';
+  return '${dayMonthFor(start, hijri: hijri)} ${year(start)} – '
+      '${dayMonthFor(lastDay, hijri: hijri)} ${year(lastDay)}';
+}
+
 /// Short date in the selected calendar, e.g. "2026-08-01" or "1448-02-27هـ".
 String shortDateFor(DateTime date, {required bool hijri}) {
   if (!hijri) {

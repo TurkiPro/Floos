@@ -1,10 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:floos/data/database.dart';
 import 'package:floos/data/enums.dart';
+import 'package:floos/domain/calendar_format.dart';
+import 'package:floos/domain/financial_period.dart';
 import 'package:floos/domain/period_summary.dart';
+import 'package:floos/domain/year_review.dart';
+
+/// The twelve-cycle "years" of the behaviour view. They replace calendar
+/// years, which cut a salary cycle in two at January.
 
 Category _cat(TxnType type) => Category(
-      id: 1,
+      id: type == TxnType.income ? 9 : 1,
       name: 'c',
       iconKey: 'k',
       colorValue: 0,
@@ -18,7 +24,7 @@ TxnRow _txn(TxnType type, double amount, DateTime date) => TxnRow(
       txn: Txn(
         id: 1,
         amount: amount,
-        categoryId: 1,
+        categoryId: type == TxnType.income ? 9 : 1,
         type: type,
         date: date,
         createdAt: date,
@@ -41,63 +47,117 @@ SavingsContribution _contrib(double amount, DateTime date,
         external: external,
         planned: false);
 
+final _salary = [
+  RecurrenceRule(
+    id: 1,
+    title: 'راتب',
+    amount: 10000,
+    categoryId: 9,
+    type: TxnType.income,
+    frequency: Frequency.monthly,
+    interval: 1,
+    startDate: DateTime(2024, 1, 25),
+    active: true,
+  ),
+];
+
+// Payday on the 25th. The current cycle is 25 Oct – 24 Nov 2026, so the newest
+// block of twelve runs 25 Nov 2025 – 24 Nov 2026, and the one before it ends
+// on 24 Nov 2025.
+final _now = DateTime(2026, 11, 5);
+
 void main() {
-  group('yearlySummaries', () {
-    test('aggregates income/spent/saved per year with derived figures', () {
+  group('cycleYearSummaries', () {
+    test('blocks of twelve cycles, newest first, cut at a payday', () {
       final rows = [
-        _income(1000, DateTime(2026, 7, 1)),
-        _income(500, DateTime(2026, 2, 1)),
-        _expense(300, DateTime(2026, 3, 5)),
-        _income(400, DateTime(2025, 8, 1)),
-        _expense(100, DateTime(2025, 9, 10)),
+        _income(10000, DateTime(2026, 10, 25)), // newest block
+        _expense(300, DateTime(2025, 11, 25)), // newest block's first day
+        _expense(700, DateTime(2025, 11, 24)), // the block before
+        _income(10000, DateTime(2025, 1, 25)), // the block before
       ];
-      final contributions = [
-        _contrib(300, DateTime(2026, 4, 8)),
-        _contrib(50, DateTime(2025, 12, 15)),
-      ];
+      final out = cycleYearSummaries(rows, const [], _salary, _now);
 
-      final summaries = yearlySummaries(rows, contributions);
+      expect(out, hasLength(2));
+      expect(out[0].period.start, DateTime(2025, 11, 25));
+      expect(out[0].period.end, DateTime(2026, 11, 25));
+      expect(out[0].inProgress, isTrue);
+      expect(out[0].income, 10000);
+      expect(out[0].spent, 300);
 
-      expect(summaries, hasLength(2));
-
-      final y2026 = summaries.firstWhere((s) => s.year == 2026);
-      expect(y2026.month, isNull);
-      expect(y2026.income, 1500);
-      expect(y2026.spent, 300);
-      expect(y2026.saved, 300);
-      expect(y2026.remaining, 900); // 1500 - 300 - 300
-      expect(y2026.savingsRate, 300 / 1500); // 0.2
-
-      final y2025 = summaries.firstWhere((s) => s.year == 2025);
-      expect(y2025.income, 400);
-      expect(y2025.spent, 100);
-      expect(y2025.saved, 50);
-      expect(y2025.remaining, 250);
+      // The older block begins where the history does (the first salary on
+      // 25 Jan 2025), not a full twelve cycles back.
+      expect(out[1].period.start, DateTime(2025, 1, 25));
+      expect(out[1].period.end, DateTime(2025, 11, 25));
+      expect(out[1].cycleCount, 10);
+      expect(out[1].inProgress, isFalse);
+      expect(out[1].income, 10000);
+      expect(out[1].spent, 700,
+          reason: 'a calendar year would have split these across 2025/2026');
     });
 
-    test('is ordered newest-first', () {
+    test('the oldest block stops where the history does', () {
       final rows = [
-        _income(100, DateTime(2024, 1, 1)),
-        _income(100, DateTime(2026, 1, 1)),
-        _income(100, DateTime(2025, 1, 1)),
+        _income(10000, DateTime(2026, 10, 25)),
+        _expense(50, DateTime(2025, 9, 1)), // two cycles into the older block
       ];
-      final summaries = yearlySummaries(rows, const []);
-      expect(summaries.map((s) => s.year), [2026, 2025, 2024]);
+      final out = cycleYearSummaries(rows, const [], _salary, _now);
+      expect(out.last.cycleCount, lessThan(cyclesPerYear));
+      expect(out.first.cycleCount, cyclesPerYear);
     });
 
-    test('savingsRate is null when income is zero', () {
-      final rows = [_expense(80, DateTime(2026, 7, 5))];
-      final summaries = yearlySummaries(rows, const []);
-      expect(summaries.single.income, 0);
-      expect(summaries.single.savingsRate, isNull);
+    test('external savings are left out, internal ones counted', () {
+      final out = cycleYearSummaries(
+        [_income(10000, DateTime(2026, 10, 25))],
+        [
+          _contrib(1000, DateTime(2026, 10, 26)),
+          _contrib(5000, DateTime(2026, 10, 27), external: true),
+        ],
+        _salary,
+        _now,
+      );
+      expect(out.single.saved, 1000);
+      expect(out.single.savingsRate, 0.1);
+      expect(out.single.remaining, 9000);
     });
 
-    test('a year with only contributions still appears', () {
-      final contributions = [_contrib(75, DateTime(2023, 5, 4))];
-      final summaries = yearlySummaries(const [], contributions);
-      expect(summaries, hasLength(1));
-      expect(summaries.single.year, 2023);
-      expect(summaries.single.saved, 75);
+    test('an empty block is skipped, and no history means none', () {
+      final out = cycleYearSummaries([
+        _income(10000, DateTime(2026, 10, 25)),
+        _expense(10, DateTime(2023, 12, 1)), // three blocks back
+      ], const [], _salary, _now);
+      expect(out, hasLength(2), reason: 'the empty block between is skipped');
+      expect(cycleYearSummaries(const [], const [], _salary, _now), isEmpty);
     });
+
+    test('the newest block states exactly what the year review does', () {
+      final rows = [
+        _income(10000, DateTime(2026, 9, 25)),
+        _expense(2500, DateTime(2026, 10, 1)),
+        _income(10000, DateTime(2026, 10, 25)),
+        _expense(400, DateTime(2026, 11, 2)),
+        _expense(999, DateTime(2025, 11, 1)), // outside both
+      ];
+      final contributions = [_contrib(800, DateTime(2026, 10, 26))];
+      final block =
+          cycleYearSummaries(rows, contributions, _salary, _now).first;
+      final review = yearReview(
+          rows: rows,
+          contributions: contributions,
+          incomeRules: _salary,
+          now: _now);
+      expect(block.income, review.income);
+      expect(block.spent, review.spent);
+      expect(block.saved, review.saved);
+    });
+  });
+
+  test('a span label names both years', () {
+    final label = cycleSpanLabelFor(
+        FinancialPeriod(DateTime(2025, 11, 25), DateTime(2026, 11, 25)),
+        hijri: false);
+    expect(label, contains('2025'));
+    expect(label, contains('2026'));
+    expect(label, startsWith('25 '));
+    expect(label, contains('24 '));
   });
 }

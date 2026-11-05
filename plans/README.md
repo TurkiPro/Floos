@@ -59,7 +59,7 @@ three times.
 | 023 | Search and filter every transaction | P1 | M | — | DONE (entry from الدورات and Settings; not in the home header; one category at a time) |
 | 024 | A screen to view, fix and forget saved parties | P1 | S | — | DONE (decision sheet now shared with the review screen) |
 | 025 | Show what recurring expenses cost over a year | P2 | S | — | DONE (replaced the old header, which summed amounts across frequencies) |
-| 026 | A year in review, by salary cycle | P3 | M | — | DONE (from الدورات; behavior_screen still groups by calendar year — maintainer to decide) |
+| 026 | A year in review, by salary cycle | P3 | M | — | DONE (from الدورات; the behaviour screen's calendar years were then replaced by twelve-cycle blocks) |
 | 027 | Compute the balance in exactly one place (refactor) | P1 | M | — | DONE (no existing expected value changed; week-start balance freezes outflows only, as before) |
 | 028 | Split one transaction across categories (schema v15) | P2 | M | — | DONE (split parts count as separate rows in counts, e.g. search's "2 عملية"; recurring rows cannot be split) |
 | 029 | Debts and IOUs — money lent and borrowed (schema v16) | P1 | L | 027 | DONE (borrowed money left out of the spending caps entirely — equivalent to "balance − owed", and keeps the week frozen; not in the CSV export, is in the backup) |
@@ -110,9 +110,10 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED 
   re-proposed: a jam'iya tracker, sharing bank messages into the import
   (Android/iOS), and a home-screen widget. The iOS work those needed (App
   Group, extension targets, multi-profile signing) is therefore not planned.
-- **Fixed alongside planning:** the statistics CSV now groups by salary cycle
-  (was calendar month). `behavior_screen.dart` still groups by calendar year —
-  see 026.
+- **Fixed alongside:** the statistics CSV now groups by salary cycle (was
+  calendar month); the behaviour screen's per-year view is now blocks of
+  twelve salary cycles (was calendar year); the savings-habits screen labels
+  cycles as cycles (was the calendar month they started in).
 
 ## Batch 4 notes (read before starting 020)
 

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../app_settings.dart';
 import '../data/database.dart';
 import '../data/enums.dart';
+import '../domain/calendar_format.dart';
 import '../domain/savings_behavior.dart';
 import 'theme/tokens.dart';
 
@@ -95,8 +97,6 @@ class SavingsBehaviorScreen extends StatelessWidget {
       );
 
   String _pct(double v) => '${(v * 100).toStringAsFixed(0)}٪';
-
-  String _monthLabel(DateTime d) => DateFormat('yyyy-MM').format(d);
 
   // ---------------------------------------------------------------- cards
 
@@ -235,10 +235,10 @@ class SavingsBehaviorScreen extends StatelessWidget {
                         color: scheme.onSurfaceVariant)),
               ),
               Text(
-                b.bestCycleStart == null
+                b.bestCycle == null
                     ? '—'
                     : '${money.format(b.bestCycleAmount)} ⃁'
-                        ' • ${_monthLabel(b.bestCycleStart!)}',
+                        ' • ${cycleLabelFor(b.bestCycle!, hijri: context.watch<AppSettings>().useHijri)}',
                 style: const TextStyle(
                     fontSize: AppTextSizes.label, fontWeight: FontWeight.w700),
               ),
@@ -371,7 +371,9 @@ class SavingsBehaviorScreen extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            DateFormat('M/yy').format(p.cycleStart),
+            // The cycle's start date, not "the month": a cycle from the 25th
+            // belongs to no single calendar month.
+            DateFormat('d/M').format(p.cycleStart),
             style: TextStyle(
               fontSize: 10,
               fontWeight: p.current ? FontWeight.w800 : FontWeight.w500,

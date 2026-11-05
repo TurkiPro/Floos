@@ -109,6 +109,9 @@ void main() {
       final b = run();
       expect(b.bestCycleAmount, 3000);
       expect(b.bestCycleStart, DateTime(2026, 3, 1));
+      // The whole cycle, so the screen labels it as a cycle, not a month.
+      expect(b.bestCycle!.start, DateTime(2026, 3, 1));
+      expect(b.bestCycle!.end, DateTime(2026, 4, 1));
     });
 
     test('withdrawals sum the money pulled out and the down cycles', () {

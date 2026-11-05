@@ -12,12 +12,13 @@ import '../domain/period_summary.dart';
 import 'category_detail_screen.dart';
 import 'theme/tokens.dart';
 
-/// Which window the behaviour breakdown groups by: the salary cycle (the app's
-/// default unit) or the calendar year.
-enum BehaviorScope { cycle, yearly }
+/// Which window the behaviour breakdown groups by: one salary cycle, or twelve
+/// of them. Never the calendar month or year — the salary cycle is the app's
+/// only period unit.
+enum BehaviorScope { cycle, twelveCycles }
 
 /// Income vs spending vs savings vs what was left, one row per window. Used for
-/// both the per-cycle and per-year views — the only difference is how the rows
+/// both the per-cycle and the twelve-cycle views — the only difference is how the rows
 /// are aggregated and labelled. Each window expands to show its top spending
 /// categories (with per-category averages) and drills into any category's
 /// transactions.
@@ -35,7 +36,7 @@ class BehaviorScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(byCycle ? 'سلوك كل دورة' : 'سلوك كل سنة'),
+        title: Text(byCycle ? 'سلوك كل دورة' : 'سلوك كل ١٢ دورة'),
       ),
       body: StreamBuilder<List<Category>>(
         stream: db.categoryDao.watchAll(),
@@ -59,7 +60,8 @@ class BehaviorScreen extends StatelessWidget {
                           rulesSnap.data ?? const <RecurrenceRule>[];
                       final items = byCycle
                           ? _cycleItems(rows, contributions, incomeRules, now)
-                          : _yearItems(rows, contributions);
+                          : _twelveCycleItems(
+                              rows, contributions, incomeRules, now);
                       if (items.isEmpty) {
                         return const Center(child: Text('لا توجد بيانات بعد'));
                       }
@@ -112,31 +114,44 @@ class BehaviorScreen extends StatelessWidget {
     ];
   }
 
-  List<_BehaviorItem> _yearItems(
+  List<_BehaviorItem> _twelveCycleItems(
     List<TxnRow> rows,
     List<SavingsContribution> contributions,
+    List<RecurrenceRule> incomeRules,
+    DateTime now,
   ) {
     return [
-      for (final p in yearlySummaries(rows, contributions))
+      for (final y in cycleYearSummaries(rows, contributions, incomeRules, now))
         _BehaviorItem(
-          year: p.year,
-          income: p.income,
-          spent: p.spent,
-          saved: p.saved,
+          period: y.period,
+          span: true,
+          note: y.inProgress
+              ? 'جارية'
+              : y.cycleCount < cyclesPerYear
+                  ? '${y.cycleCount} دورات'
+                  : null,
+          income: y.income,
+          spent: y.spent,
+          saved: y.saved,
           rows: [
             for (final r in rows)
-              if (r.txn.date.year == p.year) r
+              if (y.period.contains(r.txn.date)) r
           ],
-          weeks: DateTime(p.year + 1).difference(DateTime(p.year)).inDays / 7.0,
+          weeks: y.period.end.difference(y.period.start).inDays / 7.0,
         ),
     ];
   }
 }
 
-/// One window's numbers, decoupled from whether it's a cycle or a year.
+/// One window's numbers, decoupled from whether it's one cycle or twelve.
 class _BehaviorItem {
-  final FinancialPeriod? period; // set for a cycle
-  final int? year; // set for a year
+  final FinancialPeriod period;
+
+  /// Several cycles: labelled with both years rather than as one cycle.
+  final bool span;
+
+  /// Shown beside the label, e.g. that the block is still under way.
+  final String? note;
   final double income;
   final double spent;
   final double saved;
@@ -144,8 +159,9 @@ class _BehaviorItem {
   final double weeks;
 
   const _BehaviorItem({
-    this.period,
-    this.year,
+    required this.period,
+    this.span = false,
+    this.note,
     required this.income,
     required this.spent,
     required this.saved,
@@ -155,8 +171,12 @@ class _BehaviorItem {
 
   double get remaining => income - spent - saved;
   double? get savingsRate => income > 0 ? saved / income : null;
-  String title(bool hijri) =>
-      period != null ? cycleLabelFor(period!, hijri: hijri) : '$year';
+  String title(bool hijri) {
+    final label = span
+        ? cycleSpanLabelFor(period, hijri: hijri)
+        : cycleLabelFor(period, hijri: hijri);
+    return note == null ? label : '$label ($note)';
+  }
 }
 
 class _PeriodCard extends StatefulWidget {
