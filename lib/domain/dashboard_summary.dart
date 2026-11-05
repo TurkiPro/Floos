@@ -1,6 +1,7 @@
 import '../data/database.dart'; // TxnRow, SavingsContribution
 import '../data/enums.dart'; // TxnType
 import 'financial_period.dart';
+import 'ledger_balance.dart';
 
 /// Everything the home dashboard shows, computed once from the two streams.
 /// [balance] is money neither spent nor set aside: all income − all expenses
@@ -41,19 +42,17 @@ class DashboardSummary {
     // so the salary you were just paid counts toward the period you're in.
     bool inMonth(DateTime d) => period.contains(d);
 
-    double allIncome = 0, allExpense = 0, monthIncome = 0, monthSpent = 0;
+    double monthIncome = 0, monthSpent = 0;
     var incomeThisMonth = false;
     final monthExpenses = <TxnRow>[];
     for (final r in rows) {
       final amount = r.txn.amount;
       if (r.txn.type == TxnType.income) {
-        allIncome += amount;
         if (inMonth(r.txn.date)) {
           monthIncome += amount;
           incomeThisMonth = true;
         }
       } else {
-        allExpense += amount;
         if (inMonth(r.txn.date)) {
           monthSpent += amount;
           monthExpenses.add(r);
@@ -63,24 +62,26 @@ class DashboardSummary {
 
     // External deposits (money that already existed) count toward the total
     // saved but never reduce the balance or this period's income split.
-    double allSaved = 0, internalSaved = 0, monthSaved = 0;
+    double allSaved = 0, monthSaved = 0;
     for (final c in contributions) {
       allSaved += c.amount;
       if (c.external) continue;
-      internalSaved += c.amount;
       if (inMonth(c.date)) monthSaved += c.amount;
     }
 
     // Investments mirror savings: money moved into a portfolio, not spent. A
     // non-external entry comes out of the balance; a standalone (external) one
     // is pre-existing money that doesn't.
-    double investedTotal = 0, internalInvested = 0;
+    double investedTotal = 0;
     for (final inv in investments) {
       investedTotal += inv.amount;
-      if (!inv.external) internalInvested += inv.amount;
     }
 
-    final balance = allIncome - allExpense - internalSaved - internalInvested;
+    final balance = ledgerTotals(LedgerInputs(
+      rows: rows,
+      contributions: contributions,
+      investments: investments,
+    )).balance;
 
     // What this cycle's own income has left, before any reckoning with the
     // past.

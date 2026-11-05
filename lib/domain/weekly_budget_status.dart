@@ -2,6 +2,7 @@ import '../data/database.dart';
 import '../data/enums.dart';
 import 'budget_envelope.dart';
 import 'financial_period.dart';
+import 'ledger_balance.dart';
 import 'recurrence_math.dart';
 import 'spending_window.dart';
 
@@ -51,10 +52,10 @@ WeeklyBudgetStatus weeklyBudgetStatus({
   required List<RecurrenceRule> incomeRules,
   required List<RecurrenceRule> expenseRules,
   required List<SavingsContribution> contributions,
-  // Internal (non-external) investments reduce the real balance too; optional
-  // because the only callers with anything but external portfolio entries are
-  // the home card and the badge, which pass them.
-  List<Investment> investments = const [],
+  // Internal (non-external) investments reduce the real balance too. Required:
+  // when this defaulted to empty, the statistics screen silently left them
+  // out and stated a different weekly budget from the home card.
+  required List<Investment> investments,
   required DateTime now,
 }) {
   final period = financialPeriod(incomeRules, now);
@@ -68,27 +69,21 @@ WeeklyBudgetStatus weeklyBudgetStatus({
   // This cycle's income and total spend, for grounding the budget in the real
   // remaining balance (the cap, below).
   var periodIncome = 0.0;
-  // All-time income/expense, for the *actual* current balance (same formula as
-  // the home «الرصيد») — the budget is capped so it can never exceed it.
-  var allIncome = 0.0, allExpense = 0.0;
-  // The same two sums as they stood when THIS WEEK began. The budget is set
-  // from these, so spending during the week moves `spent` and never the
-  // target it is measured against.
-  var allExpenseBeforeWeek = 0.0, periodExpenseBeforeWeek = 0.0;
+  // This cycle's spend as it stood when THIS WEEK began. The budget is set
+  // from it, so spending during the week moves `spent` and never the target
+  // it is measured against.
+  var periodExpenseBeforeWeek = 0.0;
 
   for (final r in rows) {
     final date = r.txn.date;
     final amount = r.txn.amount;
 
     if (r.txn.type == TxnType.income) {
-      allIncome += amount;
       if (period.contains(date)) periodIncome += amount;
       continue;
     }
-    allExpense += amount;
-    if (date.isBefore(weekStart)) {
-      allExpenseBeforeWeek += amount;
-      if (period.contains(date)) periodExpenseBeforeWeek += amount;
+    if (date.isBefore(weekStart) && period.contains(date)) {
+      periodExpenseBeforeWeek += amount;
     }
 
     // Fixed obligations (rent, bills, subscriptions) are planned, not
@@ -146,26 +141,15 @@ WeeklyBudgetStatus weeklyBudgetStatus({
     now: now,
   );
 
-  // The real money on hand, now and as at the start of this week (same formula
-  // as the home «الرصيد» — all income − all spend − savings/investments).
-  var internalSaved = 0.0, internalSavedBeforeWeek = 0.0;
-  for (final c in contributions) {
-    if (c.external) continue;
-    internalSaved += c.amount;
-    if (c.date.isBefore(weekStart)) internalSavedBeforeWeek += c.amount;
-  }
-  var internalInvested = 0.0, internalInvestedBeforeWeek = 0.0;
-  for (final inv in investments) {
-    if (inv.external) continue;
-    internalInvested += inv.amount;
-    if (inv.date.isBefore(weekStart)) internalInvestedBeforeWeek += inv.amount;
-  }
-  final actualBalance =
-      allIncome - allExpense - internalSaved - internalInvested;
-  final balanceAtWeekStart = allIncome -
-      allExpenseBeforeWeek -
-      internalSavedBeforeWeek -
-      internalInvestedBeforeWeek;
+  // The real money on hand, now and as at the start of this week — the home
+  // «الرصيد», from the one function that computes it.
+  final ledger = LedgerInputs(
+    rows: rows,
+    contributions: contributions,
+    investments: investments,
+  );
+  final actualBalance = ledgerTotals(ledger).balance;
+  final weekStartBalance = balanceAtWeekStart(ledger, weekStart);
 
   // The cap, measured AS AT THE START OF THIS WEEK.
   //
@@ -183,8 +167,8 @@ WeeklyBudgetStatus weeklyBudgetStatus({
   // following week.
   final cycleRemainingAtWeekStart =
       periodIncome - periodExpenseBeforeWeek - savedBeforeWeek;
-  final spendable = balanceAtWeekStart < cycleRemainingAtWeekStart
-      ? balanceAtWeekStart
+  final spendable = weekStartBalance < cycleRemainingAtWeekStart
+      ? weekStartBalance
       : cycleRemainingAtWeekStart;
   final periodDays = period.end.difference(cycleStart).inDays;
   final daysLeft = period.end

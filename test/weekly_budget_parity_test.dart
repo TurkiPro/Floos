@@ -104,6 +104,7 @@ void main() {
       incomeRules: incomeRules,
       expenseRules: expenseRules,
       contributions: contributions,
+      investments: const [],
       now: now,
     );
 
@@ -145,6 +146,7 @@ void main() {
       incomeRules: incomeRules,
       expenseRules: expenseRules,
       contributions: contributions,
+      investments: const [],
       now: now,
     );
 

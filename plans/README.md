@@ -60,7 +60,7 @@ three times.
 | 024 | A screen to view, fix and forget saved parties | P1 | S | — | DONE (decision sheet now shared with the review screen) |
 | 025 | Show what recurring expenses cost over a year | P2 | S | — | DONE (replaced the old header, which summed amounts across frequencies) |
 | 026 | A year in review, by salary cycle | P3 | M | — | TODO |
-| 027 | Compute the balance in exactly one place (refactor) | P1 | M | — | TODO |
+| 027 | Compute the balance in exactly one place (refactor) | P1 | M | — | DONE (no existing expected value changed; week-start balance freezes outflows only, as before) |
 | 028 | Split one transaction across categories (schema v15) | P2 | M | — | TODO |
 | 029 | Debts and IOUs — money lent and borrowed (schema v16) | P1 | L | 027 | TODO (decided: borrowed money does not raise what you can spend) |
 | 030 | Refunds as their own thing, linked to the purchase (schema v17) | P1 | M–L | — | TODO (also fixes: import books a refund as a second purchase) |
