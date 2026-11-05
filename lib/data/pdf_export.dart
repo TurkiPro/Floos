@@ -74,8 +74,12 @@ Future<File> writeTransactionsPdf(AppDatabase db) async {
               [
                 dateFmt.format(r.txn.date),
                 r.category.name,
-                r.txn.type == TxnType.income ? 'دخل' : 'مصروف',
-                money.format(r.txn.amount),
+                r.txn.type == TxnType.income
+                    ? 'دخل'
+                    : r.isRefund
+                        ? 'استرداد'
+                        : 'مصروف',
+                money.format(r.txn.amount.abs()),
                 r.txn.note ?? '',
               ],
           ],

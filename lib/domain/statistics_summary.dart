@@ -148,7 +148,9 @@ class StatisticsSummary {
         continue;
       }
 
-      allExpenseCount++;
+      // A refund (a negative expense) nets into every sum below, but it is not
+      // a purchase, so it is not counted as one.
+      if (!r.isRefund) allExpenseCount++;
       final kind = r.category.kind;
 
       if (prevCycle != null && prevCycle.contains(date)) {
@@ -157,7 +159,7 @@ class StatisticsSummary {
 
       if (inThisMonth(date)) {
         spentThisMonth += amount;
-        txnCountThisMonth++;
+        if (!r.isRefund) txnCountThisMonth++;
 
         // Committed = money already promised through a recurring rule (rent,
         // bills, subscriptions, family transfers). Discretionary = everything
@@ -276,7 +278,9 @@ class StatisticsSummary {
         highestDay = day;
       }
     });
-    final noSpendDays = daysElapsed - byDayThisMonth.length;
+    // A day whose only entry is a refund is still a day nothing was spent.
+    final noSpendDays =
+        daysElapsed - byDayThisMonth.values.where((a) => a >= 0.005).length;
 
     // What is left to spend per day until payday: the home card's «المتبقي»,
     // divided by the days remaining. Taken from DashboardSummary rather than

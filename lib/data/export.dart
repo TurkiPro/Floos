@@ -57,13 +57,19 @@ Future<String> buildTransactionsCsv(AppDatabase db) async {
   buf.write('\uFEFF'); // BOM
   buf.writeln(
       'id,date,type,amount,category_id,category_name,recurrence_id,note,'
-      'split_group_id');
+      'split_group_id,refund_of');
   for (final t in txns) {
     final cat = cats[t.categoryId];
     final row = [
       t.id.toString(),
       fmt.format(t.date),
-      t.type == TxnType.expense ? 'expense' : 'income',
+      // A refund is a negative expense in the ledger; say so, so a sheet
+      // filtering on "expense" is not left guessing at the sign.
+      t.type == TxnType.income
+          ? 'income'
+          : t.amount < 0
+              ? 'refund'
+              : 'expense',
       t.amount.toString(),
       t.categoryId.toString(),
       _csvField(cat?.name),
@@ -72,6 +78,7 @@ Future<String> buildTransactionsCsv(AppDatabase db) async {
       // Rows sharing a value are parts of one purchase split across
       // categories; each part is a real expense in its own category.
       t.splitGroupId?.toString() ?? '',
+      t.refundOf?.toString() ?? '',
     ];
     buf.writeln(row.join(','));
   }

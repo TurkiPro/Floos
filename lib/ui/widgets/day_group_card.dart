@@ -36,7 +36,11 @@ class DayGroupCard extends StatelessWidget {
 
     final String totalText;
     final Color totalColor;
-    if (income == 0) {
+    if (income == 0 && expense < 0) {
+      // Refunds outweighed purchases that day: money came back.
+      totalText = '+${money.format(-expense)} ⃁';
+      totalColor = AppColors.income;
+    } else if (income == 0) {
       totalText = '${money.format(expense)} ⃁';
       totalColor = scheme.onSurface;
     } else if (expense == 0) {

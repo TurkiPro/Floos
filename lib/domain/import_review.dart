@@ -11,7 +11,9 @@
 library;
 
 import '../data/database.dart';
+import '../data/enums.dart';
 import 'bank_sms.dart';
+import 'party_key.dart';
 
 /// What the ledger already holds, keyed the way an import would write it
 /// (the note carries the merchant label).
@@ -146,8 +148,12 @@ List<ReviewedDraft> reviewDrafts({
     final label =
         (display != null && display.isNotEmpty) ? display : message.party;
 
+    // A refund is written as a negative expense, so it is fingerprinted with
+    // its sign: a purchase and its same-day refund for the same amount at the
+    // same merchant are two different rows, not duplicates of each other.
+    final refund = message.kind == BankTxnKind.refund;
     final fingerprint = txnFingerprint(
-      amount: amount,
+      amount: refund ? -amount : amount,
       date: at,
       party: label,
     );
@@ -157,7 +163,8 @@ List<ReviewedDraft> reviewDrafts({
       status = DraftStatus.duplicateOfLedger;
     } else if (seenInPaste.contains(fingerprint)) {
       status = DraftStatus.duplicateInPaste;
-    } else if (_collidesWithRecurrence(amount, at, recurringCharges)) {
+    } else if (!refund &&
+        _collidesWithRecurrence(amount, at, recurringCharges)) {
       status = DraftStatus.recurrenceCollision;
     } else {
       status = DraftStatus.fresh;
@@ -168,6 +175,45 @@ List<ReviewedDraft> reviewDrafts({
   }
 
   return out;
+}
+
+/// How far back a refund is matched to the purchase it refunds.
+const _refundWindow = Duration(days: 90);
+
+/// The purchase a refund message most likely refunds: the most recent manual
+/// or imported purchase at the same merchant, within [_refundWindow] before
+/// the refund, with at least [amount] still unrefunded. Null when there is
+/// none — the refund is then written unlinked, which is still correct money.
+///
+/// [label] is what the import writes as the note (the party's display name if
+/// it has one), matched the way party rules are, so a truncated bank name
+/// still finds its purchase.
+Txn? findRefundTarget(
+  List<Txn> ledger, {
+  required double amount,
+  required DateTime date,
+  required String? label,
+}) {
+  if (label == null || label.trim().isEmpty) return null;
+  final key = partyKey(label);
+  final refunded = <int, double>{};
+  for (final t in ledger) {
+    final of = t.refundOf;
+    if (of != null) refunded[of] = (refunded[of] ?? 0) - t.amount;
+  }
+  Txn? best;
+  for (final t in ledger) {
+    if (t.type != TxnType.expense || t.amount <= 0) continue;
+    if (t.recurrenceId != null) continue; // see TransactionDao.addRefund
+    if (t.date.isAfter(date) || date.difference(t.date) > _refundWindow) {
+      continue;
+    }
+    final note = t.note;
+    if (note == null || !partyMatches(partyKey(note), key)) continue;
+    if (t.amount - (refunded[t.id] ?? 0) - amount < -0.005) continue;
+    if (best == null || t.date.isAfter(best.date)) best = t;
+  }
+  return best;
 }
 
 bool _collidesWithRecurrence(

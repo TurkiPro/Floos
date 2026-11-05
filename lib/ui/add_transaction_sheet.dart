@@ -23,6 +23,9 @@ class AddTransactionSheet extends StatefulWidget {
   /// Popped when the user asks to split the transaction instead of editing it.
   static const split = 'split';
 
+  /// Popped when the user asks to record a refund against this purchase.
+  static const refund = 'refund';
+
   @override
   State<AddTransactionSheet> createState() => _AddTransactionSheetState();
 }
@@ -41,6 +44,24 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
 
   bool get _isEditing => widget.existing != null;
 
+  /// Editing a refund — money that came back, stored as a negative expense.
+  /// The field shows it as the positive amount that came back.
+  bool get _editingRefund => (widget.existing?.amount ?? 0) < 0;
+
+  /// Adding a refund for something bought before the app knew about it.
+  bool _standaloneRefund = false;
+
+  /// A purchase that can take a refund: a manual or imported expense. A
+  /// recurring one is refunded as a standalone refund instead (see
+  /// TransactionDao.addRefund for why).
+  bool get _canRefund {
+    final e = widget.existing;
+    return e != null &&
+        e.type == TxnType.expense &&
+        e.amount > 0 &&
+        e.recurrenceId == null;
+  }
+
   /// Only a manual or imported expense: a recurring row is identified by its
   /// (rule, date), and a split would make the engine and the import's
   /// collision check lie about it.
@@ -48,6 +69,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     final e = widget.existing;
     return e != null &&
         e.type == TxnType.expense &&
+        e.amount > 0 &&
         e.recurrenceId == null &&
         e.splitGroupId == null;
   }
@@ -58,7 +80,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     final e = widget.existing;
     if (e != null) {
       _type = e.type;
-      _amountCtrl.text = groupedAmount(e.amount);
+      _amountCtrl.text = groupedAmount(e.amount.abs());
       _noteCtrl.text = e.note ?? '';
       _date = e.date;
       _categoryId = e.categoryId;
@@ -155,6 +177,33 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       return;
     }
     final note = _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim();
+    try {
+      if (_editingRefund) {
+        await widget.db.transactionDao.updateRefund(
+          id: widget.existing!.id,
+          amount: amount,
+          date: _date,
+          categoryId: _categoryId!,
+          note: note,
+        );
+        return _afterSave();
+      }
+      if (_standaloneRefund) {
+        await widget.db.transactionDao.addStandaloneRefund(
+          amount: amount,
+          categoryId: _categoryId!,
+          date: _date,
+          note: note,
+        );
+        return _afterSave();
+      }
+    } on ArgumentError {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('المبلغ أكبر مما تبقّى من الشراء')),
+      );
+      return;
+    }
     if (_isEditing) {
       await widget.db.transactionDao.updateFields(
         id: widget.existing!.id,
@@ -173,6 +222,10 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         note: note,
       );
     }
+    _afterSave();
+  }
+
+  void _afterSave() {
     if (!mounted) return;
     final settings = context.read<AppSettings>();
     // The confirmation chime is for *adding* — editing shouldn't chime.
@@ -208,10 +261,22 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (_isEditing) ...[
-                    Text('تعديل العملية',
+                    Text(_editingRefund ? 'تعديل الاسترداد' : 'تعديل العملية',
                         style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: AppSpacing.md),
                   ],
+                  // Adding only: money that came back for something bought
+                  // before the app knew about it. With a logged purchase, the
+                  // refund is recorded from that purchase instead, so it is
+                  // linked to it.
+                  if (!_isEditing && _type == TxnType.expense)
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      value: _standaloneRefund,
+                      onChanged: (v) => setState(() => _standaloneRefund = v),
+                      title: const Text('استرداد (مبلغ عاد إليّ)'),
+                    ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -275,12 +340,17 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                     },
                   ),
                   const SizedBox(height: AppSpacing.lg),
-                  CategoryPicker(
-                    db: widget.db,
-                    type: _type,
-                    selectedId: _categoryId,
-                    onChanged: (id) => setState(() => _categoryId = id),
-                  ),
+                  // A linked refund belongs to its purchase's category.
+                  if (widget.existing?.refundOf != null)
+                    const Text('استرداد مرتبط بعملية شراء، في فئتها.',
+                        textAlign: TextAlign.center)
+                  else
+                    CategoryPicker(
+                      db: widget.db,
+                      type: _type,
+                      selectedId: _categoryId,
+                      onChanged: (id) => setState(() => _categoryId = id),
+                    ),
                 ],
               ),
             ),
@@ -338,6 +408,13 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 ),
                 // Hands back to the row, which opens the split editor: this
                 // sheet's own context is gone once it pops.
+                if (_canRefund)
+                  TextButton.icon(
+                    onPressed: () =>
+                        Navigator.of(context).pop(AddTransactionSheet.refund),
+                    icon: const Icon(Icons.undo, size: 18),
+                    label: const Text('تسجيل استرداد'),
+                  ),
                 if (_canSplit)
                   TextButton.icon(
                     onPressed: () =>

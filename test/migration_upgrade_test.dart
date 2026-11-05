@@ -118,6 +118,7 @@ void main() {
     await expectPlannedColumnWorks(db);
     await expectSplitColumnWorks(db);
     await expectDebtTablesWork(db);
+    await expectRefundLinkWorks(db);
   });
 
   // The exact path a store user on 1.0.1 (schema 7) takes to 1.1.0 (schema 12):
@@ -226,6 +227,7 @@ void main() {
     await expectPlannedColumnWorks(db);
     await expectSplitColumnWorks(db);
     await expectDebtTablesWork(db);
+    await expectRefundLinkWorks(db);
   });
 }
 
@@ -330,4 +332,38 @@ Future<void> expectDebtTablesWork(AppDatabase db) async {
   await db.debtDao.deleteDebt(id);
   expect(await db.debtDao.getAllMovements(), isEmpty,
       reason: 'CASCADE removed the movements on a migrated database');
+}
+
+/// v17's refund link on a MIGRATED database — reached through the v5 rebuild
+/// on one path and addColumn on the other — including its SET NULL: deleting
+/// a purchase must leave its refund in place, unlinked.
+Future<void> expectRefundLinkWorks(AppDatabase db) async {
+  final existing = await db.select(db.transactions).get();
+  expect(existing.every((t) => t.refundOf == null), isTrue);
+
+  final purchase =
+      await db.into(db.transactions).insert(TransactionsCompanion.insert(
+            amount: 200,
+            categoryId: 1,
+            type: TxnType.expense,
+            date: DateTime(2026, 11, 2),
+            createdAt: Value(DateTime(2026, 11, 2)), // see above
+          ));
+  // Inserted directly rather than through addRefund, for the same created_at
+  // reason as the purchase above.
+  final refund =
+      await db.into(db.transactions).insert(TransactionsCompanion.insert(
+            amount: -50,
+            categoryId: 1,
+            type: TxnType.expense,
+            date: DateTime(2026, 11, 4),
+            refundOf: Value(purchase),
+            createdAt: Value(DateTime(2026, 11, 4)),
+          ));
+  await db.transactionDao.deleteById(purchase);
+  final left = await (db.select(db.transactions)
+        ..where((t) => t.id.equals(refund)))
+      .getSingle();
+  expect(left.refundOf, isNull,
+      reason: 'ON DELETE SET NULL on a migrated database');
 }

@@ -38,6 +38,13 @@ class PartyDecisionSheet extends StatefulWidget {
   /// When set, the sheet offers a destructive button with this label, which
   /// pops a [PartyDecision] with `delete: true`.
   final String? onDeleteLabel;
+
+  /// The choices offered. A refund message, for one, can only go back to an
+  /// expense category or be ignored.
+  final List<PartyDisposition> allowed;
+
+  /// Overrides a choice's label, e.g. «استرداد» for expense on a refund.
+  final Map<PartyDisposition, String> labels;
   const PartyDecisionSheet({
     super.key,
     required this.db,
@@ -45,6 +52,8 @@ class PartyDecisionSheet extends StatefulWidget {
     required this.initial,
     this.footnote,
     this.onDeleteLabel,
+    this.allowed = PartyDisposition.values,
+    this.labels = const {},
   });
 
   @override
@@ -103,9 +112,9 @@ class _PartyDecisionSheetState extends State<PartyDecisionSheet> {
                     alignment: WrapAlignment.center,
                     spacing: AppSpacing.sm,
                     children: [
-                      for (final d in PartyDisposition.values)
+                      for (final d in widget.allowed)
                         ChoiceChip(
-                          label: Text(_label(d)),
+                          label: Text(widget.labels[d] ?? _label(d)),
                           selected: _disposition == d,
                           onSelected: (_) => setState(() {
                             _disposition = d;

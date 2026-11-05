@@ -16,7 +16,24 @@ part 'database.g.dart';
 class TxnRow {
   final Txn txn;
   final Category category;
-  const TxnRow({required this.txn, required this.category});
+
+  /// For a purchase: how much of it has been refunded so far (positive, 0 if
+  /// none). Filled in by the DAO streams; meaningless on a refund row itself.
+  final double refunded;
+  const TxnRow({required this.txn, required this.category, this.refunded = 0});
+
+  /// A refund row: money that came back, stored as a negative expense.
+  bool get isRefund => txn.type == TxnType.expense && txn.amount < 0;
+}
+
+/// Refunds summed by the purchase they point at, as positive amounts.
+Map<int, double> _refundedByPurchase(Iterable<Txn> rows) {
+  final out = <int, double>{};
+  for (final t in rows) {
+    final of = t.refundOf;
+    if (of != null) out[of] = (out[of] ?? 0) - t.amount;
+  }
+  return out;
 }
 
 /// A debt movement with the debt it belongs to — the direction is what says
@@ -206,8 +223,119 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
       recurrenceId: Value(txn.recurrenceId),
       importBatchId: Value(txn.importBatchId),
       splitGroupId: Value(txn.splitGroupId),
+      refundOf: Value(txn.refundOf),
       createdAt: Value(txn.createdAt),
     ));
+  }
+
+  /// What is still unrefunded on [purchaseId]: its amount less every refund
+  /// pointing at it, optionally ignoring one refund (the one being edited).
+  Future<double> unrefunded(int purchaseId, {int? exceptRefundId}) async {
+    final purchase = await (select(transactions)
+          ..where((t) => t.id.equals(purchaseId)))
+        .getSingle();
+    final refunds = await (select(transactions)
+          ..where((t) => t.refundOf.equals(purchaseId)))
+        .get();
+    var left = purchase.amount;
+    for (final r in refunds) {
+      if (r.id != exceptRefundId) left += r.amount; // refunds are negative
+    }
+    return left;
+  }
+
+  /// Records money coming back for [purchaseId]: an expense row of -[amount]
+  /// in the purchase's category, with its note, dated [date].
+  ///
+  /// Refused for a recurring purchase: every "is this committed?" check in
+  /// the app keys on recurrenceId, which a refund row cannot carry (the engine
+  /// would read its date as an occurrence it had generated), so a refunded
+  /// subscription would be scored as discretionary money. Log it as a
+  /// standalone refund instead.
+  Future<int> addRefund({
+    required int purchaseId,
+    required double amount,
+    required DateTime date,
+    String? note,
+  }) async {
+    final purchase = await (select(transactions)
+          ..where((t) => t.id.equals(purchaseId)))
+        .getSingle();
+    if (purchase.type != TxnType.expense || purchase.amount <= 0) {
+      throw ArgumentError('only a purchase can be refunded');
+    }
+    if (purchase.recurrenceId != null) {
+      throw ArgumentError('a recurring charge is refunded as a standalone '
+          'refund, not linked to its occurrence');
+    }
+    if (amount <= 0) throw ArgumentError('a refund amount is positive');
+    final left = await unrefunded(purchaseId);
+    if (amount - left >= 0.005) {
+      throw ArgumentError('refund of $amount exceeds the $left unrefunded');
+    }
+    return into(transactions).insert(TransactionsCompanion.insert(
+      amount: -amount,
+      categoryId: purchase.categoryId,
+      type: TxnType.expense,
+      date: date,
+      note: Value(note ?? purchase.note),
+      refundOf: Value(purchaseId),
+    ));
+  }
+
+  /// A refund for something bought before the app knew about it: a negative
+  /// expense in [categoryId], linked to nothing.
+  Future<int> addStandaloneRefund({
+    required double amount,
+    required int categoryId,
+    required DateTime date,
+    String? note,
+  }) async {
+    if (amount <= 0) throw ArgumentError('a refund amount is positive');
+    final cat = await (select(categories)
+          ..where((c) => c.id.equals(categoryId)))
+        .getSingleOrNull();
+    if (cat == null || cat.type != TxnType.expense) {
+      throw ArgumentError('a refund goes back to an expense category');
+    }
+    return into(transactions).insert(TransactionsCompanion.insert(
+      amount: -amount,
+      categoryId: categoryId,
+      type: TxnType.expense,
+      date: date,
+      note: Value(note),
+    ));
+  }
+
+  /// Edits a refund. [amount] is positive (what came back); a linked refund
+  /// keeps its purchase's category and still cannot exceed what is unrefunded.
+  Future<void> updateRefund({
+    required int id,
+    required double amount,
+    required DateTime date,
+    required int categoryId,
+    String? note,
+  }) async {
+    final row = await (select(transactions)..where((t) => t.id.equals(id)))
+        .getSingle();
+    if (row.amount >= 0) throw ArgumentError('not a refund');
+    if (amount <= 0) throw ArgumentError('a refund amount is positive');
+    final of = row.refundOf;
+    if (of != null) {
+      final left = await unrefunded(of, exceptRefundId: id);
+      if (amount - left >= 0.005) {
+        throw ArgumentError('refund of $amount exceeds the $left unrefunded');
+      }
+    }
+    await (update(transactions)..where((t) => t.id.equals(id))).write(
+      TransactionsCompanion(
+        amount: Value(-amount),
+        date: Value(date),
+        note: Value(note),
+        // A linked refund belongs to its purchase's category.
+        categoryId: of == null ? Value(categoryId) : const Value.absent(),
+      ),
+    );
   }
 
   /// The parts of the purchase [txnId] belongs to, oldest first — just that
@@ -242,8 +370,8 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
     return transaction(() async {
       final members = await splitParts(txnId);
       final first = members.first;
-      if (first.type != TxnType.expense) {
-        throw ArgumentError('only an expense can be split');
+      if (first.type != TxnType.expense || first.amount <= 0) {
+        throw ArgumentError('only a purchase can be split');
       }
       if (members.any((m) => m.recurrenceId != null)) {
         throw ArgumentError('a recurring transaction cannot be split');
@@ -350,12 +478,16 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
         OrderingTerm.desc(transactions.id),
       ]);
     return query.watch().map((rows) {
-      return rows
-          .map((r) => TxnRow(
-                txn: r.readTable(transactions),
-                category: r.readTable(categories),
-              ))
-          .toList();
+      final txns = [for (final r in rows) r.readTable(transactions)];
+      final refunded = _refundedByPurchase(txns);
+      return [
+        for (var i = 0; i < rows.length; i++)
+          TxnRow(
+            txn: txns[i],
+            category: rows[i].readTable(categories),
+            refunded: refunded[txns[i].id] ?? 0,
+          ),
+      ];
     });
   }
 
@@ -377,13 +509,25 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
         OrderingTerm.desc(transactions.date),
         OrderingTerm.desc(transactions.id),
       ]);
-    return query.watch().map((rows) {
-      return rows
-          .map((r) => TxnRow(
-                txn: r.readTable(transactions),
-                category: r.readTable(categories),
-              ))
-          .toList();
+    // A purchase's refund can land in a later cycle than the purchase, so the
+    // refunded amounts are looked up across the whole ledger, not just this
+    // window. The watch fires on any change to transactions, refunds included.
+    return query.watch().asyncMap((rows) async {
+      final txns = [for (final r in rows) r.readTable(transactions)];
+      final ids = [for (final t in txns) t.id];
+      final refunds = ids.isEmpty
+          ? const <Txn>[]
+          : await (select(transactions)..where((t) => t.refundOf.isIn(ids)))
+              .get();
+      final refunded = _refundedByPurchase(refunds);
+      return [
+        for (var i = 0; i < rows.length; i++)
+          TxnRow(
+            txn: txns[i],
+            category: rows[i].readTable(categories),
+            refunded: refunded[txns[i].id] ?? 0,
+          ),
+      ];
     });
   }
 }
@@ -864,6 +1008,13 @@ class ResolvedImportRow {
   /// batch would delete a decision the user made earlier.
   final bool ruleAlreadyExisted;
 
+  /// A refund message: written as a negative expense in [categoryId], never
+  /// as a purchase. [amount] stays the positive figure the bank reported.
+  final bool refund;
+
+  /// The purchase this refund refunds, when one was found.
+  final int? refundOf;
+
   const ResolvedImportRow({
     required this.amount,
     required this.date,
@@ -873,7 +1024,12 @@ class ResolvedImportRow {
     this.categoryId,
     this.goalId,
     this.ruleAlreadyExisted = false,
+    this.refund = false,
+    this.refundOf,
   });
+
+  /// What this row does to spending: a refund takes its amount back off.
+  double get signedAmount => refund ? -amount : amount;
 }
 
 /// Bank-message imports, and undoing one.
@@ -962,7 +1118,8 @@ class ImportBatchDao extends DatabaseAccessor<AppDatabase>
           rows.where((r) => r.disposition != PartyDisposition.ignore).toList();
       final batchId = await create(
         rowCount: booked.length,
-        totalAmount: booked.fold<double>(0, (acc, r) => acc + r.amount),
+        totalAmount:
+            booked.fold<double>(0, (acc, r) => acc + r.signedAmount),
         ignoredCount: rows.length - booked.length,
       );
 
@@ -970,6 +1127,24 @@ class ImportBatchDao extends DatabaseAccessor<AppDatabase>
         final label = (row.displayName?.trim().isNotEmpty ?? false)
             ? row.displayName!.trim()
             : row.party?.trim();
+
+        if (row.refund && row.disposition != PartyDisposition.ignore) {
+          if (row.disposition != PartyDisposition.expense) {
+            throw ArgumentError('a refund goes back to an expense category');
+          }
+          await into(transactions).insert(TransactionsCompanion.insert(
+            amount: -row.amount,
+            categoryId: row.categoryId!,
+            type: TxnType.expense,
+            date: row.date,
+            note: Value(label),
+            importBatchId: Value(batchId),
+            refundOf: Value(row.refundOf),
+          ));
+          // A refund teaches nothing about the party: what a merchant means
+          // is learned from its purchases.
+          continue;
+        }
 
         switch (row.disposition) {
           case PartyDisposition.expense:
@@ -1305,7 +1480,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1351,6 +1526,7 @@ class AppDatabase extends _$AppDatabase {
               newColumns: [
                 transactions.importBatchId,
                 transactions.splitGroupId,
+                transactions.refundOf,
               ],
             ));
           }
@@ -1449,6 +1625,12 @@ class AppDatabase extends _$AppDatabase {
           if (from < 16) {
             await m.createTable(debts);
             await m.createTable(debtMovements);
+          }
+          // v17 links a refund to the purchase it refunds. Nullable with no
+          // default (which is what lets ALTER TABLE add a foreign key), no
+          // back-fill, and skipped where the v5 rebuild already created it.
+          if (from < 17 && from >= 5) {
+            await m.addColumn(transactions, transactions.refundOf);
           }
         },
         beforeOpen: (details) async {

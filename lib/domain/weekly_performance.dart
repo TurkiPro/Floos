@@ -142,7 +142,13 @@ List<WeekPerformance> weeklyPerformance({
     final daySpends = <DaySpend>[];
     for (var i = 0; i < weekLen; i++) {
       final date = DateTime(ws.year, ws.month, ws.day + i);
-      final slices = (byDay[i] ?? const <int, double>{}).entries.map((e) {
+      // A category whose refunds outweigh its purchases that day nets
+      // negative; the bar stacks what was spent, so it is left out of the
+      // stack (the week's spent figure above still nets it).
+      final slices = (byDay[i] ?? const <int, double>{})
+          .entries
+          .where((e) => e.value > 0)
+          .map((e) {
         final cat = byId[e.key];
         return DaySlice(
             e.key, cat?.name ?? '—', cat?.colorValue ?? 0xFF9E9E9E, e.value);

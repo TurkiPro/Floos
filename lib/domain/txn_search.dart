@@ -126,7 +126,11 @@ List<TxnRow> searchTransactions(
 
   bool textMatches(TxnRow r) {
     if (needle.isEmpty) return true;
-    if (amount != null && (r.txn.amount - amount).abs() < 0.005) return true;
+    // A refund is stored negative; searching "50" should find the 50 that
+    // came back as well as the 50 that went out.
+    if (amount != null && (r.txn.amount.abs() - amount).abs() < 0.005) {
+      return true;
+    }
     final parent = r.category.parentId == null
         ? null
         : categoriesById[r.category.parentId];

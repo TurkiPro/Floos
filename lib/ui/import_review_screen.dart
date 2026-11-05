@@ -47,13 +47,44 @@ class _RowState {
   /// does not take ownership of it.
   final bool ruleAlreadyExisted;
 
-  _RowState(this.reviewed)
-      : checked = reviewed.suggestedForImport,
-        disposition = reviewed.rule?.disposition,
-        categoryId = reviewed.rule?.categoryId,
-        goalId = reviewed.rule?.goalId,
+  /// Money that came back. It is written as a negative expense — never as a
+  /// purchase, which is what the party's rule alone would have made of it.
+  final bool refund;
+
+  /// The purchase this refund refunds, when one was found.
+  final Txn? refundTarget;
+
+  _RowState(this.reviewed, {this.refundTarget})
+      : refund = reviewed.message.kind == BankTxnKind.refund,
+        checked = reviewed.suggestedForImport &&
+            // A refund only arrives ready when the party's rule already says
+            // which expense category it goes back to (or to ignore it).
+            (reviewed.message.kind != BankTxnKind.refund ||
+                _refundReady(reviewed.rule)),
+        disposition = reviewed.message.kind == BankTxnKind.refund
+            ? (_refundReady(reviewed.rule) ? reviewed.rule!.disposition : null)
+            : reviewed.rule?.disposition,
+        // Only an expense category can take a refund back.
+        categoryId = reviewed.message.kind == BankTxnKind.refund &&
+                reviewed.rule?.disposition != PartyDisposition.expense
+            ? null
+            : reviewed.rule?.categoryId,
+        goalId = reviewed.message.kind == BankTxnKind.refund
+            ? null
+            : reviewed.rule?.goalId,
         displayName = reviewed.rule?.displayName,
         ruleAlreadyExisted = reviewed.rule != null;
+
+  /// A rule that can carry a refund: an expense category, or ignore. A rule
+  /// that files the party as income or savings says nothing about where its
+  /// refunds go, so the user is asked.
+  static bool _refundReady(PartyRule? rule) =>
+      rule != null &&
+      (rule.disposition == PartyDisposition.expense ||
+          rule.disposition == PartyDisposition.ignore);
+
+  /// What this row does to spending: a refund takes its amount back off.
+  double get signedAmount => refund ? -message.amount! : message.amount!;
 
   BankMessage get message => reviewed.message;
 
@@ -124,8 +155,28 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       },
     );
 
+    // Each refund message, matched to the purchase it most likely refunds.
+    final ruleByParty = {
+      for (final d in reviewed)
+        if (d.message.party != null) d.message.party!: d.rule,
+    };
+    _RowState toRow(ReviewedDraft d) {
+      final m = d.message;
+      if (m.kind != BankTxnKind.refund || m.amount == null || m.at == null) {
+        return _RowState(d);
+      }
+      final name = ruleByParty[m.party]?.displayName?.trim();
+      return _RowState(d,
+          refundTarget: findRefundTarget(
+            txns,
+            amount: m.amount!,
+            date: m.at!,
+            label: name != null && name.isNotEmpty ? name : m.party,
+          ));
+    }
+
     if (!mounted) return;
-    setState(() => _rows = reviewed.map(_RowState.new).toList());
+    setState(() => _rows = reviewed.map(toRow).toList());
   }
 
   List<_RowState> get _selected =>
@@ -133,7 +184,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
 
   double get _selectedTotal => _selected
       .where((r) => r.disposition != PartyDisposition.ignore)
-      .fold(0.0, (acc, r) => acc + r.message.amount!);
+      .fold(0.0, (acc, r) => acc + r.signedAmount);
 
   Future<void> _save() async {
     final rows = _selected;
@@ -151,6 +202,8 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
             categoryId: r.categoryId,
             goalId: r.goalId,
             ruleAlreadyExisted: r.ruleAlreadyExisted,
+            refund: r.refund,
+            refundOf: r.refundTarget?.id,
           ),
       ]);
       if (!mounted) return;
@@ -276,6 +329,20 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(_subtitleFor(message)),
+                  if (row.refund)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        row.refundTarget == null
+                            ? 'استرداد'
+                            : 'استرداد لشراء '
+                                '${DateFormat('yyyy-MM-dd').format(row.refundTarget!.date)}',
+                        style: const TextStyle(
+                          fontSize: AppTextSizes.label,
+                          color: AppColors.income,
+                        ),
+                      ),
+                    ),
                   if (blocked)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
@@ -303,10 +370,12 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
               secondary: Text(
                 message.amount == null
                     ? '—'
-                    : '${groupedAmount(message.amount!)} ⃁',
-                style: const TextStyle(
+                    : '${row.refund ? '+' : ''}'
+                        '${groupedAmount(message.amount!)} ⃁',
+                style: TextStyle(
                   fontSize: AppTextSizes.row,
                   fontWeight: FontWeight.w700,
+                  color: row.refund ? AppColors.income : null,
                 ),
               ),
             ),
@@ -365,6 +434,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
 
   String _dispositionLabel(_RowState row) => switch (row.disposition) {
         null => 'اختر التصنيف',
+        PartyDisposition.expense when row.refund => 'استرداد',
         PartyDisposition.expense => 'مصروف',
         PartyDisposition.income => 'دخل',
         PartyDisposition.savings => 'ادخار',
@@ -386,6 +456,15 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
           goalId: row.goalId,
           displayName: row.displayName,
         ),
+        allowed: row.refund
+            ? const [PartyDisposition.expense, PartyDisposition.ignore]
+            : PartyDisposition.values,
+        labels: row.refund
+            ? const {PartyDisposition.expense: 'استرداد إلى فئة'}
+            : const {},
+        footnote: row.refund
+            ? 'مبلغ عاد إليك: يُخصم من مصروف الفئة، ولا يُحسب دخلًا.'
+            : null,
       ),
     );
     if (result == null || !mounted) return;

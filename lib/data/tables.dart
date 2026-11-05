@@ -86,6 +86,15 @@ class Transactions extends Table {
   // split correctly with no special case. No foreign key: the group is a
   // label, and deleting one part must not take the others with it.
   IntColumn get splitGroupId => integer().nullable()();
+  // Non-null => this row is a refund of that purchase. A refund is an expense
+  // row with a NEGATIVE amount, in the purchase's category, dated the day the
+  // money came back — so every total in the app nets it out with no special
+  // case. A refund with no purchase to point at (bought before using the app)
+  // is a negative expense with this left null. SET NULL: if the purchase is
+  // deleted, the refund is still real money that came back.
+  IntColumn get refundOf => integer()
+      .nullable()
+      .references(Transactions, #id, onDelete: KeyAction.setNull)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 

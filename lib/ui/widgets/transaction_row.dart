@@ -7,6 +7,7 @@ import '../../data/database.dart';
 import '../../data/enums.dart';
 import '../../services/alerts_coordinator.dart';
 import '../add_transaction_sheet.dart';
+import '../refund_sheet.dart';
 import '../split_sheet.dart';
 import '../theme/tokens.dart';
 import 'category_icon_tile.dart';
@@ -23,9 +24,15 @@ class TransactionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final db = context.read<AppDatabase>();
     final isIncome = row.txn.type == TxnType.income;
-    final sign = isIncome ? '+' : '-';
-    final amountColor =
-        isIncome ? AppColors.income : Theme.of(context).colorScheme.onSurface;
+    // A refund is stored as a negative expense: money coming back, shown as
+    // such — never as "-(-50)".
+    final isRefund = row.isRefund;
+    final sign = isIncome || isRefund ? '+' : '-';
+    final amountColor = isIncome || isRefund
+        ? AppColors.income
+        : Theme.of(context).colorScheme.onSurface;
+    final refunded = row.refunded;
+    final fullyRefunded = refunded > 0 && row.txn.amount - refunded < 0.005;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -79,6 +86,15 @@ class TransactionRow extends StatelessWidget {
             if (result == AddTransactionSheet.split && context.mounted) {
               await openSplit();
             }
+            if (result == AddTransactionSheet.refund && context.mounted) {
+              await showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                useSafeArea: true,
+                showDragHandle: true,
+                builder: (_) => RefundSheet(db: db, purchase: row.txn),
+              );
+            }
           },
           child: Row(
             children: [
@@ -102,12 +118,20 @@ class TransactionRow extends StatelessWidget {
                     ),
                     if ((row.txn.note ?? '').isNotEmpty ||
                         row.txn.recurrenceId != null ||
-                        row.txn.splitGroupId != null)
+                        row.txn.splitGroupId != null ||
+                        isRefund ||
+                        refunded > 0)
                       Text(
                         [
+                          if (isRefund) 'استرداد',
                           if ((row.txn.note ?? '').isNotEmpty) row.txn.note!,
                           if (row.txn.recurrenceId != null) 'متكرر',
-                          if (row.txn.splitGroupId != null) 'جزء من عملية مقسّمة',
+                          if (row.txn.splitGroupId != null)
+                            'جزء من عملية مقسّمة',
+                          if (fullyRefunded)
+                            'مسترد بالكامل'
+                          else if (refunded > 0)
+                            'مسترد جزئيًا ${money.format(refunded)}',
                         ].join('  •  '),
                         style: TextStyle(
                           fontSize: AppTextSizes.label,
@@ -118,7 +142,7 @@ class TransactionRow extends StatelessWidget {
                 ),
               ),
               Text(
-                '$sign${money.format(row.txn.amount)} ⃁',
+                '$sign${money.format(row.txn.amount.abs())} ⃁',
                 style: TextStyle(
                     color: amountColor,
                     fontWeight: FontWeight.w600,

@@ -55,7 +55,8 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
 
     final total =
         widget.transactions.fold<double>(0, (s, r) => s + r.txn.amount);
-    final count = widget.transactions.length;
+    // Purchases only — a refund nets into the total but is not a purchase.
+    final count = widget.transactions.where((r) => !r.isRefund).length;
     final avg = count == 0 ? 0.0 : total / count;
     final weekly = widget.periodWeeks > 0 ? total / widget.periodWeeks : 0.0;
 

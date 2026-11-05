@@ -14,7 +14,9 @@ class CategoryStat {
     required this.transactions,
   });
 
-  int get count => transactions.length;
+  /// Purchases only: a refund nets into [total] but is not a purchase, so it
+  /// must not drag the per-purchase average down by counting as one.
+  int get count => transactions.where((r) => !r.isRefund).length;
   double get average => count == 0 ? 0 : total / count;
 }
 

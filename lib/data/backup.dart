@@ -103,6 +103,7 @@ Future<String> buildBackupJson(AppDatabase db) async {
           'recurrenceId': t.recurrenceId,
           'importBatchId': t.importBatchId,
           'splitGroupId': t.splitGroupId,
+          'refundOf': t.refundOf,
           'createdAt': _ms(t.createdAt),
         },
     ],
@@ -389,7 +390,12 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
           ));
     }
 
-    for (final t in rowsOf('transactions')) {
+    // Purchases before the refunds that point at them, so the refund_of
+    // foreign key always has its row to point at.
+    final txnRows = [...rowsOf('transactions')]
+      ..sort((a, b) => (a['refundOf'] == null ? 0 : 1)
+          .compareTo(b['refundOf'] == null ? 0 : 1));
+    for (final t in txnRows) {
       await db.into(db.transactions).insert(TransactionsCompanion.insert(
             id: Value(t['id'] as int),
             amount: t['amount'] as double,
@@ -402,6 +408,8 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
             importBatchId: Value(t['importBatchId'] as int?),
             // Lenient: pre-v15 files have no splits.
             splitGroupId: Value(t['splitGroupId'] as int?),
+            // Lenient: pre-v17 files link no refunds.
+            refundOf: Value(t['refundOf'] as int?),
             createdAt: Value(_date(t['createdAt'])),
           ));
     }
