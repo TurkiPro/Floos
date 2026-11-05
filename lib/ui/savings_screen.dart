@@ -161,13 +161,19 @@ class _DepositRow extends StatelessWidget {
     final db = context.read<AppDatabase>();
     final scheme = Theme.of(context).colorScheme;
     final note = contribution.note ?? '';
-    // A negative contribution is a withdrawal back to the current account.
+    // A negative contribution is a withdrawal.
     final withdraw = contribution.amount < 0;
     final tint = withdraw ? Colors.red.shade400 : scheme.primary;
-    // Where the money came from / went, so the deposit reads as a movement.
-    final source = withdraw
-        ? 'إلى الرصيد'
-        : (contribution.external ? 'خارجي' : 'من الرصيد');
+    // Where the money came from / went, so the row reads as a movement. All
+    // four combinations are distinct and must stay so: an external withdrawal
+    // labelled «إلى الرصيد» would claim the money arrived somewhere it never
+    // did — the exact thing the external flag exists to prevent.
+    final String source;
+    if (withdraw) {
+      source = contribution.external ? 'سحب خارجي' : 'إلى الرصيد';
+    } else {
+      source = contribution.external ? 'خارجي' : 'من الرصيد';
+    }
     final sub = [source, if (note.isNotEmpty) note].join('  •  ');
     // Swipe-to-delete with undo, same as the transaction list and the goal
     // detail screen — a deposit is removable wherever it's shown.

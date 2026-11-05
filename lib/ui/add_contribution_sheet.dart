@@ -32,10 +32,20 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
   final _noteCtrl = TextEditingController();
   DateTime _date = DateTime.now();
   int? _goalId;
+  // "External" means the money is outside the tracked balance, in either
+  // direction:
+  //  - an external DEPOSIT is money that already existed (a gift, savings held
+  //    elsewhere): it raises the goal without coming out of the balance.
+  //  - an external WITHDRAWAL is money that left savings for somewhere else (a
+  //    purchase paid straight from the savings account, a transfer to an
+  //    account this app does not track): it lowers the goal without landing in
+  //    the balance.
+  // The data layer already treats both the same way — every balance, savings
+  // rate and behaviour figure skips external rows, and only the goal's own
+  // total counts them — so this flag is the whole feature.
   bool _external = false;
-  // A withdrawal (savings → current account) is stored as a negative
-  // contribution: it lowers the goal's balance and, being non-external, flows
-  // straight back into the spendable balance.
+  // A withdrawal is stored as a negative contribution: it lowers the goal's
+  // balance and, unless external, flows back into the spendable balance.
   bool _withdraw = false;
 
   @override
@@ -90,10 +100,10 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
         return;
       }
     }
-    // Withdrawals are stored negative and always affect the balance (never
-    // "external" — that flag is only for deposits of pre-existing money).
+    // Withdrawals are stored negative. Whether either direction touches the
+    // balance is the external flag's job, for both.
     final signed = _withdraw ? -amount : amount;
-    final external = _withdraw ? false : _external;
+    final external = _external;
     final note = _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim();
     if (e != null) {
       await widget.db.savingsDao.updateContribution(
@@ -152,8 +162,8 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
                     : 'تعديل الحركة',
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: AppSpacing.md),
-            // Direction: deposit moves money from your balance into the goal;
-            // withdraw pulls it back out to your balance.
+            // Direction: deposit moves money into the goal; withdraw takes it
+            // out. Whether the balance is involved is the toggle below.
             SegmentedButton<bool>(
               segments: const [
                 ButtonSegment(
@@ -166,7 +176,14 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
                     icon: Icon(Icons.account_balance_wallet_outlined)),
               ],
               selected: {_withdraw},
-              onSelectionChanged: (s) => setState(() => _withdraw = s.first),
+              // Switching direction clears the external toggle. It means two
+              // different things in the two modes ("money I already had" vs
+              // "money that went elsewhere"), so a tick made for one must never
+              // quietly carry over into the other.
+              onSelectionChanged: (s) => setState(() {
+                if (s.first != _withdraw) _external = false;
+                _withdraw = s.first;
+              }),
             ),
             const SizedBox(height: AppSpacing.lg),
             // Goal picker only when no goal was pre-selected.
@@ -233,19 +250,21 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
                 border: OutlineInputBorder(),
               ),
             ),
-            // "External" only applies to deposits (pre-existing money added to a
-            // goal). A withdrawal always returns to the balance, so hide it then.
-            if (!_withdraw) ...[
-              const SizedBox(height: AppSpacing.sm),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _external,
-                onChanged: (v) => setState(() => _external = v),
-                title: const Text('إيداع خارجي (لا يُخصم من الرصيد)'),
-                subtitle: const Text(
-                    'مبلغ موجود مسبقًا أو هدية — يُضاف للهدف دون التأثير على رصيدك.'),
-              ),
-            ],
+            // Shown in both directions, worded for the direction chosen.
+            const SizedBox(height: AppSpacing.sm),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _external,
+              onChanged: (v) => setState(() => _external = v),
+              title: Text(_withdraw
+                  ? 'سحب خارجي (لا يُضاف إلى الرصيد)'
+                  : 'إيداع خارجي (لا يُخصم من الرصيد)'),
+              subtitle: Text(_withdraw
+                  ? 'صُرف من الادخار مباشرة أو نُقل لحساب آخر — يُخصم من '
+                      'الهدف دون أن يدخل رصيدك.'
+                  : 'مبلغ موجود مسبقًا أو هدية — يُضاف للهدف دون التأثير '
+                      'على رصيدك.'),
+            ),
             const SizedBox(height: AppSpacing.lg),
             FilledButton(onPressed: _save, child: const Text('حفظ')),
             if (widget.existing != null) ...[

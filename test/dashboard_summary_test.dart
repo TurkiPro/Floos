@@ -158,6 +158,49 @@ void main() {
       expect(d.monthRemaining, 800);
     });
 
+    test('an external withdrawal leaves savings without entering the balance',
+        () {
+      // Money taken out of a goal and spent or moved elsewhere directly — the
+      // car fund paying for the car, a transfer to an untracked account. The
+      // goal must drop; the balance must NOT rise, because the money never
+      // arrived in it.
+      final rows = [_income(1000, DateTime(2026, 7, 1))];
+      final contributions = [
+        _contrib(300, DateTime(2026, 7, 2)), // deposited from the balance
+        _contrib(-100, DateTime(2026, 7, 20), external: true), // left elsewhere
+      ];
+      final d = DashboardSummary.from(
+          rows, contributions, const <Investment>[], july);
+
+      expect(d.savingsTotal, 200, reason: 'the goal really is 100 lighter');
+      expect(d.balance, 700,
+          reason: '1000 − 300 deposited; the withdrawal never came back');
+      // Unlike a normal withdrawal, it doesn't count as un-saving this cycle.
+      expect(d.monthSaved, 300);
+    });
+
+    test(
+        'a normal and an external withdrawal of the same amount differ only '
+        'in the balance', () {
+      final rows = [_income(1000, DateTime(2026, 7, 1))];
+      final deposit = _contrib(300, DateTime(2026, 7, 2));
+
+      final toBalance = DashboardSummary.from(
+          rows,
+          [deposit, _contrib(-100, DateTime(2026, 7, 20))],
+          const <Investment>[],
+          july);
+      final elsewhere = DashboardSummary.from(
+          rows,
+          [deposit, _contrib(-100, DateTime(2026, 7, 20), external: true)],
+          const <Investment>[],
+          july);
+
+      expect(elsewhere.savingsTotal, toBalance.savingsTotal);
+      expect(toBalance.balance - elsewhere.balance, 100,
+          reason: 'the 100 lands in the balance in one case only');
+    });
+
     test('non-external investments reduce the balance; standalone ones do not',
         () {
       final rows = [_income(1000, DateTime(2026, 7, 1))];
