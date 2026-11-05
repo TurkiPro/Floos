@@ -13,7 +13,18 @@ import 'spending_window.dart';
 class WeeklyBudgetStatus {
   final double budget;
   final double spent;
-  const WeeklyBudgetStatus({required this.budget, required this.spent});
+
+  /// Whether money set aside this cycle actually lowered [budget]. Only savings
+  /// made before the current week count toward the budget (a mid-week deposit
+  /// shrinks next week's), so this is decided here, where that cut-off is known,
+  /// rather than guessed by anything that merely sees "savings this cycle".
+  final bool reducedBySavings;
+
+  const WeeklyBudgetStatus({
+    required this.budget,
+    required this.spent,
+    this.reducedBySavings = false,
+  });
 
   /// True once this week's spend has passed the budget.
   bool get isOver => spent > budget;
@@ -204,5 +215,9 @@ WeeklyBudgetStatus weeklyBudgetStatus({
   final budget =
       periodIncome > 0 && weekBudget > headroom ? headroom : weekBudget;
 
-  return WeeklyBudgetStatus(budget: budget, spent: spentThisWeek);
+  return WeeklyBudgetStatus(
+    budget: budget,
+    spent: spentThisWeek,
+    reducedBySavings: savedBeforeWeek > 0,
+  );
 }

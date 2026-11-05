@@ -1,8 +1,10 @@
 import '../data/database.dart';
 import '../data/enums.dart';
 import 'budget_advisor.dart' show previousCycles;
+import 'dashboard_summary.dart';
 import 'financial_period.dart';
 import 'spending_window.dart';
+import 'upcoming_commitments.dart';
 import 'weekly_budget_status.dart';
 
 /// All statistics, computed once in a single pass over the transactions.
@@ -85,14 +87,21 @@ class StatisticsSummary {
     required this.cycleTrend,
   });
 
+  /// [investments] matters more than its default suggests: money moved into
+  /// investments has left the balance, and both the weekly budget's cap and the
+  /// daily allowance are bounded by the balance. Omit it and this screen
+  /// reports a larger budget than the home card for anyone who invests — the
+  /// home card has always passed it. Optional only so call sites that genuinely
+  /// have none (tests) need not invent an empty list.
   static StatisticsSummary from(
     List<TxnRow> rows,
     List<SavingsContribution> contributions,
     List<RecurrenceRule> incomeRules,
     List<RecurrenceRule> expenseRules,
     DateTime now,
-    FinancialPeriod period,
-  ) {
+    FinancialPeriod period, {
+    List<Investment> investments = const [],
+  }) {
     final today = DateTime(now.year, now.month, now.day);
     // Exclusive upper bound so rows stamped today with a time-of-day (manual
     // adds default to DateTime.now(), not midnight) still count. Constructor
@@ -104,9 +113,12 @@ class StatisticsSummary {
     final daysElapsed =
         (today.difference(period.start).inDays + 1).clamp(1, periodDays);
     final daysLeft = period.end.difference(today).inDays.clamp(1, periodDays);
-    // The previous cycle (same length) for the "vs last month" comparison.
-    final prevStart = DateTime(
-        period.start.year, period.start.month, period.start.day - periodDays);
+    // The real previous salary cycle, for the "vs last month" comparison. It was
+    // assumed to be the same length as this one (start − periodDays), but cycles
+    // are 28–31 days and a payday override moves them, so that window could
+    // borrow or drop a day belonging to a different cycle.
+    final prevCycles = previousCycles(incomeRules, now, 1);
+    final prevCycle = prevCycles.isEmpty ? null : prevCycles.first;
     final windowStart =
         DateTime(today.year, today.month, today.day - spendingWindowDays);
 
@@ -136,15 +148,13 @@ class StatisticsSummary {
       allExpenseCount++;
       final kind = r.category.kind;
 
-      if (!date.isBefore(prevStart) && date.isBefore(period.start)) {
+      if (prevCycle != null && prevCycle.contains(date)) {
         lastMonthSpent += amount;
       }
 
       if (inThisMonth(date)) {
         spentThisMonth += amount;
         txnCountThisMonth++;
-        final d0 = DateTime(date.year, date.month, date.day);
-        byDayThisMonth[d0] = (byDayThisMonth[d0] ?? 0) + amount;
 
         // Committed = money already promised through a recurring rule (rent,
         // bills, subscriptions, family transfers). Discretionary = everything
@@ -157,6 +167,18 @@ class StatisticsSummary {
           committedThisMonth += amount;
         } else {
           discretionaryThisMonth += amount;
+          // Tallied per day for the highest-spend day and the no-spend days —
+          // discretionary only. Counting obligations here made rent day the
+          // "highest spending day" every single cycle, and an auto-posted bill
+          // break a no-spend day the user did nothing on.
+          // Up to today only: these describe days that have actually happened.
+          // A row dated tomorrow was otherwise reported as the highest-spend
+          // day before it existed, and counted as a spend day against the
+          // no-spend total.
+          if (date.isBefore(tomorrow)) {
+            final d0 = DateTime(date.year, date.month, date.day);
+            byDayThisMonth[d0] = (byDayThisMonth[d0] ?? 0) + amount;
+          }
           if (kind == CategoryKind.luxury) {
             luxuryThisMonth += amount;
           } else {
@@ -198,8 +220,22 @@ class StatisticsSummary {
       if (!c.external && inThisMonth(c.date)) monthSaved += c.amount;
     }
 
-    final dailyAvg = spentThisMonth / daysElapsed;
-    final projected = dailyAvg * periodDays;
+    // The daily rate and the month projection extrapolate only what actually
+    // recurs day to day: the DISCRETIONARY spend. Obligations are known
+    // amounts — what has already posted this cycle plus what is still due
+    // before payday — and are added as they are, never stretched across the
+    // month.
+    //
+    // They used to be extrapolated with everything else, so rent posting on day
+    // 2 of a cycle was read as a daily habit: on a 19,419 salary the screen
+    // projected 87,187 for the month, then 58,125 the next day and 29,062 three
+    // days later with nothing new spent, with a "+501% vs last month" beside it.
+    final dailyAvg = discretionaryThisMonth / daysElapsed;
+    // Still due before payday — the same figure as the home card's
+    // «قادم هذه الدورة», from the same function.
+    final stillDue =
+        upcomingTotal(upcomingCommitments(expenseRules, now, period.end));
+    final projected = committedThisMonth + stillDue + dailyAvg * periodDays;
     final projectedVsLast = lastMonthSpent > 0
         ? (projected - lastMonthSpent) / lastMonthSpent * 100
         : 0.0;
@@ -239,8 +275,17 @@ class StatisticsSummary {
     });
     final noSpendDays = daysElapsed - byDayThisMonth.length;
 
-    final unspentIncome = monthIncome - spentThisMonth - monthSaved;
-    final allowance = monthIncome > 0 ? unspentIncome / daysLeft : null;
+    // What is left to spend per day until payday: the home card's «المتبقي»,
+    // divided by the days remaining. Taken from DashboardSummary rather than
+    // re-derived, because it was re-derived — as this cycle's income minus its
+    // spending, with no knowledge of a deficit carried in from last cycle — and
+    // so it overstated the daily allowance in exactly the case «المتبقي» was
+    // fixed for. Reusing the one figure is what keeps them from drifting apart
+    // again.
+    final remaining =
+        DashboardSummary.from(rows, contributions, investments, period)
+            .monthRemaining;
+    final allowance = monthIncome > 0 ? remaining / daysLeft : null;
     final savingsRate = monthIncome > 0 ? monthSaved / monthIncome : null;
 
     // The weekly budget is the exact figure the home card and the app-icon
@@ -254,10 +299,17 @@ class StatisticsSummary {
       incomeRules: incomeRules,
       expenseRules: expenseRules,
       contributions: contributions,
+      // The home card passes these; without them this screen's budget ignored
+      // money moved into investments and came out larger than home's.
+      investments: investments,
       now: now,
     );
     final recommendedWeekly = wbs.budget;
-    final weeklyReducedBySavings = monthSaved > 0;
+    // From the budget itself, not re-guessed from this cycle's savings. The
+    // budget only counts savings made BEFORE the current week (a deposit
+    // mid-week shrinks next week), so "this cycle saved anything" claimed a
+    // reduction that had not happened yet.
+    final weeklyReducedBySavings = wbs.reducedBySavings;
 
     final topCategories = byTop.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));

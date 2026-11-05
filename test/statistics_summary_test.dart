@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:floos/data/database.dart';
 import 'package:floos/data/enums.dart';
+import 'package:floos/domain/dashboard_summary.dart';
 import 'package:floos/domain/financial_period.dart';
 import 'package:floos/domain/statistics_summary.dart';
 
@@ -241,5 +242,129 @@ void main() {
       // Oldest is five cycles back — February.
       expect(s.cycleTrend.first.key.start, DateTime(2026, 2, 1));
     });
+  });
+
+  // These figures were barely tested, which is how the screen came to show
+  // numbers like an 87,187 monthly projection on a 19,419 salary. Each test
+  // below pins a figure that was wrong.
+  group('obligations are not extrapolated', () {
+    test('rent posted once is counted once, not stretched across the month',
+        () {
+      // 15 days into July: 4500 rent posted on the 2nd, 150 of day-to-day
+      // spending. Projected = rent as-is + the day-to-day pace over 31 days.
+      final rows = [
+        _recurring(4500, DateTime(2026, 7, 2)),
+        _expense(150, DateTime(2026, 7, 5)),
+      ];
+      final s = StatisticsSummary.from(rows, const [], const <RecurrenceRule>[],
+          const <RecurrenceRule>[], now, july);
+
+      expect(s.projectedThisMonth, closeTo(4500 + 150 / 15 * 31, 1e-9));
+      // The old formula: everything ÷ days elapsed × days in month.
+      expect(s.projectedThisMonth, lessThan((4500 + 150) / 15 * 31 - 1000),
+          reason: 'rent must not be read as a daily habit');
+    });
+
+    test('the daily rate is the day-to-day spending only', () {
+      final rows = [
+        _recurring(4500, DateTime(2026, 7, 2)),
+        _expense(150, DateTime(2026, 7, 5)),
+      ];
+      final s = StatisticsSummary.from(rows, const [], const <RecurrenceRule>[],
+          const <RecurrenceRule>[], now, july);
+      expect(s.dailyAvgThisMonth, closeTo(150 / 15, 1e-9));
+    });
+
+    test('obligations still due before payday are included', () {
+      // Rent last posted 20 June, so the 20 July one is still to come.
+      final rent = RecurrenceRule(
+        id: 9,
+        title: 'إيجار',
+        amount: 4500,
+        categoryId: 1,
+        type: TxnType.expense,
+        frequency: Frequency.monthly,
+        interval: 1,
+        startDate: DateTime(2026, 1, 20),
+        lastMaterialized: DateTime(2026, 6, 20),
+        active: true,
+      );
+      final rows = [_expense(150, DateTime(2026, 7, 5))];
+      final s = StatisticsSummary.from(
+          rows, const [], const <RecurrenceRule>[], [rent], now, july);
+
+      expect(s.projectedThisMonth, closeTo(4500 + 150 / 15 * 31, 1e-9),
+          reason: 'known rent ahead, plus the day-to-day pace');
+    });
+  });
+
+  group('per-day figures describe what you chose to spend', () {
+    test('rent day is not the "highest spending day"', () {
+      final rows = [
+        _recurring(4500, DateTime(2026, 7, 2)),
+        _expense(150, DateTime(2026, 7, 5)),
+        _expense(40, DateTime(2026, 7, 9)),
+      ];
+      final s = StatisticsSummary.from(rows, const [], const <RecurrenceRule>[],
+          const <RecurrenceRule>[], now, july);
+      expect(s.highestDay, DateTime(2026, 7, 5));
+      expect(s.highestDayAmount, 150);
+    });
+
+    test('a day with only an auto-posted bill is still a no-spend day', () {
+      final rows = [
+        _recurring(4500, DateTime(2026, 7, 2)),
+        _expense(150, DateTime(2026, 7, 5)),
+      ];
+      final s = StatisticsSummary.from(rows, const [], const <RecurrenceRule>[],
+          const <RecurrenceRule>[], now, july);
+      // 15 days elapsed, one day of actual spending.
+      expect(s.noSpendDays, 14);
+    });
+
+    test('a future-dated row is neither the highest day nor a spend day', () {
+      final rows = [
+        _expense(40, DateTime(2026, 7, 5)),
+        _expense(900, DateTime(2026, 7, 20)), // after "now" (15 July)
+      ];
+      final s = StatisticsSummary.from(rows, const [], const <RecurrenceRule>[],
+          const <RecurrenceRule>[], now, july);
+      expect(s.highestDay, DateTime(2026, 7, 5));
+      expect(s.noSpendDays, 14);
+    });
+  });
+
+  test('"vs last month" uses the real previous cycle, not a guessed length',
+      () {
+    // July is 31 days but June is 30. Subtracting July's length from 1 July
+    // lands on 31 May, so a May expense used to be counted as last month's.
+    final rows = [
+      _expense(100, DateTime(2026, 7, 5)),
+      _expense(800, DateTime(2026, 5, 31)), // May — not last cycle
+      _expense(200, DateTime(2026, 6, 10)), // June — last cycle
+    ];
+    final s = StatisticsSummary.from(rows, const [], const <RecurrenceRule>[],
+        const <RecurrenceRule>[], now, july);
+    expect(s.lastMonthSpent, 200);
+  });
+
+  test('the daily allowance carries last cycle\'s deficit, like «المتبقي»', () {
+    // Ended last cycle 1000 overdrawn; 6000 salary this cycle.
+    final rows = [
+      _income(5000, DateTime(2026, 6, 1)),
+      _expense(6000, DateTime(2026, 6, 20)),
+      _income(6000, DateTime(2026, 7, 1)),
+      _expense(300, DateTime(2026, 7, 4)),
+    ];
+    final s = StatisticsSummary.from(rows, const [], const <RecurrenceRule>[],
+        const <RecurrenceRule>[], now, july);
+    final home = DashboardSummary.from(rows, const [], const [], july);
+
+    // Same figure as the home card, spread over the days left.
+    expect(s.dailyAllowanceRemaining,
+        closeTo(home.monthRemaining / s.daysLeftInMonth, 1e-9));
+    // And it really is the capped one: 6000 − 300 would be 5700; the balance
+    // is 4700.
+    expect(home.monthRemaining, closeTo(4700, 1e-9));
   });
 }

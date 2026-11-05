@@ -190,6 +190,76 @@ void main() {
         reason: 'one week, one verdict, wherever it is shown');
   });
 
+  test('home and stats agree when the user has investments', () {
+    // The case the first parity test could not see: its data had no
+    // investments. Home passed them into the weekly budget; stats did not, so
+    // money moved into investments still counted as spendable on the stats
+    // screen — and on the weekly-performance screen, which takes its current
+    // week from stats.
+    final now = DateTime(2026, 7, 16);
+    final incomeRules = [_salary(DateTime(2026, 1, 25))];
+    final expenseRules = [_obligation(DateTime(2026, 1, 25))];
+    final rows = [
+      _txn(TxnType.income, 19000, DateTime(2026, 6, 25)),
+      _txn(TxnType.expense, 300, DateTime(2026, 7, 2)),
+    ];
+    // Most of the balance moved into a portfolio — enough for the cap to bite.
+    final investments = [
+      Investment(
+        id: 1,
+        name: 'سهم',
+        amount: 17000,
+        date: DateTime(2026, 6, 26),
+        external: false,
+      ),
+    ];
+
+    final period = financialPeriod(incomeRules, now);
+    final home = weeklyBudgetStatus(
+      rows: rows,
+      incomeRules: incomeRules,
+      expenseRules: expenseRules,
+      contributions: const [],
+      investments: investments,
+      now: now,
+    );
+    final stats = StatisticsSummary.from(
+        rows, const [], incomeRules, expenseRules, now, period,
+        investments: investments);
+    final withoutInvestments = StatisticsSummary.from(
+        rows, const [], incomeRules, expenseRules, now, period);
+
+    // Only meaningful if investments actually change the answer here.
+    expect(withoutInvestments.recommendedWeekly, greaterThan(home.budget),
+        reason: 'the fixture must exercise the investment-reduced cap');
+    expect(stats.recommendedWeekly, closeTo(home.budget, 1e-9));
+  });
+
+  test('"reduced by savings" means the budget really was reduced', () {
+    // The budget only counts savings from before this week, so a deposit made
+    // this week has not lowered it yet — and the note must not say it has.
+    final now = DateTime(2026, 7, 16); // week began 16 July
+    final incomeRules = [_salary(DateTime(2026, 1, 25))];
+    final rows = [_txn(TxnType.income, 19000, DateTime(2026, 6, 25))];
+    final period = financialPeriod(incomeRules, now);
+
+    SavingsContribution deposit(DateTime d) => SavingsContribution(
+        id: 1,
+        goalId: 1,
+        amount: 500,
+        date: d,
+        external: false,
+        planned: false);
+
+    final thisWeek = StatisticsSummary.from(rows,
+        [deposit(DateTime(2026, 7, 16))], incomeRules, const [], now, period);
+    final earlier = StatisticsSummary.from(rows,
+        [deposit(DateTime(2026, 7, 1))], incomeRules, const [], now, period);
+
+    expect(thisWeek.weeklyReducedBySavings, isFalse);
+    expect(earlier.weeklyReducedBySavings, isTrue);
+  });
+
   test('past weeks stay frozen and uncapped', () {
     // Only the week in progress takes the capped figure. A finished week is
     // history; today's balance has no bearing on how it went, and capping it
