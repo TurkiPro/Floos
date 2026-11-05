@@ -197,8 +197,124 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
       note: Value(txn.note),
       recurrenceId: Value(txn.recurrenceId),
       importBatchId: Value(txn.importBatchId),
+      splitGroupId: Value(txn.splitGroupId),
       createdAt: Value(txn.createdAt),
     ));
+  }
+
+  /// The parts of the purchase [txnId] belongs to, oldest first — just that
+  /// row when it is not split.
+  Future<List<Txn>> splitParts(int txnId) async {
+    final row = await (select(transactions)..where((t) => t.id.equals(txnId)))
+        .getSingle();
+    final group = row.splitGroupId;
+    if (group == null) return [row];
+    return (select(transactions)
+          ..where((t) => t.splitGroupId.equals(group))
+          ..orderBy([(t) => OrderingTerm.asc(t.id)]))
+        .get();
+  }
+
+  /// Splits the purchase [txnId] belongs to into [parts] — or, if it is
+  /// already split, replaces its parts. [date] and [note] apply to every part:
+  /// they describe the one purchase.
+  ///
+  /// The parts must add up to the purchase to the halala: a split re-files
+  /// money, it never changes how much was spent. Recurring rows cannot be
+  /// split — the engine and the import's collision check identify them by
+  /// (rule, date) and (amount, date), and a split would make both lie.
+  ///
+  /// One database transaction, so a half-written split cannot exist.
+  Future<void> saveSplit(
+    int txnId, {
+    required List<({double amount, int categoryId})> parts,
+    required DateTime date,
+    String? note,
+  }) {
+    return transaction(() async {
+      final members = await splitParts(txnId);
+      final first = members.first;
+      if (first.type != TxnType.expense) {
+        throw ArgumentError('only an expense can be split');
+      }
+      if (members.any((m) => m.recurrenceId != null)) {
+        throw ArgumentError('a recurring transaction cannot be split');
+      }
+      if (parts.length < 2) throw ArgumentError('a split needs two parts');
+      if (parts.any((p) => p.amount <= 0)) {
+        throw ArgumentError('every part needs a positive amount');
+      }
+      final total = members.fold<double>(0, (s, m) => s + m.amount);
+      final sum = parts.fold<double>(0, (s, p) => s + p.amount);
+      if ((sum - total).abs() >= 0.005) {
+        throw ArgumentError('parts add up to $sum, not $total');
+      }
+      for (final p in parts) {
+        final cat = await (select(categories)
+              ..where((c) => c.id.equals(p.categoryId)))
+            .getSingleOrNull();
+        if (cat == null || cat.type != TxnType.expense) {
+          throw ArgumentError('part category ${p.categoryId} is not an '
+              'expense category');
+        }
+      }
+
+      // The row that keeps its id is the original purchase if it is still
+      // there, so the group id keeps naming a real row where it can.
+      final keeper = members.firstWhere(
+          (m) => m.id == (first.splitGroupId ?? first.id),
+          orElse: () => first);
+      final groupId = keeper.splitGroupId ?? keeper.id;
+
+      for (final m in members) {
+        if (m.id != keeper.id) {
+          await (delete(transactions)..where((t) => t.id.equals(m.id))).go();
+        }
+      }
+      await (update(transactions)..where((t) => t.id.equals(keeper.id)))
+          .write(TransactionsCompanion(
+        amount: Value(parts.first.amount),
+        categoryId: Value(parts.first.categoryId),
+        date: Value(date),
+        note: Value(note),
+        splitGroupId: Value(groupId),
+      ));
+      for (final p in parts.skip(1)) {
+        await into(transactions).insert(TransactionsCompanion.insert(
+          amount: p.amount,
+          categoryId: p.categoryId,
+          type: TxnType.expense,
+          date: date,
+          note: Value(note),
+          importBatchId: Value(keeper.importBatchId),
+          splitGroupId: Value(groupId),
+          createdAt: Value(keeper.createdAt),
+        ));
+      }
+    });
+  }
+
+  /// Puts a split purchase back together as one row, filed under the first
+  /// part's category, for the parts' total.
+  Future<void> unsplit(int txnId) {
+    return transaction(() async {
+      final members = await splitParts(txnId);
+      if (members.first.splitGroupId == null) return;
+      final keeper = members.firstWhere(
+          (m) => m.id == members.first.splitGroupId,
+          orElse: () => members.first);
+      final total = members.fold<double>(0, (s, m) => s + m.amount);
+      for (final m in members) {
+        if (m.id != keeper.id) {
+          await (delete(transactions)..where((t) => t.id.equals(m.id))).go();
+        }
+      }
+      await (update(transactions)..where((t) => t.id.equals(keeper.id)))
+          .write(TransactionsCompanion(
+        amount: Value(total),
+        splitGroupId: const Value(null),
+      ));
+    });
   }
 
   /// The day-only dates of transactions already generated from [ruleId] — the
@@ -1066,7 +1182,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1109,7 +1225,10 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(importBatches);
             await m.alterTable(TableMigration(
               transactions,
-              newColumns: [transactions.importBatchId],
+              newColumns: [
+                transactions.importBatchId,
+                transactions.splitGroupId,
+              ],
             ));
           }
           // v6 adds user-set monthly budgets per category.
@@ -1194,6 +1313,13 @@ class AppDatabase extends _$AppDatabase {
           if (from < 14) {
             await m.addColumn(
                 savingsContributions, savingsContributions.planned);
+          }
+          // v15 lets one purchase be split across categories. Nullable, no
+          // back-fill: no existing row is part of a split. A database that came
+          // through the v5 rebuild already has the column (see newColumns
+          // there), so it is only added for the ones that did not.
+          if (from < 15 && from >= 5) {
+            await m.addColumn(transactions, transactions.splitGroupId);
           }
         },
         beforeOpen: (details) async {

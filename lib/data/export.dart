@@ -43,7 +43,8 @@ String _csvField(String? v) {
 /// Long-format CSV built for analysis, not for eyeballing:
 /// one row per transaction, ISO dates, amounts as plain numbers (no ⃁ in the
 /// cell, so the column stays numeric), category id and name in separate columns,
-/// and a recurrence_id so generated rows are distinguishable. Prefixed with a
+/// a recurrence_id so generated rows are distinguishable, and a split_group_id
+/// tying together the parts of a split purchase. Prefixed with a
 /// UTF-8 BOM so Excel renders the Arabic correctly.
 Future<String> buildTransactionsCsv(AppDatabase db) async {
   final fmt = DateFormat('yyyy-MM-dd');
@@ -55,7 +56,8 @@ Future<String> buildTransactionsCsv(AppDatabase db) async {
   final buf = StringBuffer();
   buf.write('\uFEFF'); // BOM
   buf.writeln(
-      'id,date,type,amount,category_id,category_name,recurrence_id,note');
+      'id,date,type,amount,category_id,category_name,recurrence_id,note,'
+      'split_group_id');
   for (final t in txns) {
     final cat = cats[t.categoryId];
     final row = [
@@ -67,6 +69,9 @@ Future<String> buildTransactionsCsv(AppDatabase db) async {
       _csvField(cat?.name),
       t.recurrenceId?.toString() ?? '',
       _csvField(t.note),
+      // Rows sharing a value are parts of one purchase split across
+      // categories; each part is a real expense in its own category.
+      t.splitGroupId?.toString() ?? '',
     ];
     buf.writeln(row.join(','));
   }

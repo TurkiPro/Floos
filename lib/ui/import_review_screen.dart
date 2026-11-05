@@ -86,12 +86,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     final txns = await db.select(db.transactions).get();
     final rules = await db.partyRuleDao.getAll();
 
-    // What the ledger already holds, keyed the same way an import would write
-    // it (the note carries the merchant label).
-    final fingerprints = {
-      for (final t in txns)
-        txnFingerprint(amount: t.amount, date: t.date, party: t.note),
-    };
+    final fingerprints = ledgerFingerprints(txns);
 
     // Charges the recurrence engine owns: ones it has already materialized,
     // plus the next occurrence of each active income/expense rule. Importing

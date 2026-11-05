@@ -116,6 +116,7 @@ void main() {
     // addColumn, so a fresh-install test would not prove it.
     await expectImportCascadeWorks(db);
     await expectPlannedColumnWorks(db);
+    await expectSplitColumnWorks(db);
   });
 
   // The exact path a store user on 1.0.1 (schema 7) takes to 1.1.0 (schema 12):
@@ -222,6 +223,7 @@ void main() {
     // v13, reached here through addColumn rather than the v5 rebuild.
     await expectImportCascadeWorks(db);
     await expectPlannedColumnWorks(db);
+    await expectSplitColumnWorks(db);
   });
 }
 
@@ -286,4 +288,27 @@ Future<void> expectPlannedColumnWorks(AppDatabase db) async {
   for (final c in rows.where((c) => c.id != planned)) {
     expect(c.planned, isFalse);
   }
+}
+
+/// v15's split column on a MIGRATED database. The v4 path gets it from the v5
+/// rebuild's `newColumns`, the v7 path from `addColumn` — the same two routes
+/// as v13's import column, so the same reason to check both. Existing rows
+/// must read as unsplit.
+Future<void> expectSplitColumnWorks(AppDatabase db) async {
+  final existing = await db.select(db.transactions).get();
+  expect(existing.every((t) => t.splitGroupId == null), isTrue,
+      reason: 'no row predating v15 is part of a split');
+
+  final id = await db.into(db.transactions).insert(TransactionsCompanion.insert(
+        amount: 420,
+        categoryId: 1,
+        type: TxnType.expense,
+        date: DateTime(2026, 11, 2),
+        createdAt: Value(DateTime(2026, 11, 2)), // see expectImportCascadeWorks
+      ));
+  await db.transactionDao.saveSplit(id,
+      parts: [(amount: 300, categoryId: 1), (amount: 120, categoryId: 1)],
+      date: DateTime(2026, 11, 2));
+  final parts = await db.transactionDao.splitParts(id);
+  expect(parts.map((t) => t.amount), [300, 120]);
 }

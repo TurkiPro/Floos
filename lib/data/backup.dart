@@ -100,6 +100,7 @@ Future<String> buildBackupJson(AppDatabase db) async {
           'note': t.note,
           'recurrenceId': t.recurrenceId,
           'importBatchId': t.importBatchId,
+          'splitGroupId': t.splitGroupId,
           'createdAt': _ms(t.createdAt),
         },
     ],
@@ -366,6 +367,8 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
             recurrenceId: Value(t['recurrenceId'] as int?),
             // Lenient: pre-v13 files have no import batch.
             importBatchId: Value(t['importBatchId'] as int?),
+            // Lenient: pre-v15 files have no splits.
+            splitGroupId: Value(t['splitGroupId'] as int?),
             createdAt: Value(_date(t['createdAt'])),
           ));
     }

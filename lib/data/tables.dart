@@ -80,6 +80,12 @@ class Transactions extends Table {
   IntColumn get importBatchId => integer()
       .nullable()
       .references(ImportBatches, #id, onDelete: KeyAction.cascade)();
+  // Non-null => this row is one part of a purchase split across categories.
+  // Every part shares the value, which is the id of the row that was split.
+  // Each part is an ordinary expense row, so every total in the app nets the
+  // split correctly with no special case. No foreign key: the group is a
+  // label, and deleting one part must not take the others with it.
+  IntColumn get splitGroupId => integer().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 

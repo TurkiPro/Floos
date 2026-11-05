@@ -13,6 +13,35 @@ library;
 import '../data/database.dart';
 import 'bank_sms.dart';
 
+/// What the ledger already holds, keyed the way an import would write it
+/// (the note carries the merchant label).
+///
+/// A purchase split across categories is several rows, none of which has the
+/// amount the bank reported — 420 split into 300 + 120 matches neither. So
+/// each split group is fingerprinted as its total too, on the original row's
+/// note and day. Without that, re-pasting the message for a purchase the user
+/// had split would import it a second time.
+Set<String> ledgerFingerprints(List<Txn> txns) {
+  final out = <String>{
+    for (final t in txns)
+      txnFingerprint(amount: t.amount, date: t.date, party: t.note),
+  };
+  final groups = <int, List<Txn>>{};
+  for (final t in txns) {
+    final g = t.splitGroupId;
+    if (g != null) (groups[g] ??= []).add(t);
+  }
+  for (final entry in groups.entries) {
+    final parts = entry.value;
+    final original = parts.firstWhere((t) => t.id == entry.key,
+        orElse: () => parts.first);
+    final total = parts.fold<double>(0, (s, t) => s + t.amount);
+    out.add(txnFingerprint(
+        amount: total, date: original.date, party: original.note));
+  }
+  return out;
+}
+
 /// Why a draft might not want importing.
 enum DraftStatus {
   /// Not seen before — safe to import.

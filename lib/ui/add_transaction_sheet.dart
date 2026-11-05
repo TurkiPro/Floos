@@ -20,6 +20,9 @@ class AddTransactionSheet extends StatefulWidget {
   final Txn? existing;
   const AddTransactionSheet({super.key, required this.db, this.existing});
 
+  /// Popped when the user asks to split the transaction instead of editing it.
+  static const split = 'split';
+
   @override
   State<AddTransactionSheet> createState() => _AddTransactionSheetState();
 }
@@ -37,6 +40,17 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   bool _showNote = false;
 
   bool get _isEditing => widget.existing != null;
+
+  /// Only a manual or imported expense: a recurring row is identified by its
+  /// (rule, date), and a split would make the engine and the import's
+  /// collision check lie about it.
+  bool get _canSplit {
+    final e = widget.existing;
+    return e != null &&
+        e.type == TxnType.expense &&
+        e.recurrenceId == null &&
+        e.splitGroupId == null;
+  }
 
   @override
   void initState() {
@@ -322,6 +336,15 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                   onPressed: _save,
                   child: Text(_isEditing ? 'حفظ التعديلات' : 'حفظ'),
                 ),
+                // Hands back to the row, which opens the split editor: this
+                // sheet's own context is gone once it pops.
+                if (_canSplit)
+                  TextButton.icon(
+                    onPressed: () =>
+                        Navigator.of(context).pop(AddTransactionSheet.split),
+                    icon: const Icon(Icons.call_split, size: 18),
+                    label: const Text('تقسيم على أكثر من فئة'),
+                  ),
               ],
             ),
           ),

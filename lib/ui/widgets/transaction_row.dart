@@ -7,6 +7,7 @@ import '../../data/database.dart';
 import '../../data/enums.dart';
 import '../../services/alerts_coordinator.dart';
 import '../add_transaction_sheet.dart';
+import '../split_sheet.dart';
 import '../theme/tokens.dart';
 import 'category_icon_tile.dart';
 import 'swipe_to_delete.dart';
@@ -55,13 +56,30 @@ class TransactionRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppRadii.tile),
           // Tap to edit the entry in place — the way a salary's date is
           // corrected for the current or any past month.
-          onTap: () => showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            useSafeArea: true,
-            showDragHandle: true,
-            builder: (_) => AddTransactionSheet(db: db, existing: row.txn),
-          ),
+          //
+          // A part of a split purchase opens the split editor instead: the
+          // parts share one date and note, so editing a part on its own would
+          // pull the purchase apart.
+          onTap: () async {
+            Future<void> openSplit() => showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  useSafeArea: true,
+                  showDragHandle: true,
+                  builder: (_) => SplitSheet(db: db, txnId: row.txn.id),
+                );
+            if (row.txn.splitGroupId != null) return openSplit();
+            final result = await showModalBottomSheet<String>(
+              context: context,
+              isScrollControlled: true,
+              useSafeArea: true,
+              showDragHandle: true,
+              builder: (_) => AddTransactionSheet(db: db, existing: row.txn),
+            );
+            if (result == AddTransactionSheet.split && context.mounted) {
+              await openSplit();
+            }
+          },
           child: Row(
             children: [
               CategoryIconTile(
@@ -83,11 +101,13 @@ class TransactionRow extends StatelessWidget {
                           fontWeight: FontWeight.w500),
                     ),
                     if ((row.txn.note ?? '').isNotEmpty ||
-                        row.txn.recurrenceId != null)
+                        row.txn.recurrenceId != null ||
+                        row.txn.splitGroupId != null)
                       Text(
                         [
                           if ((row.txn.note ?? '').isNotEmpty) row.txn.note!,
                           if (row.txn.recurrenceId != null) 'متكرر',
+                          if (row.txn.splitGroupId != null) 'جزء من عملية مقسّمة',
                         ].join('  •  '),
                         style: TextStyle(
                           fontSize: AppTextSizes.label,
