@@ -8,6 +8,7 @@ import '../data/database.dart';
 import '../domain/bank_sms.dart';
 import '../services/alerts_coordinator.dart';
 import 'import_review_screen.dart';
+import 'party_rules_screen.dart';
 import 'theme/tokens.dart';
 import 'widgets/amount_input.dart';
 import 'widgets/tap_bounce.dart';
@@ -148,6 +149,8 @@ class _ImportScreenState extends State<ImportScreen> {
           ),
           const SizedBox(height: AppSpacing.sm),
           _PastImports(db: db),
+          const SizedBox(height: AppSpacing.md),
+          _SavedPartiesTile(db: db),
         ],
       ),
     );
@@ -289,6 +292,36 @@ class _BatchTile extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
       ),
+    );
+  }
+}
+
+/// The way into what the import has learned. The count is live, so the tile
+/// also answers "has it remembered anything yet?" without opening it.
+class _SavedPartiesTile extends StatelessWidget {
+  final AppDatabase db;
+  const _SavedPartiesTile({required this.db});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<PartyRule>>(
+      stream: db.partyRuleDao.watchAll(),
+      builder: (context, snap) {
+        final count = snap.data?.length ?? 0;
+        return Card(
+          child: ListTile(
+            leading: const Icon(Icons.storefront_outlined),
+            title: Text(count == 0
+                ? 'الجهات المحفوظة'
+                : 'الجهات المحفوظة ($count)'),
+            subtitle: const Text('ما يعنيه كل تاجر أو تحويل عند الاستيراد'),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => PartyRulesScreen(db: db),
+            )),
+          ),
+        );
+      },
     );
   }
 }

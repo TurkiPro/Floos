@@ -932,25 +932,7 @@ class PartyRuleDao extends DatabaseAccessor<AppDatabase>
     int? goalId,
     int? createdByBatchId,
   }) async {
-    switch (disposition) {
-      case PartyDisposition.expense:
-      case PartyDisposition.income:
-        if (categoryId == null) {
-          throw ArgumentError('$disposition needs a categoryId');
-        }
-        if (goalId != null) {
-          throw ArgumentError('$disposition cannot carry a goalId');
-        }
-      case PartyDisposition.savings:
-        if (goalId == null) throw ArgumentError('savings needs a goalId');
-        if (categoryId != null) {
-          throw ArgumentError('savings cannot carry a categoryId');
-        }
-      case PartyDisposition.ignore:
-        if (categoryId != null || goalId != null) {
-          throw ArgumentError('ignore takes neither a category nor a goal');
-        }
-    }
+    _checkDestination(disposition, categoryId: categoryId, goalId: goalId);
 
     final key = partyKey(rawParty);
     if (key.isEmpty) throw ArgumentError('party must not be blank');
@@ -991,8 +973,67 @@ class PartyRuleDao extends DatabaseAccessor<AppDatabase>
   /// One-shot list, for backup export.
   Future<List<PartyRule>> getAll() => select(partyRules).get();
 
+  /// The user's own edit of a rule, from the saved-parties screen.
+  ///
+  /// Also takes the rule away from the import that first taught it. That
+  /// import's undo deletes the rules it created (see
+  /// [PartyRules.createdByBatchId]) — right for a rule nobody has looked at
+  /// since, wrong for one the user has just corrected by hand.
+  ///
+  /// Forward-only: transactions already recorded under the old decision are
+  /// not touched.
+  Future<void> updateRule(
+    int id, {
+    required PartyDisposition disposition,
+    String? displayName,
+    int? categoryId,
+    int? goalId,
+  }) async {
+    _checkDestination(disposition, categoryId: categoryId, goalId: goalId);
+    final name = displayName?.trim();
+    await (update(partyRules)..where((r) => r.id.equals(id))).write(
+      PartyRulesCompanion(
+        displayName: Value(name == null || name.isEmpty ? null : name),
+        disposition: Value(disposition),
+        categoryId: Value(categoryId),
+        goalId: Value(goalId),
+        createdByBatchId: const Value(null),
+      ),
+    );
+  }
+
   Future<void> deleteById(int id) =>
       (delete(partyRules)..where((r) => r.id.equals(id))).go();
+}
+
+/// Each disposition writes to exactly one kind of destination: a category for
+/// expense/income, a goal for savings, nothing for ignore. Shared by every
+/// write to [PartyRules] so the rule cannot be enforced in one and forgotten
+/// in another.
+void _checkDestination(
+  PartyDisposition disposition, {
+  required int? categoryId,
+  required int? goalId,
+}) {
+  switch (disposition) {
+    case PartyDisposition.expense:
+    case PartyDisposition.income:
+      if (categoryId == null) {
+        throw ArgumentError('$disposition needs a categoryId');
+      }
+      if (goalId != null) {
+        throw ArgumentError('$disposition cannot carry a goalId');
+      }
+    case PartyDisposition.savings:
+      if (goalId == null) throw ArgumentError('savings needs a goalId');
+      if (categoryId != null) {
+        throw ArgumentError('savings cannot carry a categoryId');
+      }
+    case PartyDisposition.ignore:
+      if (categoryId != null || goalId != null) {
+        throw ArgumentError('ignore takes neither a category nor a goal');
+      }
+  }
 }
 
 @DriftDatabase(

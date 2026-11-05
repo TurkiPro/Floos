@@ -198,4 +198,84 @@ void main() {
       expect(await db.partyRuleDao.getAll(), isEmpty);
     });
   });
+  group('updateRule (the saved-parties screen)', () {
+    Future<PartyRule> learnedByImport() async {
+      final batch =
+          await db.importBatchDao.create(rowCount: 1, totalAmount: 10);
+      await db.partyRuleDao.remember(
+        rawParty: 'RED BOX',
+        disposition: PartyDisposition.expense,
+        categoryId: 1,
+        createdByBatchId: batch,
+      );
+      return (await db.partyRuleDao.lookup('RED BOX'))!;
+    }
+
+    test('a rule edited by hand survives undoing the import that taught it',
+        () async {
+      final rule = await learnedByImport();
+      expect(rule.createdByBatchId, isNotNull);
+
+      await db.partyRuleDao.updateRule(rule.id,
+          disposition: PartyDisposition.ignore);
+      await db.importBatchDao.undo(rule.createdByBatchId!);
+
+      final after = await db.partyRuleDao.lookup('RED BOX');
+      expect(after, isNotNull,
+          reason: 'the user corrected this rule; undo must not delete it');
+      expect(after!.disposition, PartyDisposition.ignore);
+      expect(after.createdByBatchId, isNull);
+    });
+
+    test('an untouched rule still goes with its import', () async {
+      final rule = await learnedByImport();
+      await db.importBatchDao.undo(rule.createdByBatchId!);
+      expect(await db.partyRuleDao.lookup('RED BOX'), isNull);
+    });
+
+    test('changes disposition, destination and name; keeps the key', () async {
+      final rule = await learnedByImport();
+      final goalId = await aGoal();
+      await db.partyRuleDao.updateRule(rule.id,
+          disposition: PartyDisposition.savings,
+          goalId: goalId,
+          displayName: '  ريد بوكس  ');
+      final after = (await db.partyRuleDao.lookup('RED BOX'))!;
+      expect(after.disposition, PartyDisposition.savings);
+      expect(after.goalId, goalId);
+      expect(after.categoryId, isNull);
+      expect(after.displayName, 'ريد بوكس');
+      expect(after.partyKey, 'red box');
+      expect(after.rawParty, 'RED BOX');
+    });
+
+    test('a blank name clears it', () async {
+      final rule = await learnedByImport();
+      await db.partyRuleDao.updateRule(rule.id,
+          disposition: PartyDisposition.expense,
+          categoryId: 1,
+          displayName: 'x');
+      await db.partyRuleDao.updateRule(rule.id,
+          disposition: PartyDisposition.expense,
+          categoryId: 1,
+          displayName: '   ');
+      expect((await db.partyRuleDao.lookup('RED BOX'))!.displayName, isNull);
+    });
+
+    test('refuses the same invalid combinations remember does', () async {
+      final rule = await learnedByImport();
+      expect(
+          () => db.partyRuleDao
+              .updateRule(rule.id, disposition: PartyDisposition.expense),
+          throwsArgumentError);
+      expect(
+          () => db.partyRuleDao.updateRule(rule.id,
+              disposition: PartyDisposition.ignore, categoryId: 1),
+          throwsArgumentError);
+      expect(
+          () => db.partyRuleDao
+              .updateRule(rule.id, disposition: PartyDisposition.savings),
+          throwsArgumentError);
+    });
+  });
 }
