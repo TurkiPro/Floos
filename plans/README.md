@@ -56,7 +56,7 @@ three times.
 | 020 | Parse batches of bank SMS into draft transactions (pure domain) | P2 | M | — | DONE (`5369cbf`) |
 | 021 | Remember what each party means, and make an import undoable (schema v13) | P2 | L | 020 | DONE (`212866a`; schema v13) |
 | 022 | A bank-message import page in Settings — paste, review, commit, undo | P2 | L | 020, 021 | DONE (`112c29d`; emulator run covered build/launch/RTL, flow covered by widget tests) |
-| 023 | Search and filter every transaction | P1 | M | — | TODO |
+| 023 | Search and filter every transaction | P1 | M | — | DONE (entry from الدورات and Settings; not in the home header; one category at a time) |
 | 024 | A screen to view, fix and forget saved parties | P1 | S | — | DONE (decision sheet now shared with the review screen) |
 | 025 | Show what recurring expenses cost over a year | P2 | S | — | TODO |
 | 026 | A year in review, by salary cycle | P3 | M | — | TODO |

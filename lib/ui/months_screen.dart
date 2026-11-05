@@ -7,6 +7,7 @@ import '../data/enums.dart';
 import '../domain/calendar_format.dart';
 import '../domain/period_summary.dart';
 import 'month_detail_screen.dart';
+import 'search_screen.dart';
 import 'theme/tokens.dart';
 
 /// Every salary cycle that has at least one transaction, newest first. Tapping a
@@ -22,7 +23,18 @@ class MonthsScreen extends StatelessWidget {
     final hijri = context.watch<AppSettings>().useHijri;
     final now = DateTime.now();
     return Scaffold(
-      appBar: AppBar(title: const Text('الدورات')),
+      appBar: AppBar(
+        title: const Text('الدورات'),
+        actions: [
+          IconButton(
+            tooltip: 'بحث في العمليات',
+            icon: const Icon(Icons.search),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SearchScreen()),
+            ),
+          ),
+        ],
+      ),
       body: StreamBuilder<List<TxnRow>>(
         stream: db.transactionDao.watchAllWithCategory(),
         builder: (context, txnSnap) {

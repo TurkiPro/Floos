@@ -22,6 +22,7 @@ import 'import_screen.dart';
 import 'investments_screen.dart';
 import 'months_screen.dart';
 import 'recurring_screen.dart';
+import 'search_screen.dart';
 import 'statistics_screen.dart';
 import 'theme/tokens.dart';
 
@@ -106,6 +107,10 @@ class SettingsScreen extends StatelessWidget {
               icon: Icons.event_repeat_outlined,
               label: 'الدورات',
               onTap: () => _push(context, const MonthsScreen())),
+          _navTile(context,
+              icon: Icons.search,
+              label: 'بحث في العمليات',
+              onTap: () => _push(context, const SearchScreen())),
           _navTile(context,
               icon: Icons.category_outlined,
               label: 'الفئات',
