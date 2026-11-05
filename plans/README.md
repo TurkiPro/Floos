@@ -23,6 +23,12 @@ likely to be wrong is fully tested before anything can write to the ledger.
 Execute strictly in order. See "Batch 4 notes" below for the two findings that
 shaped the design; read them before starting 020.
 
+**Batch 5 (023–031)** is features again, chosen by the maintainer on
+2026-11-05 from a brainstorm, planned against commit `f54f113`. Read "Batch 5
+notes" below before starting any of them — two of the plans exist only to stop
+the new features repeating a bug class the maintainer has already reported
+three times.
+
 ## Execution order & status
 
 | Plan | Title | Priority | Effort | Depends on | Status |
@@ -50,6 +56,15 @@ shaped the design; read them before starting 020.
 | 020 | Parse batches of bank SMS into draft transactions (pure domain) | P2 | M | — | DONE (`5369cbf`) |
 | 021 | Remember what each party means, and make an import undoable (schema v13) | P2 | L | 020 | DONE (`212866a`; schema v13) |
 | 022 | A bank-message import page in Settings — paste, review, commit, undo | P2 | L | 020, 021 | DONE (`112c29d`; emulator run covered build/launch/RTL, flow covered by widget tests) |
+| 023 | Search and filter every transaction | P1 | M | — | TODO |
+| 024 | A screen to view, fix and forget saved parties | P1 | S | — | TODO |
+| 025 | Show what recurring expenses cost over a year | P2 | S | — | TODO |
+| 026 | A year in review, by salary cycle | P3 | M | — | TODO |
+| 027 | Compute the balance in exactly one place (refactor) | P1 | M | — | TODO |
+| 028 | Split one transaction across categories (schema v15) | P2 | M | — | TODO |
+| 029 | Debts and IOUs — money lent and borrowed (schema v16) | P1 | L | 027 | TODO (decided: borrowed money does not raise what you can spend) |
+| 030 | Refunds as their own thing, linked to the purchase (schema v17) | P1 | M–L | — | TODO (also fixes: import books a refund as a second purchase) |
+| 031 | Password-protect backup files | P1 | M | — | TODO (decided: encrypted by default) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale)
 
@@ -73,6 +88,31 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED 
   are on main.
 - 021 changes the schema (v13) and the backup format. If any other schema work
   is in flight, land that first and renumber 021's migration.
+
+## Batch 5 notes (read before starting 023–031)
+
+- **Suggested order**: 024, 023, 025 (small, no schema) → 027 (refactor) →
+  028 → 029 → 030 → 031 → 026. Schema numbers assume 028 (v15) → 029 (v16) →
+  030 (v17); renumber if the order changes.
+- **Why 027 exists.** The balance is written out twice
+  (`dashboard_summary.dart`, `weekly_budget_status.dart`). Debts (029) move the
+  balance without being spending. Added to two copies, they would drift — the
+  same way investments reached the home card but not the statistics screen
+  until v1.3.0. 027 makes one function with *required* inputs, so the compiler
+  finds every caller when a ledger is added.
+- **030 contains a live bug fix.** The parser classifies refund messages, but
+  the import never reads the classification, so a refund from a merchant with
+  an expense rule is booked as a second purchase.
+- **Every new figure must reuse an existing function** (`cycleSummaries`,
+  `weeklyBudgetStatus`, `ledgerBalance`) and get a parity test — see the
+  "consistency rule" in 026.
+- **Considered and dropped by the maintainer (2026-11-05)**, so they are not
+  re-proposed: a jam'iya tracker, sharing bank messages into the import
+  (Android/iOS), and a home-screen widget. The iOS work those needed (App
+  Group, extension targets, multi-profile signing) is therefore not planned.
+- **Fixed alongside planning:** the statistics CSV now groups by salary cycle
+  (was calendar month). `behavior_screen.dart` still groups by calendar year —
+  see 026.
 
 ## Batch 4 notes (read before starting 020)
 
