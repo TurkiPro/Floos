@@ -102,45 +102,6 @@ List<CycleSummary> cycleSummaries(
   return out;
 }
 
-/// One summary per month that has any activity, newest first.
-List<PeriodSummary> monthlySummaries(
-  List<TxnRow> rows,
-  List<SavingsContribution> contributions,
-) {
-  final income = <MonthKey, double>{};
-  final spent = <MonthKey, double>{};
-  final saved = <MonthKey, double>{};
-
-  for (final r in rows) {
-    final k = MonthKey(year: r.txn.date.year, month: r.txn.date.month);
-    if (r.txn.type == TxnType.income) {
-      income[k] = (income[k] ?? 0) + r.txn.amount;
-    } else {
-      spent[k] = (spent[k] ?? 0) + r.txn.amount;
-    }
-  }
-  for (final c in contributions) {
-    // External deposits (pre-existing money) aren't income saved in a period.
-    if (c.external) continue;
-    final k = MonthKey(year: c.date.year, month: c.date.month);
-    saved[k] = (saved[k] ?? 0) + c.amount;
-  }
-
-  final keys = <MonthKey>{...income.keys, ...spent.keys, ...saved.keys}.toList()
-    ..sort((a, b) => a.year != b.year ? b.year - a.year : b.month - a.month);
-
-  return [
-    for (final k in keys)
-      PeriodSummary(
-        year: k.year,
-        month: k.month,
-        income: income[k] ?? 0,
-        spent: spent[k] ?? 0,
-        saved: saved[k] ?? 0,
-      ),
-  ];
-}
-
 /// One summary per year that has any activity, newest first.
 List<PeriodSummary> yearlySummaries(
   List<TxnRow> rows,

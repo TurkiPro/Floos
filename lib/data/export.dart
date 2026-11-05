@@ -85,38 +85,45 @@ Future<String> exportTransactionsCsvToFile(AppDatabase db) async {
   return file.path;
 }
 
-/// The statistics as a spreadsheet: one section of per-month rows and one of
-/// per-year rows, each with income / spent / saved / remaining / savings rate.
-/// Same conventions as the transaction export (numeric cells, UTF-8 BOM).
-Future<String> buildStatsCsv(AppDatabase db) async {
+/// The statistics as a spreadsheet: one row per salary cycle, oldest first,
+/// with income / spent / saved / remaining / savings rate. Same conventions as
+/// the transaction export (numeric cells, ISO dates, UTF-8 BOM).
+///
+/// Grouped by salary cycle, never by calendar month: the cycle is the app's
+/// only period unit, and a calendar-month row splits one salary across two
+/// rows — the month it landed in looks rich and the next one looks broke.
+Future<String> buildStatsCsv(AppDatabase db, {DateTime? now}) async {
   final rows = await db.transactionDao.watchAllWithCategory().first;
   final contributions = await db.savingsDao.watchAllContributions().first;
+  final incomeRules =
+      await db.recurrenceDao.watchByType(TxnType.income).first;
+  return statsCsvFor(
+      cycleSummaries(rows, contributions, incomeRules, now ?? DateTime.now()));
+}
 
+/// The CSV text for [cycles] (newest first, as [cycleSummaries] returns them).
+/// `cycle_end` is the cycle's last day, inclusive — the period's own end is
+/// exclusive (the next payday), which reads as an off-by-one in a sheet.
+String statsCsvFor(List<CycleSummary> cycles) {
+  final fmt = DateFormat('yyyy-MM-dd');
   final buf = StringBuffer();
-  buf.write('﻿'); // BOM
-
-  void section(String period, List<PeriodSummary> summaries) {
-    buf.writeln('$period,income,spent,saved,remaining,savings_rate');
-    for (final s in summaries) {
-      final label = s.month == null
-          ? '${s.year}'
-          : '${s.year}-${s.month.toString().padLeft(2, '0')}';
-      final rate = s.savingsRate;
-      buf.writeln([
-        label,
-        s.income.toStringAsFixed(2),
-        s.spent.toStringAsFixed(2),
-        s.saved.toStringAsFixed(2),
-        s.remaining.toStringAsFixed(2),
-        rate == null ? '' : (rate * 100).toStringAsFixed(1),
-      ].join(','));
-    }
+  buf.write('\uFEFF'); // BOM
+  buf.writeln(
+      'cycle_start,cycle_end,income,spent,saved,remaining,savings_rate');
+  for (final s in cycles.reversed) {
+    final end = s.period.end;
+    final lastDay = DateTime(end.year, end.month, end.day - 1);
+    final rate = s.savingsRate;
+    buf.writeln([
+      fmt.format(s.period.start),
+      fmt.format(lastDay),
+      s.income.toStringAsFixed(2),
+      s.spent.toStringAsFixed(2),
+      s.saved.toStringAsFixed(2),
+      s.remaining.toStringAsFixed(2),
+      rate == null ? '' : (rate * 100).toStringAsFixed(1),
+    ].join(','));
   }
-
-  section('month', monthlySummaries(rows, contributions));
-  buf.writeln();
-  section('year', yearlySummaries(rows, contributions));
-
   return buf.toString();
 }
 
