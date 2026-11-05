@@ -209,7 +209,20 @@ void main() {
 
     final budget = await computeWeeklyBudget(db, at);
     // Bounded by the real balance (6000 − 3000), not the cycle-remaining (6000).
-    expect(budget.recommended, closeTo(3000, 1e-9));
+    expect(budget.recommended, lessThanOrEqualTo(3000));
+
+    // The exact figure is set as at the START of the week, not today. 28 July
+    // falls in the week that began 22 July, with 10 days to payday then, so the
+    // real 3000 is spread across those 10: 3000 ÷ 10 × 7 = 2100. (This used to
+    // read 3000, measured from 28 July itself — which is the very thing that
+    // made the budget drift every day.)
+    expect(budget.recommended, closeTo(2100, 1e-9));
+
+    // And the near-payday rule still holds — it now takes effect from the start
+    // of the final, short week rather than creeping in a day at a time. From 29
+    // July only 3 days remain, so the whole real balance is this week's money.
+    final finalWeek = await computeWeeklyBudget(db, DateTime(2026, 7, 29));
+    expect(finalWeek.recommended, closeTo(3000, 1e-9));
   });
 
   test('overspending past the balance zeroes this week\'s budget', () async {
@@ -252,5 +265,129 @@ void main() {
     expect(budget.recommended, 0,
         reason: 'nothing left for the rest of the cycle to budget');
     expect(budget.remaining, 0);
+  });
+
+  group('the week\'s budget holds still for the whole week', () {
+    // The budget is the TARGET the week is measured against. It used to be
+    // recomputed from today on every look, so it drifted on its own — upward
+    // each day with nothing spent (fewer days left over the same balance), and
+    // down each time something was logged. Someone reported it reading 1300,
+    // then 1267 the next morning, in the same week, after a 40 riyal coffee.
+
+    /// A salary that has landed and a real balance the cap can bite on: the
+    /// exact conditions under which the drift happened.
+    Future<AppDatabase> funded() async {
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(db.close);
+      await db.recurrenceDao.add(
+        title: 'راتب',
+        amount: 6000,
+        categoryId: essentialCat,
+        type: TxnType.income,
+        frequency: Frequency.monthly,
+        startDate: DateTime(2026, 7, 1),
+      );
+      await db.transactionDao.add(
+        amount: 6000,
+        categoryId: essentialCat,
+        type: TxnType.income,
+        date: DateTime(2026, 7, 1),
+      );
+      // Last cycle drained part of it, so the balance — not the salary — is
+      // what the cap measures against.
+      await db.transactionDao.add(
+        amount: 3500,
+        categoryId: essentialCat,
+        type: TxnType.expense,
+        date: DateTime(2026, 6, 15),
+      );
+      return db;
+    }
+
+    test('is identical on every day of the week when nothing is spent',
+        () async {
+      final db = await funded();
+      // The week of 15–21 July.
+      final figures = <double>[
+        for (var d = 15; d <= 21; d++)
+          (await computeWeeklyBudget(db, DateTime(2026, 7, d, 12))).recommended,
+      ];
+      for (final f in figures) {
+        expect(f, closeTo(figures.first, 1e-9),
+            reason: 'every day of one week must read the same budget: '
+                '$figures');
+      }
+    });
+
+    test('logging a purchase moves what was spent, never the budget', () async {
+      final db = await funded();
+      final before = await computeWeeklyBudget(db, DateTime(2026, 7, 16, 12));
+
+      await db.transactionDao.add(
+        amount: 40,
+        categoryId: essentialCat,
+        type: TxnType.expense,
+        date: DateTime(2026, 7, 16, 9),
+      );
+      final sameDay = await computeWeeklyBudget(db, DateTime(2026, 7, 16, 12));
+      final nextDay = await computeWeeklyBudget(db, DateTime(2026, 7, 17, 12));
+
+      expect(sameDay.recommended, closeTo(before.recommended, 1e-9));
+      expect(nextDay.recommended, closeTo(before.recommended, 1e-9),
+          reason: 'the reported case: budget changed overnight after a 40');
+      expect(sameDay.spentThisWeek, before.spentThisWeek + 40);
+    });
+
+    test('a savings deposit mid-week shrinks NEXT week, not this one',
+        () async {
+      final db = await funded();
+      final goal = await db.savingsDao.addGoal(name: 'هدف', targetAmount: 1000);
+      final before = await computeWeeklyBudget(db, DateTime(2026, 7, 16, 12));
+
+      await db.savingsDao.addContribution(
+          goalId: goal, amount: 300, date: DateTime(2026, 7, 17));
+      final thisWeek = await computeWeeklyBudget(db, DateTime(2026, 7, 18, 12));
+      final nextWeek = await computeWeeklyBudget(db, DateTime(2026, 7, 22, 12));
+
+      expect(thisWeek.recommended, closeTo(before.recommended, 1e-9));
+      expect(nextWeek.recommended, isNot(closeTo(before.recommended, 1e-9)),
+          reason: 'the money set aside must still count — from the next week');
+    });
+
+    test('it is recalculated when a new week begins', () async {
+      final db = await funded();
+      await db.transactionDao.add(
+        amount: 200,
+        categoryId: essentialCat,
+        type: TxnType.expense,
+        date: DateTime(2026, 7, 16),
+      );
+      final lastDayOfWeek =
+          await computeWeeklyBudget(db, DateTime(2026, 7, 21, 12));
+      final firstDayOfNext =
+          await computeWeeklyBudget(db, DateTime(2026, 7, 22, 12));
+      expect(firstDayOfNext.recommended,
+          isNot(closeTo(lastDayOfWeek.recommended, 1e-9)),
+          reason: 'frozen within a week, not frozen forever');
+    });
+
+    test('still drops when the real balance falls below it', () async {
+      // The one deliberate exception. A budget that says 1,000 when 200 is
+      // left would be a lie, so the safety net still follows the balance down.
+      final db = await funded();
+      final before = await computeWeeklyBudget(db, DateTime(2026, 7, 16, 12));
+
+      await db.transactionDao.add(
+        amount: 2400, // leaves a real balance of 100
+        categoryId: essentialCat,
+        type: TxnType.expense,
+        date: DateTime(2026, 7, 16, 9),
+      );
+      final after = await computeWeeklyBudget(db, DateTime(2026, 7, 16, 12));
+
+      expect(before.recommended, greaterThan(100));
+      expect(after.recommended, closeTo(100, 1e-9),
+          reason: 'never name a figure larger than the money that exists');
+    });
   });
 }

@@ -47,7 +47,6 @@ WeeklyBudgetStatus weeklyBudgetStatus({
   required DateTime now,
 }) {
   final period = financialPeriod(incomeRules, now);
-  final today = DateTime(now.year, now.month, now.day);
   // Exclusive upper bound: manual adds default to DateTime.now() (with a
   // time-of-day), so a row stamped today at 14:30 must still count.
   final tomorrow = DateTime(now.year, now.month, now.day + 1);
@@ -57,10 +56,14 @@ WeeklyBudgetStatus weeklyBudgetStatus({
   var spentThisWeek = 0.0, spentBeforeThisWeek = 0.0;
   // This cycle's income and total spend, for grounding the budget in the real
   // remaining balance (the cap, below).
-  var periodIncome = 0.0, periodExpense = 0.0;
+  var periodIncome = 0.0;
   // All-time income/expense, for the *actual* current balance (same formula as
   // the home «الرصيد») — the budget is capped so it can never exceed it.
   var allIncome = 0.0, allExpense = 0.0;
+  // The same two sums as they stood when THIS WEEK began. The budget is set
+  // from these, so spending during the week moves `spent` and never the
+  // target it is measured against.
+  var allExpenseBeforeWeek = 0.0, periodExpenseBeforeWeek = 0.0;
 
   for (final r in rows) {
     final date = r.txn.date;
@@ -72,7 +75,10 @@ WeeklyBudgetStatus weeklyBudgetStatus({
       continue;
     }
     allExpense += amount;
-    if (period.contains(date)) periodExpense += amount;
+    if (date.isBefore(weekStart)) {
+      allExpenseBeforeWeek += amount;
+      if (period.contains(date)) periodExpenseBeforeWeek += amount;
+    }
 
     // Fixed obligations (rent, bills, subscriptions) are planned, not
     // discretionary, so they never count against the weekly budget.
@@ -98,13 +104,23 @@ WeeklyBudgetStatus weeklyBudgetStatus({
     contributions: contributions,
     period: period,
   );
-  final saved = env.saved;
+
+  // Set aside this cycle, counted only up to the start of this week — the same
+  // freeze the cap uses below. A deposit made on Wednesday shrinks next week's
+  // budget, not the one already in progress.
+  var savedBeforeWeek = 0.0;
+  for (final c in contributions) {
+    if (c.external) continue;
+    if (period.contains(c.date) && c.date.isBefore(weekStart)) {
+      savedBeforeWeek += c.amount;
+    }
+  }
 
   // The forward-looking base: disposable income ÷ the cycle's weeks.
   final base = incomeWeeklyBase(
     salaryMonthly: env.salary,
     obligationsMonthly: env.obligations,
-    savedThisCycle: saved,
+    savedThisCycle: savedBeforeWeek,
     periodStart: period.start,
     periodEnd: period.end,
   );
@@ -119,38 +135,74 @@ WeeklyBudgetStatus weeklyBudgetStatus({
     now: now,
   );
 
-  // The real money on hand: the current account balance (same formula as the
-  // home «الرصيد» — all income − all spend − what's in savings/investments).
-  var internalSaved = 0.0;
+  // The real money on hand, now and as at the start of this week (same formula
+  // as the home «الرصيد» — all income − all spend − savings/investments).
+  var internalSaved = 0.0, internalSavedBeforeWeek = 0.0;
   for (final c in contributions) {
-    if (!c.external) internalSaved += c.amount;
+    if (c.external) continue;
+    internalSaved += c.amount;
+    if (c.date.isBefore(weekStart)) internalSavedBeforeWeek += c.amount;
   }
-  var internalInvested = 0.0;
+  var internalInvested = 0.0, internalInvestedBeforeWeek = 0.0;
   for (final inv in investments) {
-    if (!inv.external) internalInvested += inv.amount;
+    if (inv.external) continue;
+    internalInvested += inv.amount;
+    if (inv.date.isBefore(weekStart)) internalInvestedBeforeWeek += inv.amount;
   }
   final actualBalance =
       allIncome - allExpense - internalSaved - internalInvested;
+  final balanceAtWeekStart = allIncome -
+      allExpenseBeforeWeek -
+      internalSavedBeforeWeek -
+      internalInvestedBeforeWeek;
 
-  // Never promise more than is left for the rest of the cycle, and never more
-  // than is actually in the account — the LOWER of the two, so carry-over from
-  // past cycles can't make the budget exceed the real balance. Only caps once
-  // income has landed.
-  final cycleRemaining = periodIncome - periodExpense - saved;
-  final spendable =
-      actualBalance < cycleRemaining ? actualBalance : cycleRemaining;
+  // The cap, measured AS AT THE START OF THIS WEEK.
+  //
+  // It used to be measured as at today, and that quietly made the whole figure
+  // a moving target: `remainingForCycle / daysLeft * 7` is recomputed every
+  // day, so with daysLeft shrinking the budget drifted upward on its own —
+  // 1400 on Monday, 1448 on Tuesday, 1500 on Wednesday, with nothing spent at
+  // all — and each expense knocked it back down. A weekly budget you cannot
+  // look at twice and see the same number is not a budget.
+  //
+  // Everything the cap reads is therefore frozen to the week's start: the
+  // balance, the cycle spend, the savings, and the days remaining. Income is
+  // the exception and is counted as it lands — a salary or bonus arriving is
+  // rare, always raises the figure, and would be strange to withhold until the
+  // following week.
+  final cycleRemainingAtWeekStart =
+      periodIncome - periodExpenseBeforeWeek - savedBeforeWeek;
+  final spendable = balanceAtWeekStart < cycleRemainingAtWeekStart
+      ? balanceAtWeekStart
+      : cycleRemainingAtWeekStart;
   final periodDays = period.end.difference(cycleStart).inDays;
   final daysLeft = period.end
-      .difference(today)
+      .difference(weekStart)
       .inDays
       .clamp(1, periodDays < 1 ? 1 : periodDays);
-  final budget = periodIncome > 0
+  final weekBudget = periodIncome > 0
       ? balanceCappedWeekly(
           adaptive: adaptive,
           remainingForCycle: spendable,
           daysLeft: daysLeft,
         )
       : adaptive;
+
+  // One live exception to the freeze: never name a figure larger than the
+  // money that currently exists. This is what the cap was originally for, and
+  // it must not be lost — but it now only engages when the balance has
+  // genuinely fallen below the week's target, which is precisely when the
+  // number SHOULD move. In normal weeks the balance is far above it and this
+  // changes nothing.
+  //
+  // Same guard as the cap: only once this cycle's income has landed. Before
+  // payday the balance can legitimately sit at zero or below — the salary is
+  // known from its rule but not yet in the ledger — and clamping to it would
+  // zero the forward-looking budget for exactly the days someone is planning
+  // what to spend once it arrives.
+  final headroom = actualBalance < 0 ? 0.0 : actualBalance;
+  final budget =
+      periodIncome > 0 && weekBudget > headroom ? headroom : weekBudget;
 
   return WeeklyBudgetStatus(budget: budget, spent: spentThisWeek);
 }
