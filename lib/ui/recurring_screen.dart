@@ -7,6 +7,7 @@ import '../data/database.dart';
 import '../data/enums.dart';
 import '../domain/recurrence_engine.dart';
 import '../domain/recurrence_math.dart';
+import '../domain/recurring_cost.dart';
 import '../services/alerts_coordinator.dart';
 import 'add_recurrence_sheet.dart';
 import 'theme/tokens.dart';
@@ -28,8 +29,17 @@ String frequencyLabelAr(Frequency f) {
 /// Monthly obligations = recurring EXPENSE rules (rent, subscriptions, bills…).
 /// Recurring income lives on the income page instead; this screen is reached
 /// from Settings.
-class ObligationsScreen extends StatelessWidget {
+class ObligationsScreen extends StatefulWidget {
   const ObligationsScreen({super.key});
+
+  @override
+  State<ObligationsScreen> createState() => _ObligationsScreenState();
+}
+
+class _ObligationsScreenState extends State<ObligationsScreen> {
+  /// False = soonest due first (the default); true = most expensive over the
+  /// next twelve months first.
+  bool _byYearlyCost = false;
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +49,16 @@ class ObligationsScreen extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('الالتزامات الشهرية')),
+      appBar: AppBar(
+        title: const Text('الالتزامات الشهرية'),
+        actions: [
+          IconButton(
+            tooltip: _byYearlyCost ? 'الترتيب حسب الموعد' : 'الترتيب حسب التكلفة',
+            icon: Icon(_byYearlyCost ? Icons.event_outlined : Icons.sort),
+            onPressed: () => setState(() => _byYearlyCost = !_byYearlyCost),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => showModalBottomSheet(
           context: context,
@@ -75,10 +94,18 @@ class ObligationsScreen extends StatelessWidget {
                                 .subtract(const Duration(days: 1)),
                       )),
           };
+          final now = DateTime.now();
+          final yearlyById = {
+            for (final r in rules) r.id: costNext12Months(r, now)
+          };
           // Sort by soonest due date (active first); paused ones sink to the
           // bottom, alphabetically — not the old title-only order.
           rules.sort((a, b) {
             if (a.active != b.active) return a.active ? -1 : 1;
+            if (_byYearlyCost) {
+              final byCost = yearlyById[b.id]!.compareTo(yearlyById[a.id]!);
+              if (byCost != 0) return byCost;
+            }
             final da = nextById[a.id];
             final dbb = nextById[b.id];
             if (da == null && dbb == null) return a.title.compareTo(b.title);
@@ -86,9 +113,9 @@ class ObligationsScreen extends StatelessWidget {
             if (dbb == null) return -1;
             return da.compareTo(dbb);
           });
-          final total = rules
-              .where((r) => r.active)
-              .fold<double>(0, (s, r) => s + r.amount);
+          // Real occurrences over the next twelve months, not a sum of
+          // amounts: a weekly 50 and a yearly 1,200 do not add up to 1,250.
+          final yearly = totalNext12Months(rules, now);
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(
@@ -100,23 +127,42 @@ class ObligationsScreen extends StatelessWidget {
                   color: scheme.primary.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(AppRadii.card),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Column(
                   children: [
-                    const Text('إجمالي الالتزامات النشطة',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    Text('${money.format(total)} ⃁',
-                        style: TextStyle(
-                            fontSize: AppTextSizes.row,
-                            fontWeight: FontWeight.w700,
-                            color: scheme.primary)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('خلال ١٢ شهرًا القادمة',
+                            style: TextStyle(fontWeight: FontWeight.w600)),
+                        Text('${money.format(yearly)} ⃁',
+                            style: TextStyle(
+                                fontSize: AppTextSizes.row,
+                                fontWeight: FontWeight.w700,
+                                color: scheme.primary)),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Per salary cycle, the app's only period unit.
+                        Text('لكل دورة تقريبًا',
+                            style: TextStyle(
+                                fontSize: AppTextSizes.label,
+                                color: scheme.onSurfaceVariant)),
+                        Text('${money.format(yearly / 12)} ⃁',
+                            style: TextStyle(
+                                fontSize: AppTextSizes.label,
+                                color: scheme.onSurfaceVariant)),
+                      ],
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
               for (final r in rules)
-                _obligationTile(
-                    context, db, r, nextById[r.id], money, dateFmt, scheme),
+                _obligationTile(context, db, r, nextById[r.id],
+                    yearlyById[r.id]!, money, dateFmt, scheme),
             ],
           );
         },
@@ -131,15 +177,20 @@ class ObligationsScreen extends StatelessWidget {
     AppDatabase db,
     RecurrenceRule r,
     DateTime? next,
+    double yearlyCost,
     NumberFormat money,
     DateFormat dateFmt,
     ColorScheme scheme,
   ) {
-    final subtitle = StringBuffer('${money.format(r.amount)} ⃁');
+    final subtitle = StringBuffer(
+        '${money.format(r.amount)} ⃁ ${frequencyLabelAr(r.frequency)}');
     if (r.active && next != null) {
       subtitle.write('  •  التالي ${dateFmt.format(next)}');
     } else if (!r.active) {
       subtitle.write('  •  متوقفة');
+    }
+    if (r.active && r.frequency != Frequency.yearly) {
+      subtitle.write('\n${money.format(yearlyCost)} ⃁ خلال ١٢ شهرًا');
     }
     return Padding(
       key: ValueKey(r.id),
