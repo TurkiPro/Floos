@@ -36,116 +36,125 @@ class WeeklyPerformanceScreen extends StatelessWidget {
               rules.where((r) => r.type == TxnType.expense).toList();
           final now = DateTime.now();
           final period = financialPeriod(incomeRules, now);
-          return StreamBuilder<List<TxnRow>>(
-            stream: db.transactionDao.watchAllWithCategory(),
-            builder: (context, txnSnap) {
-              final rows = txnSnap.data ?? const <TxnRow>[];
-              return StreamBuilder<List<SavingsContribution>>(
-                stream: db.savingsDao.watchAllContributions(),
-                builder: (context, contribSnap) {
-                  final contributions =
-                      contribSnap.data ?? const <SavingsContribution>[];
-                  return StreamBuilder<List<Investment>>(
-                    stream: db.investmentDao.watchAll(),
-                    builder: (context, invSnap) {
-                      final investments = invSnap.data ?? const <Investment>[];
-                      return StreamBuilder<List<WeeklyReflection>>(
-                        stream: db.weeklyReflectionDao.watchAll(),
-                        builder: (context, reflSnap) {
-                          final notes = {
-                            for (final r in (reflSnap.data ?? const []))
-                              r.weekStart.millisecondsSinceEpoch: r.note,
-                          };
-                          return StreamBuilder<List<Category>>(
-                            stream: db.categoryDao.watchAll(),
-                            builder: (context, catSnap) {
-                              final byId = {
-                                for (final c
-                                    in (catSnap.data ?? const <Category>[]))
-                                  c.id: c
+          return StreamBuilder<List<DebtMovementRow>>(
+            stream: db.debtDao.watchAllMovements(),
+            builder: (context, debtSnap) {
+              final debts = debtSnap.data ?? const <DebtMovementRow>[];
+              return StreamBuilder<List<TxnRow>>(
+                stream: db.transactionDao.watchAllWithCategory(),
+                builder: (context, txnSnap) {
+                  final rows = txnSnap.data ?? const <TxnRow>[];
+                  return StreamBuilder<List<SavingsContribution>>(
+                    stream: db.savingsDao.watchAllContributions(),
+                    builder: (context, contribSnap) {
+                      final contributions =
+                          contribSnap.data ?? const <SavingsContribution>[];
+                      return StreamBuilder<List<Investment>>(
+                        stream: db.investmentDao.watchAll(),
+                        builder: (context, invSnap) {
+                          final investments =
+                              invSnap.data ?? const <Investment>[];
+                          return StreamBuilder<List<WeeklyReflection>>(
+                            stream: db.weeklyReflectionDao.watchAll(),
+                            builder: (context, reflSnap) {
+                              final notes = {
+                                for (final r in (reflSnap.data ?? const []))
+                                  r.weekStart.millisecondsSinceEpoch: r.note,
                               };
-                              final s = StatisticsSummary.from(
-                                  rows,
-                                  contributions,
-                                  incomeRules,
-                                  expenseRules,
-                                  now,
-                                  period,
-                                  investments: investments);
-                              // The one authoritative "this week" figure — the same
-                              // balance-capped number the home card and the badge
-                              // show. It is the intro line AND the current week's
-                              // budget below, so this screen cannot contradict the
-                              // home card, or itself.
-                              final weeklyBudget = s.recommendedWeekly;
-                              // The uncapped income base each week adapts from — so
-                              // every week gets ITS OWN budget (frozen once past),
-                              // instead of today's single number stamped on them all.
-                              final env = monthlyEnvelope(
-                                incomeRules: incomeRules,
-                                expenseRules: expenseRules,
-                                contributions: contributions,
-                                period: period,
-                              );
-                              final baseWeekly = incomeWeeklyBase(
-                                salaryMonthly: env.salary,
-                                obligationsMonthly: env.obligations,
-                                savedThisCycle: env.saved,
-                                periodStart: period.start,
-                                periodEnd: period.end,
-                              );
-                              final weeks = weeklyPerformance(
-                                rows: rows,
-                                byId: byId,
-                                baseWeekly: baseWeekly,
-                                now: now,
-                                periodStart: period.start,
-                                periodEnd: period.end,
-                                currentWeekBudget: weeklyBudget,
-                              ).reversed.toList(); // newest week first
+                              return StreamBuilder<List<Category>>(
+                                stream: db.categoryDao.watchAll(),
+                                builder: (context, catSnap) {
+                                  final byId = {
+                                    for (final c
+                                        in (catSnap.data ?? const <Category>[]))
+                                      c.id: c
+                                  };
+                                  final s = StatisticsSummary.from(
+                                      rows,
+                                      contributions,
+                                      incomeRules,
+                                      expenseRules,
+                                      now,
+                                      period,
+                                      investments: investments,
+                                      debts: debts);
+                                  // The one authoritative "this week" figure — the same
+                                  // balance-capped number the home card and the badge
+                                  // show. It is the intro line AND the current week's
+                                  // budget below, so this screen cannot contradict the
+                                  // home card, or itself.
+                                  final weeklyBudget = s.recommendedWeekly;
+                                  // The uncapped income base each week adapts from — so
+                                  // every week gets ITS OWN budget (frozen once past),
+                                  // instead of today's single number stamped on them all.
+                                  final env = monthlyEnvelope(
+                                    incomeRules: incomeRules,
+                                    expenseRules: expenseRules,
+                                    contributions: contributions,
+                                    period: period,
+                                  );
+                                  final baseWeekly = incomeWeeklyBase(
+                                    salaryMonthly: env.salary,
+                                    obligationsMonthly: env.obligations,
+                                    savedThisCycle: env.saved,
+                                    periodStart: period.start,
+                                    periodEnd: period.end,
+                                  );
+                                  final weeks = weeklyPerformance(
+                                    rows: rows,
+                                    byId: byId,
+                                    baseWeekly: baseWeekly,
+                                    now: now,
+                                    periodStart: period.start,
+                                    periodEnd: period.end,
+                                    currentWeekBudget: weeklyBudget,
+                                  ).reversed.toList(); // newest week first
 
-                              if (weeks.isEmpty || baseWeekly <= 0) {
-                                return const Center(
-                                    child: Padding(
-                                  padding: EdgeInsets.all(AppSpacing.xl),
-                                  child: Text(
-                                    'لا تتوفر ميزانية أسبوعية بعد — تحتاج بضعة أسابيع من '
-                                    'الإنفاق حتى نحسب معدلك.',
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ));
-                              }
-                              return ListView(
-                                padding: const EdgeInsets.all(AppSpacing.lg),
-                                children: [
-                                  Text(
-                                    'كل أسبوع من دورتك الحالية مقابل ميزانيتك الأسبوعية '
-                                    '(${money.format(weeklyBudget)} ⃁). اكتب ملاحظة '
-                                    'عن سبب التزامك أو تجاوزك.',
-                                    style: TextStyle(
-                                        fontSize: AppTextSizes.label,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurfaceVariant),
-                                  ),
-                                  const SizedBox(height: AppSpacing.md),
-                                  for (final w in weeks) ...[
-                                    _WeekCard(
-                                      week: w,
-                                      note: notes[
-                                          w.weekStart.millisecondsSinceEpoch],
-                                      money: money,
-                                      dfmt: dfmt,
-                                      onEditNote: () => _editNote(
-                                          context,
-                                          db,
-                                          w,
-                                          notes[w.weekStart
-                                              .millisecondsSinceEpoch]),
-                                    ),
-                                    const SizedBox(height: AppSpacing.md),
-                                  ],
-                                ],
+                                  if (weeks.isEmpty || baseWeekly <= 0) {
+                                    return const Center(
+                                        child: Padding(
+                                      padding: EdgeInsets.all(AppSpacing.xl),
+                                      child: Text(
+                                        'لا تتوفر ميزانية أسبوعية بعد — تحتاج بضعة أسابيع من '
+                                        'الإنفاق حتى نحسب معدلك.',
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ));
+                                  }
+                                  return ListView(
+                                    padding:
+                                        const EdgeInsets.all(AppSpacing.lg),
+                                    children: [
+                                      Text(
+                                        'كل أسبوع من دورتك الحالية مقابل ميزانيتك الأسبوعية '
+                                        '(${money.format(weeklyBudget)} ⃁). اكتب ملاحظة '
+                                        'عن سبب التزامك أو تجاوزك.',
+                                        style: TextStyle(
+                                            fontSize: AppTextSizes.label,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurfaceVariant),
+                                      ),
+                                      const SizedBox(height: AppSpacing.md),
+                                      for (final w in weeks) ...[
+                                        _WeekCard(
+                                          week: w,
+                                          note: notes[w.weekStart
+                                              .millisecondsSinceEpoch],
+                                          money: money,
+                                          dfmt: dfmt,
+                                          onEditNote: () => _editNote(
+                                              context,
+                                              db,
+                                              w,
+                                              notes[w.weekStart
+                                                  .millisecondsSinceEpoch]),
+                                        ),
+                                        const SizedBox(height: AppSpacing.md),
+                                      ],
+                                    ],
+                                  );
+                                },
                               );
                             },
                           );

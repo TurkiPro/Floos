@@ -117,6 +117,7 @@ void main() {
     await expectImportCascadeWorks(db);
     await expectPlannedColumnWorks(db);
     await expectSplitColumnWorks(db);
+    await expectDebtTablesWork(db);
   });
 
   // The exact path a store user on 1.0.1 (schema 7) takes to 1.1.0 (schema 12):
@@ -224,6 +225,7 @@ void main() {
     await expectImportCascadeWorks(db);
     await expectPlannedColumnWorks(db);
     await expectSplitColumnWorks(db);
+    await expectDebtTablesWork(db);
   });
 }
 
@@ -311,4 +313,21 @@ Future<void> expectSplitColumnWorks(AppDatabase db) async {
       date: DateTime(2026, 11, 2));
   final parts = await db.transactionDao.splitParts(id);
   expect(parts.map((t) => t.amount), [300, 120]);
+}
+
+/// v16's debt tables on a MIGRATED database, including the CASCADE from a
+/// debt to its movements.
+Future<void> expectDebtTablesWork(AppDatabase db) async {
+  final id = await db.debtDao.addDebt(
+    person: 'فهد',
+    direction: DebtDirection.lent,
+    amount: 500,
+    date: DateTime(2026, 11, 1),
+  );
+  await db.debtDao
+      .addMovement(debtId: id, amount: -200, date: DateTime(2026, 11, 3));
+  expect(await db.debtDao.getAllMovements(), hasLength(2));
+  await db.debtDao.deleteDebt(id);
+  expect(await db.debtDao.getAllMovements(), isEmpty,
+      reason: 'CASCADE removed the movements on a migrated database');
 }

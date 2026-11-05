@@ -56,6 +56,8 @@ WeeklyBudgetStatus weeklyBudgetStatus({
   // when this defaulted to empty, the statistics screen silently left them
   // out and stated a different weekly budget from the home card.
   required List<Investment> investments,
+  // Lending lowers the cap (the money left); borrowing never raises it.
+  required List<DebtMovementRow> debts,
   required DateTime now,
 }) {
   final period = financialPeriod(incomeRules, now);
@@ -141,15 +143,18 @@ WeeklyBudgetStatus weeklyBudgetStatus({
     now: now,
   );
 
-  // The real money on hand, now and as at the start of this week — the home
-  // «الرصيد», from the one function that computes it.
+  // The money on hand that is yours to spend, now and as at the start of
+  // this week — the home «الرصيد» less anything borrowed, from the one
+  // function that computes it. Borrowed money is in the account but owed, so
+  // it never raises the budget (plan 029).
   final ledger = LedgerInputs(
     rows: rows,
     contributions: contributions,
     investments: investments,
+    debts: debts,
   );
-  final actualBalance = ledgerTotals(ledger).balance;
-  final weekStartBalance = balanceAtWeekStart(ledger, weekStart);
+  final actualBalance = spendableTotals(ledger).balance;
+  final weekStartBalance = spendableAtWeekStart(ledger, weekStart);
 
   // The cap, measured AS AT THE START OF THIS WEEK.
   //

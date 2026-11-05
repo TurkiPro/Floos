@@ -101,6 +101,9 @@ class StatisticsSummary {
     DateTime now,
     FinancialPeriod period, {
     List<Investment> investments = const [],
+    // Required, unlike investments above: the balance caps read it, and a
+    // defaulted list is how investments once went missing from this screen.
+    required List<DebtMovementRow> debts,
   }) {
     final today = DateTime(now.year, now.month, now.day);
     // Exclusive upper bound so rows stamped today with a time-of-day (manual
@@ -283,7 +286,8 @@ class StatisticsSummary {
     // fixed for. Reusing the one figure is what keeps them from drifting apart
     // again.
     final remaining =
-        DashboardSummary.from(rows, contributions, investments, period)
+        DashboardSummary.from(rows, contributions, investments, period,
+                debts: debts)
             .monthRemaining;
     final allowance = monthIncome > 0 ? remaining / daysLeft : null;
     final savingsRate = monthIncome > 0 ? monthSaved / monthIncome : null;
@@ -302,6 +306,7 @@ class StatisticsSummary {
       // The home card passes these; without them this screen's budget ignored
       // money moved into investments and came out larger than home's.
       investments: investments,
+      debts: debts,
       now: now,
     );
     final recommendedWeekly = wbs.budget;

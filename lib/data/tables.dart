@@ -225,3 +225,36 @@ class Investments extends Table {
   TextColumn get note => text().nullable()();
   BoolColumn get external => boolean().withDefault(const Constant(false))();
 }
+
+/// Money lent to or borrowed from one person. Like a savings goal, what is
+/// still owed is NOT stored here — it is summed from [DebtMovements], so it
+/// can never drift out of step with the movements that make it up.
+///
+/// A debt is neither spending nor income. Lending moves money out of the
+/// balance and a repayment brings it back; borrowing brings money in that is
+/// not yours to spend. See `ledger_balance.dart`.
+@DataClassName('Debt')
+class Debts extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get person => text().withLength(min: 1, max: 80)();
+  IntColumn get direction => intEnum<DebtDirection>()();
+  TextColumn get note => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// One movement on a debt. Positive grows what is owed (the loan itself, or
+/// lending/borrowing more); negative is a repayment.
+@DataClassName('DebtMovement')
+class DebtMovements extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  // CASCADE: deleting a debt deletes its history with it.
+  IntColumn get debtId =>
+      integer().references(Debts, #id, onDelete: KeyAction.cascade)();
+  RealColumn get amount => real()();
+  DateTimeColumn get date => dateTime()();
+  TextColumn get note => text().nullable()();
+  // Outside the tracked balance — a loan made before using Floos, or repaid
+  // in cash that never passed through the account. Same meaning as the
+  // external flag everywhere else.
+  BoolColumn get external => boolean().withDefault(const Constant(false))();
+}

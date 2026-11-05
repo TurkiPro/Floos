@@ -29,3 +29,12 @@ enum PartyDisposition {
   /// the same riyals twice.
   ignore,
 }
+
+/// Which way a debt runs. Stored by index — append new values at the end only.
+enum DebtDirection {
+  /// I lent money: they owe me («لي عند الآخرين»).
+  lent,
+
+  /// I borrowed money: I owe them («عليّ»).
+  borrowed,
+}

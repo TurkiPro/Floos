@@ -20,6 +20,7 @@ Future<void> seedDummyData(AppDatabase db) async {
   await db.savingsDao.clearAll();
   await db.budgetDao.clearAll();
   await db.investmentDao.clearAll();
+  await db.debtDao.clearAll();
 
   final cats = await db.categoryDao.getAll();
   final expenseCats = cats

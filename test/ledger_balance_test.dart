@@ -61,6 +61,7 @@ final _ledger = LedgerInputs(
     _invest(2000, DateTime(2026, 7, 4)),
     _invest(9000, DateTime(2026, 7, 4), external: true),
   ],
+  debts: const [],
 );
 
 void main() {
@@ -90,6 +91,7 @@ void main() {
       _ledger.contributions,
       _ledger.investments,
       FinancialPeriod(DateTime(2026, 7, 1), DateTime(2026, 8, 1)),
+      debts: const [],
     );
     expect(summary.balance, ledgerTotals(_ledger).balance);
   });

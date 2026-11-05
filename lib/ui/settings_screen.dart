@@ -18,6 +18,7 @@ import '../services/app_lock_service.dart';
 import '../services/notification_service.dart';
 import 'budgets_screen.dart';
 import 'category_editor_screen.dart';
+import 'debts_screen.dart';
 import 'import_screen.dart';
 import 'investments_screen.dart';
 import 'months_screen.dart';
@@ -99,6 +100,10 @@ class SettingsScreen extends StatelessWidget {
               icon: Icons.trending_up,
               label: 'الاستثمارات',
               onTap: () => _push(context, const InvestmentsScreen())),
+          _navTile(context,
+              icon: Icons.handshake_outlined,
+              label: 'الديون والسلف',
+              onTap: () => _push(context, const DebtsScreen())),
           _navTile(context,
               icon: Icons.event_repeat_outlined,
               label: 'الالتزامات الشهرية',
@@ -551,6 +556,7 @@ class SettingsScreen extends StatelessWidget {
         await db.recurrenceDao.clearAll();
         await db.budgetDao.clearAll();
         await db.investmentDao.clearAll();
+        await db.debtDao.clearAll();
       });
       if (!context.mounted) return;
       // The schedule/badge derived from the deleted data must not survive it.

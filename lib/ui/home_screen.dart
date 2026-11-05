@@ -138,46 +138,54 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               // contributions (total + the period's saved), and the goals (the
               // income-day deposit prompt).
               Expanded(
-                child: StreamBuilder<List<TxnRow>>(
-                  stream: db.transactionDao.watchAllWithCategory(),
-                  builder: (context, txnSnapshot) {
-                    final rows = txnSnapshot.data ?? const <TxnRow>[];
-                    return StreamBuilder<List<SavingsContribution>>(
-                      stream: db.savingsDao.watchAllContributions(),
-                      builder: (context, savingsSnapshot) {
-                        final contributions = savingsSnapshot.data ??
-                            const <SavingsContribution>[];
-                        return StreamBuilder<List<SavingsGoal>>(
-                          stream: db.savingsDao.watchGoals(),
-                          builder: (context, goalsSnapshot) {
-                            final goals =
-                                goalsSnapshot.data ?? const <SavingsGoal>[];
-                            return StreamBuilder<List<Investment>>(
-                              stream: db.investmentDao.watchAll(),
-                              builder: (context, invSnapshot) {
-                                final investments =
-                                    invSnapshot.data ?? const <Investment>[];
-                                final data = DashboardSummary.from(
-                                    rows, contributions, investments, period);
-                                // Same salary-cycle weekly budget the badge/stats
-                                // use, for the optional home status card.
-                                final weekStatus = weeklyBudgetStatus(
-                                  rows: rows,
-                                  incomeRules: incomeRules,
-                                  expenseRules: expenseRules,
-                                  contributions: contributions,
-                                  investments: investments,
-                                  now: now,
-                                );
-                                return _DashboardBody(
-                                  data: data,
-                                  money: money,
-                                  goals: goals,
-                                  contributions: contributions,
-                                  weekStatus: weekStatus,
-                                  upcoming: upcomingCommitments(
-                                      expenseRules, now, period.end),
-                                  period: period,
+                child: StreamBuilder<List<DebtMovementRow>>(
+                  stream: db.debtDao.watchAllMovements(),
+                  builder: (context, debtSnap) {
+                    final debts = debtSnap.data ?? const <DebtMovementRow>[];
+                    return StreamBuilder<List<TxnRow>>(
+                      stream: db.transactionDao.watchAllWithCategory(),
+                      builder: (context, txnSnapshot) {
+                        final rows = txnSnapshot.data ?? const <TxnRow>[];
+                        return StreamBuilder<List<SavingsContribution>>(
+                          stream: db.savingsDao.watchAllContributions(),
+                          builder: (context, savingsSnapshot) {
+                            final contributions = savingsSnapshot.data ??
+                                const <SavingsContribution>[];
+                            return StreamBuilder<List<SavingsGoal>>(
+                              stream: db.savingsDao.watchGoals(),
+                              builder: (context, goalsSnapshot) {
+                                final goals =
+                                    goalsSnapshot.data ?? const <SavingsGoal>[];
+                                return StreamBuilder<List<Investment>>(
+                                  stream: db.investmentDao.watchAll(),
+                                  builder: (context, invSnapshot) {
+                                    final investments = invSnapshot.data ??
+                                        const <Investment>[];
+                                    final data = DashboardSummary.from(rows,
+                                        contributions, investments, period,
+                                        debts: debts);
+                                    // Same salary-cycle weekly budget the badge/stats
+                                    // use, for the optional home status card.
+                                    final weekStatus = weeklyBudgetStatus(
+                                      rows: rows,
+                                      incomeRules: incomeRules,
+                                      expenseRules: expenseRules,
+                                      contributions: contributions,
+                                      investments: investments,
+                                      debts: debts,
+                                      now: now,
+                                    );
+                                    return _DashboardBody(
+                                      data: data,
+                                      money: money,
+                                      goals: goals,
+                                      contributions: contributions,
+                                      weekStatus: weekStatus,
+                                      upcoming: upcomingCommitments(
+                                          expenseRules, now, period.end),
+                                      period: period,
+                                    );
+                                  },
                                 );
                               },
                             );

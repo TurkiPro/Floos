@@ -70,7 +70,8 @@ void main() {
       ];
 
       final d = DashboardSummary.from(
-          rows, contributions, const <Investment>[], july);
+          rows, contributions, const <Investment>[], july,
+          debts: const []);
 
       // 1500 income - 300 expense - 350 savings.
       expect(d.balance, 850);
@@ -90,7 +91,8 @@ void main() {
       ];
 
       final d = DashboardSummary.from(
-          rows, contributions, const <Investment>[], july);
+          rows, contributions, const <Investment>[], july,
+          debts: const []);
 
       // monthIncome 1000 - monthSpent 200 - monthSaved 300.
       expect(d.monthRemaining, 500);
@@ -106,15 +108,17 @@ void main() {
         _income(1000, DateTime(2026, 6, 1)), // last month only
         _expense(50, DateTime(2026, 7, 4)),
       ];
-      final d =
-          DashboardSummary.from(rows, const [], const <Investment>[], july);
+      final d = DashboardSummary.from(
+          rows, const [], const <Investment>[], july,
+          debts: const []);
       expect(d.incomeReceivedThisMonth, isFalse);
     });
 
     test('incomeReceivedThisMonth is true with income this month', () {
       final rows = [_income(1000, DateTime(2026, 7, 10))];
-      final d =
-          DashboardSummary.from(rows, const [], const <Investment>[], july);
+      final d = DashboardSummary.from(
+          rows, const [], const <Investment>[], july,
+          debts: const []);
       expect(d.incomeReceivedThisMonth, isTrue);
     });
 
@@ -125,8 +129,9 @@ void main() {
         thisMonthExpense,
         _expense(77, DateTime(2026, 6, 15)), // other month excluded
       ];
-      final d =
-          DashboardSummary.from(rows, const [], const <Investment>[], july);
+      final d = DashboardSummary.from(
+          rows, const [], const <Investment>[], july,
+          debts: const []);
       expect(d.monthExpenses, hasLength(1));
       expect(d.monthExpenses.single.txn.amount, 200);
       expect(d.monthExpenses.single.txn.type, TxnType.expense);
@@ -139,7 +144,8 @@ void main() {
         _contrib(5000, DateTime(2026, 7, 3), external: true), // pre-existing
       ];
       final d = DashboardSummary.from(
-          rows, contributions, const <Investment>[], july);
+          rows, contributions, const <Investment>[], july,
+          debts: const []);
       // Total saved counts both; balance only subtracts the internal 200.
       expect(d.savingsTotal, 5200);
       expect(d.balance, 1000 - 0 - 200); // 800, external not subtracted
@@ -155,7 +161,8 @@ void main() {
         _contrib(-100, DateTime(2026, 7, 20)), // withdraw back to the balance
       ];
       final d = DashboardSummary.from(
-          rows, contributions, const <Investment>[], july);
+          rows, contributions, const <Investment>[], july,
+          debts: const []);
       // Net saved is 200; the withdrawal flows back into the spendable balance.
       expect(d.savingsTotal, 200);
       expect(d.balance, 800); // 1000 - 0 - 200
@@ -175,7 +182,8 @@ void main() {
         _contrib(-100, DateTime(2026, 7, 20), external: true), // left elsewhere
       ];
       final d = DashboardSummary.from(
-          rows, contributions, const <Investment>[], july);
+          rows, contributions, const <Investment>[], july,
+          debts: const []);
 
       expect(d.savingsTotal, 200, reason: 'the goal really is 100 lighter');
       expect(d.balance, 700,
@@ -194,12 +202,14 @@ void main() {
           rows,
           [deposit, _contrib(-100, DateTime(2026, 7, 20))],
           const <Investment>[],
-          july);
+          july,
+          debts: const []);
       final elsewhere = DashboardSummary.from(
           rows,
           [deposit, _contrib(-100, DateTime(2026, 7, 20), external: true)],
           const <Investment>[],
-          july);
+          july,
+          debts: const []);
 
       expect(elsewhere.savingsTotal, toBalance.savingsTotal);
       expect(toBalance.balance - elsewhere.balance, 100,
@@ -213,7 +223,8 @@ void main() {
         _inv(200), // money moved from the balance into the portfolio
         _inv(5000, external: true), // standalone, pre-existing money
       ];
-      final d = DashboardSummary.from(rows, const [], investments, july);
+      final d = DashboardSummary.from(rows, const [], investments, july,
+          debts: const []);
       expect(d.investedTotal, 5200); // both count toward the portfolio
       expect(d.balance, 1000 - 0 - 200); // only the non-external 200 leaves
     });
@@ -232,8 +243,9 @@ void main() {
           _expense(20622.58, DateTime(2026, 6, 15)),
         ];
 
-        final d =
-            DashboardSummary.from(rows, const [], const <Investment>[], july);
+        final d = DashboardSummary.from(
+            rows, const [], const <Investment>[], july,
+            debts: const []);
 
         expect(d.balance, closeTo(18135.42, 0.005));
         expect(d.monthRemaining, closeTo(18135.42, 0.005),
@@ -246,8 +258,9 @@ void main() {
           _income(1000, DateTime(2026, 7, 1)),
           _expense(2000, DateTime(2026, 6, 10)),
         ];
-        final d =
-            DashboardSummary.from(rows, const [], const <Investment>[], july);
+        final d = DashboardSummary.from(
+            rows, const [], const <Investment>[], july,
+            debts: const []);
         expect(d.monthRemaining, lessThanOrEqualTo(d.balance));
       });
     });
@@ -261,8 +274,9 @@ void main() {
         _income(1000, DateTime(2026, 7, 1)),
         _expense(200, DateTime(2026, 7, 3)),
       ];
-      final d =
-          DashboardSummary.from(rows, const [], const <Investment>[], july);
+      final d = DashboardSummary.from(
+          rows, const [], const <Investment>[], july,
+          debts: const []);
 
       expect(d.balance, 5800);
       expect(d.monthRemaining, 800, reason: '1000 earned - 200 spent');
@@ -277,8 +291,9 @@ void main() {
         _expense(1500, DateTime(2026, 6, 20)), // balance is now -500
         _expense(50, DateTime(2026, 7, 2)), // this cycle, before payday
       ];
-      final d =
-          DashboardSummary.from(rows, const [], const <Investment>[], july);
+      final d = DashboardSummary.from(
+          rows, const [], const <Investment>[], july,
+          debts: const []);
 
       expect(d.incomeReceivedThisMonth, isFalse);
       expect(d.balance, -550);
@@ -291,15 +306,17 @@ void main() {
         _expense(200, DateTime(2026, 7, 3)),
       ];
       final d = DashboardSummary.from(rows,
-          [_contrib(300, DateTime(2026, 7, 4))], const <Investment>[], july);
+          [_contrib(300, DateTime(2026, 7, 4))], const <Investment>[], july,
+          debts: const []);
 
       expect(d.monthRemaining, 500);
       expect(d.balance, 500);
     });
 
     test('empty input yields all zeros and an empty month list', () {
-      final d =
-          DashboardSummary.from(const [], const [], const <Investment>[], july);
+      final d = DashboardSummary.from(
+          const [], const [], const <Investment>[], july,
+          debts: const []);
       expect(d.balance, 0);
       expect(d.savingsTotal, 0);
       expect(d.investedTotal, 0);

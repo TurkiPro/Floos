@@ -47,6 +47,8 @@ Future<String> buildBackupJson(AppDatabase db) async {
   final invsts = await db.select(db.investments).get();
   final batchRows = await db.select(db.importBatches).get();
   final partyRuleRows = await db.select(db.partyRules).get();
+  final debtRows = await db.select(db.debts).get();
+  final debtMovementRows = await db.select(db.debtMovements).get();
 
   final map = {
     'version': backupFormatVersion,
@@ -179,6 +181,27 @@ Future<String> buildBackupJson(AppDatabase db) async {
           'createdAt': _ms(r.createdAt),
         },
     ],
+    'debts': [
+      for (final d in debtRows)
+        {
+          'id': d.id,
+          'person': d.person,
+          'direction': d.direction.index,
+          'note': d.note,
+          'createdAt': _ms(d.createdAt),
+        },
+    ],
+    'debtMovements': [
+      for (final m in debtMovementRows)
+        {
+          'id': m.id,
+          'debtId': m.debtId,
+          'amount': m.amount,
+          'date': _ms(m.date),
+          'note': m.note,
+          'external': m.external,
+        },
+    ],
   };
 
   return const JsonEncoder.withIndent('  ').convert(map);
@@ -271,6 +294,14 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
       ? (root['partyRules'] as List).cast<Map<String, dynamic>>()
       : const <Map<String, dynamic>>[];
 
+  // Debts, leniently: a pre-v16 backup has none.
+  final debtRows = root['debts'] is List
+      ? (root['debts'] as List).cast<Map<String, dynamic>>()
+      : const <Map<String, dynamic>>[];
+  final debtMovementRows = root['debtMovements'] is List
+      ? (root['debtMovements'] as List).cast<Map<String, dynamic>>()
+      : const <Map<String, dynamic>>[];
+
   // Everything in one transaction: any failure (bad row, dangling FK) rolls the
   // whole thing back and the pre-existing data survives.
   await db.transaction(() async {
@@ -280,6 +311,8 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
     // keeps the wipe order self-documenting.
     await db.delete(db.weeklyReflections).go();
     await db.delete(db.investments).go();
+    await db.delete(db.debtMovements).go();
+    await db.delete(db.debts).go();
     await db.delete(db.categoryBudgets).go();
     // Party rules reference categories, goals AND batches, so they go before
     // all three; batches go before the two ledgers that point at them.
@@ -422,6 +455,27 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
             date: _date(i['date']),
             note: Value(i['note'] as String?),
             external: Value(i['external'] as bool? ?? false),
+          ));
+    }
+
+    // Debts stand alone; their movements follow them.
+    for (final d in debtRows) {
+      await db.into(db.debts).insert(DebtsCompanion.insert(
+            id: Value(d['id'] as int),
+            person: d['person'] as String,
+            direction: DebtDirection.values[d['direction'] as int],
+            note: Value(d['note'] as String?),
+            createdAt: Value(_date(d['createdAt'])),
+          ));
+    }
+    for (final m in debtMovementRows) {
+      await db.into(db.debtMovements).insert(DebtMovementsCompanion.insert(
+            id: Value(m['id'] as int),
+            debtId: m['debtId'] as int,
+            amount: (m['amount'] as num).toDouble(),
+            date: _date(m['date']),
+            note: Value(m['note'] as String?),
+            external: Value(m['external'] as bool? ?? false),
           ));
     }
 

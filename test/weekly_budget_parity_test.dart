@@ -98,7 +98,8 @@ void main() {
 
     final period = financialPeriod(incomeRules, now);
     final stats = StatisticsSummary.from(
-        rows, contributions, incomeRules, expenseRules, now, period);
+        rows, contributions, incomeRules, expenseRules, now, period,
+        debts: const []);
     final home = weeklyBudgetStatus(
       rows: rows,
       incomeRules: incomeRules,
@@ -106,6 +107,7 @@ void main() {
       contributions: contributions,
       investments: const [],
       now: now,
+      debts: const [],
     );
 
     expect(stats.recommendedWeekly, closeTo(home.budget, 1e-9),
@@ -140,7 +142,8 @@ void main() {
 
     final period = financialPeriod(incomeRules, now);
     final stats = StatisticsSummary.from(
-        rows, contributions, incomeRules, expenseRules, now, period);
+        rows, contributions, incomeRules, expenseRules, now, period,
+        debts: const []);
     final home = weeklyBudgetStatus(
       rows: rows,
       incomeRules: incomeRules,
@@ -148,6 +151,7 @@ void main() {
       contributions: contributions,
       investments: const [],
       now: now,
+      debts: const [],
     );
 
     // Exactly what the screen does to get its per-week baseline.
@@ -224,12 +228,14 @@ void main() {
       contributions: const [],
       investments: investments,
       now: now,
+      debts: const [],
     );
     final stats = StatisticsSummary.from(
         rows, const [], incomeRules, expenseRules, now, period,
-        investments: investments);
+        investments: investments, debts: const []);
     final withoutInvestments = StatisticsSummary.from(
-        rows, const [], incomeRules, expenseRules, now, period);
+        rows, const [], incomeRules, expenseRules, now, period,
+        debts: const []);
 
     // Only meaningful if investments actually change the answer here.
     expect(withoutInvestments.recommendedWeekly, greaterThan(home.budget),
@@ -254,9 +260,11 @@ void main() {
         planned: false);
 
     final thisWeek = StatisticsSummary.from(rows,
-        [deposit(DateTime(2026, 7, 16))], incomeRules, const [], now, period);
+        [deposit(DateTime(2026, 7, 16))], incomeRules, const [], now, period,
+        debts: const []);
     final earlier = StatisticsSummary.from(rows,
-        [deposit(DateTime(2026, 7, 1))], incomeRules, const [], now, period);
+        [deposit(DateTime(2026, 7, 1))], incomeRules, const [], now, period,
+        debts: const []);
 
     expect(thisWeek.weeklyReducedBySavings, isFalse);
     expect(earlier.weeklyReducedBySavings, isTrue);

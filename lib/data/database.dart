@@ -19,6 +19,14 @@ class TxnRow {
   const TxnRow({required this.txn, required this.category});
 }
 
+/// A debt movement with the debt it belongs to — the direction is what says
+/// whether the movement took money out of the balance or brought it in.
+class DebtMovementRow {
+  final DebtMovement movement;
+  final Debt debt;
+  const DebtMovementRow({required this.movement, required this.debt});
+}
+
 @DriftAccessor(tables: [Categories])
 class CategoryDao extends DatabaseAccessor<AppDatabase>
     with _$CategoryDaoMixin {
@@ -1152,6 +1160,118 @@ void _checkDestination(
   }
 }
 
+/// Money lent and borrowed.
+@DriftAccessor(tables: [Debts, DebtMovements])
+class DebtDao extends DatabaseAccessor<AppDatabase> with _$DebtDaoMixin {
+  DebtDao(super.db);
+
+  Stream<List<Debt>> watchDebts() =>
+      (select(debts)..orderBy([(d) => OrderingTerm.asc(d.person)])).watch();
+
+  Stream<Debt?> watchDebt(int id) =>
+      (select(debts)..where((d) => d.id.equals(id))).watchSingleOrNull();
+
+  /// Every movement with its debt — what the balance needs.
+  Stream<List<DebtMovementRow>> watchAllMovements() {
+    final query = select(debtMovements).join([
+      innerJoin(debts, debts.id.equalsExp(debtMovements.debtId)),
+    ]);
+    return query.watch().map((rows) => [
+          for (final r in rows)
+            DebtMovementRow(
+              movement: r.readTable(debtMovements),
+              debt: r.readTable(debts),
+            ),
+        ]);
+  }
+
+  /// One debt's movements, newest first.
+  Stream<List<DebtMovement>> watchMovements(int debtId) =>
+      (select(debtMovements)
+            ..where((m) => m.debtId.equals(debtId))
+            ..orderBy([
+              (m) => OrderingTerm.desc(m.date),
+              (m) => OrderingTerm.desc(m.id),
+            ]))
+          .watch();
+
+  /// A new debt and the loan that opens it, together or not at all.
+  Future<int> addDebt({
+    required String person,
+    required DebtDirection direction,
+    required double amount,
+    required DateTime date,
+    String? note,
+    bool external = false,
+  }) {
+    if (amount <= 0) throw ArgumentError('a debt opens with a positive amount');
+    return transaction(() async {
+      final id = await into(debts).insert(DebtsCompanion.insert(
+        person: person.trim(),
+        direction: direction,
+        note: Value(note),
+      ));
+      await into(debtMovements).insert(DebtMovementsCompanion.insert(
+        debtId: id,
+        amount: amount,
+        date: date,
+        external: Value(external),
+      ));
+      return id;
+    });
+  }
+
+  /// Positive [amount] adds to what is owed; negative records a repayment.
+  Future<int> addMovement({
+    required int debtId,
+    required double amount,
+    required DateTime date,
+    String? note,
+    bool external = false,
+  }) {
+    if (amount == 0) throw ArgumentError('a movement needs an amount');
+    return into(debtMovements).insert(DebtMovementsCompanion.insert(
+      debtId: debtId,
+      amount: amount,
+      date: date,
+      note: Value(note),
+      external: Value(external),
+    ));
+  }
+
+  Future<void> updateDebt(int id, {required String person, String? note}) =>
+      (update(debts)..where((d) => d.id.equals(id))).write(DebtsCompanion(
+        person: Value(person.trim()),
+        note: Value(note),
+      ));
+
+  Future<void> deleteMovement(int id) =>
+      (delete(debtMovements)..where((m) => m.id.equals(id))).go();
+
+  /// The undo path for a swipe-delete: same id, same everything.
+  Future<void> restoreMovement(DebtMovement m) =>
+      into(debtMovements).insert(DebtMovementsCompanion.insert(
+        id: Value(m.id),
+        debtId: m.debtId,
+        amount: m.amount,
+        date: m.date,
+        note: Value(m.note),
+        external: Value(m.external),
+      ));
+
+  /// Deletes the debt and, by CASCADE, its movements.
+  Future<void> deleteDebt(int id) =>
+      (delete(debts)..where((d) => d.id.equals(id))).go();
+
+  Future<List<Debt>> getAllDebts() => select(debts).get();
+  Future<List<DebtMovement>> getAllMovements() => select(debtMovements).get();
+
+  Future<void> clearAll() async {
+    await delete(debtMovements).go();
+    await delete(debts).go();
+  }
+}
+
 @DriftDatabase(
   tables: [
     Categories,
@@ -1164,6 +1284,8 @@ void _checkDestination(
     Investments,
     ImportBatches,
     PartyRules,
+    Debts,
+    DebtMovements,
   ],
   daos: [
     CategoryDao,
@@ -1175,6 +1297,7 @@ void _checkDestination(
     InvestmentDao,
     ImportBatchDao,
     PartyRuleDao,
+    DebtDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -1182,7 +1305,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1320,6 +1443,12 @@ class AppDatabase extends _$AppDatabase {
           // there), so it is only added for the ones that did not.
           if (from < 15 && from >= 5) {
             await m.addColumn(transactions, transactions.splitGroupId);
+          }
+          // v16 adds debts: money lent and borrowed, as a ledger of movements.
+          // Two new tables; nothing existing changes.
+          if (from < 16) {
+            await m.createTable(debts);
+            await m.createTable(debtMovements);
           }
         },
         beforeOpen: (details) async {

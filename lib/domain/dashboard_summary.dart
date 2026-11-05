@@ -36,8 +36,9 @@ class DashboardSummary {
     List<TxnRow> rows,
     List<SavingsContribution> contributions,
     List<Investment> investments,
-    FinancialPeriod period,
-  ) {
+    FinancialPeriod period, {
+    required List<DebtMovementRow> debts,
+  }) {
     // "This month" here means the current salary cycle (see FinancialPeriod),
     // so the salary you were just paid counts toward the period you're in.
     bool inMonth(DateTime d) => period.contains(d);
@@ -77,11 +78,15 @@ class DashboardSummary {
       investedTotal += inv.amount;
     }
 
-    final balance = ledgerTotals(LedgerInputs(
+    final ledger = LedgerInputs(
       rows: rows,
       contributions: contributions,
       investments: investments,
-    )).balance;
+      debts: debts,
+    );
+    final balance = ledgerTotals(ledger).balance;
+    // What is yours to spend: the balance less money borrowed (plan 029).
+    final spendable = spendableTotals(ledger).balance;
 
     // What this cycle's own income has left, before any reckoning with the
     // past.
@@ -103,8 +108,12 @@ class DashboardSummary {
     // A carried-in SURPLUS is deliberately not added. This card splits the
     // cycle's income into left/spent/saved; money from previous cycles is real
     // but it is not this cycle's income, and «الرصيد» above already shows it.
-    final monthRemaining =
-        monthIncome > 0 && balance < cycleRemaining ? balance : cycleRemaining;
+    //
+    // The cap is the SPENDABLE balance: borrowed money is in the account but
+    // is not this cycle's to spend, so it must not keep «المتبقي» up.
+    final monthRemaining = monthIncome > 0 && spendable < cycleRemaining
+        ? spendable
+        : cycleRemaining;
 
     return DashboardSummary(
       balance: balance,
