@@ -5,7 +5,12 @@ import 'package:floos/domain/savings_math.dart';
 SavingsContribution _contrib(double amount, DateTime date,
         {bool external = false}) =>
     SavingsContribution(
-        id: 1, goalId: 1, amount: amount, date: date, external: external);
+        id: 1,
+        goalId: 1,
+        amount: amount,
+        date: date,
+        external: external,
+        planned: false);
 
 void main() {
   group('monthsUntilDeadline', () {

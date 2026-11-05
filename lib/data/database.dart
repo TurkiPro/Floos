@@ -183,6 +183,10 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
   /// delete moments earlier; keeping it preserves the recurrenceId link and
   /// list position, and the rule's marker never moved so catch-up can't
   /// double-create.
+  ///
+  /// Carries [importBatchId] too. It used not to, so undoing a swipe-delete on
+  /// an imported transaction brought it back detached from its batch — and a
+  /// later "undo this import" then left that row behind in the ledger.
   Future<void> restore(Txn txn) {
     return into(transactions).insert(TransactionsCompanion.insert(
       id: Value(txn.id),
@@ -192,6 +196,7 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
       date: txn.date,
       note: Value(txn.note),
       recurrenceId: Value(txn.recurrenceId),
+      importBatchId: Value(txn.importBatchId),
       createdAt: Value(txn.createdAt),
     ));
   }
@@ -490,6 +495,7 @@ class SavingsDao extends DatabaseAccessor<AppDatabase> with _$SavingsDaoMixin {
     required DateTime date,
     String? note,
     bool external = false,
+    bool planned = false,
   }) {
     return into(savingsContributions)
         .insert(SavingsContributionsCompanion.insert(
@@ -498,6 +504,8 @@ class SavingsDao extends DatabaseAccessor<AppDatabase> with _$SavingsDaoMixin {
       date: date,
       note: Value(note),
       external: Value(external),
+      // Only a withdrawal can be planned; a deposit never carries it.
+      planned: Value(amount < 0 && planned),
     ));
   }
 
@@ -515,6 +523,7 @@ class SavingsDao extends DatabaseAccessor<AppDatabase> with _$SavingsDaoMixin {
     required DateTime date,
     String? note,
     required bool external,
+    bool planned = false,
   }) {
     return (update(savingsContributions)..where((c) => c.id.equals(id))).write(
       SavingsContributionsCompanion(
@@ -523,6 +532,8 @@ class SavingsDao extends DatabaseAccessor<AppDatabase> with _$SavingsDaoMixin {
         date: Value(date),
         note: Value(note),
         external: Value(external),
+        // Editing a withdrawal into a deposit must drop the flag with it.
+        planned: Value(amount < 0 && planned),
       ),
     );
   }
@@ -532,6 +543,12 @@ class SavingsDao extends DatabaseAccessor<AppDatabase> with _$SavingsDaoMixin {
   /// freed by the delete moments earlier, so reusing it puts the row back in
   /// the same place and every derived total (balance, goal progress, savings
   /// rate) recomputes to exactly what it was.
+  ///
+  /// Every column must be carried across. An undo that quietly drops one
+  /// returns a DIFFERENT row: losing [planned] would re-score a planned
+  /// withdrawal as a lapse, and losing [importBatchId] — which this method did
+  /// until now — orphaned an imported deposit from its batch, so undoing the
+  /// import afterwards left it behind.
   Future<void> restoreContribution(SavingsContribution c) {
     return into(savingsContributions)
         .insert(SavingsContributionsCompanion.insert(
@@ -541,6 +558,8 @@ class SavingsDao extends DatabaseAccessor<AppDatabase> with _$SavingsDaoMixin {
       date: c.date,
       note: Value(c.note),
       external: Value(c.external),
+      importBatchId: Value(c.importBatchId),
+      planned: Value(c.planned),
     ));
   }
 
@@ -1006,7 +1025,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1124,6 +1143,16 @@ class AppDatabase extends _$AppDatabase {
             }
             await m.addColumn(
                 savingsContributions, savingsContributions.importBatchId);
+          }
+          // v14 lets a withdrawal be marked as the goal being used as intended
+          // rather than dipping into savings, so it stays out of the
+          // saving-habit figures. Defaults false: every existing withdrawal
+          // keeps counting exactly as it did. savings_contributions is never
+          // rebuilt by an earlier step, so a plain addColumn is safe here —
+          // unlike transactions, whose v5 rebuild is why v13 needed care.
+          if (from < 14) {
+            await m.addColumn(
+                savingsContributions, savingsContributions.planned);
           }
         },
         beforeOpen: (details) async {

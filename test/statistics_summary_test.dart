@@ -69,7 +69,12 @@ TxnRow _recurring(double amount, DateTime date,
 SavingsContribution _contrib(double amount, DateTime date,
         {bool external = false}) =>
     SavingsContribution(
-        id: 1, goalId: 1, amount: amount, date: date, external: external);
+        id: 1,
+        goalId: 1,
+        amount: amount,
+        date: date,
+        external: external,
+        planned: false);
 
 void main() {
   group('StatisticsSummary.from', () {

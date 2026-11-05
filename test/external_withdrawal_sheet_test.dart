@@ -108,6 +108,38 @@ void main() {
     await teardownTree(tester);
   });
 
+  testWidgets('the planned option exists only for withdrawals', (tester) async {
+    const plannedLabel = 'سحب مخطط له (لا يُحسب تراجعًا في الادخار)';
+    await pumpSheet(tester);
+    expect(find.text(plannedLabel), findsNothing,
+        reason: 'a deposit cannot be "the goal used as intended"');
+
+    await tester.tap(find.text('سحب'));
+    await tester.pumpAndSettle();
+    expect(find.text(plannedLabel), findsOneWidget);
+
+    await teardownTree(tester);
+  });
+
+  testWidgets('a planned withdrawal is saved planned, independent of external',
+      (tester) async {
+    await pumpSheet(tester);
+    await tester.tap(find.text('سحب'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '300');
+    // Planned, but NOT external: moved back to the balance on purpose.
+    await tester.tap(find.text('سحب مخطط له (لا يُحسب تراجعًا في الادخار)'));
+    await tester.pumpAndSettle();
+    await save(tester);
+
+    final saved = (await contributions(tester)).firstWhere((c) => c.amount < 0);
+    expect(saved.planned, isTrue);
+    expect(saved.external, isFalse, reason: 'the two flags are independent');
+
+    await teardownTree(tester);
+  });
+
   testWidgets('switching direction clears the toggle', (tester) async {
     // "Money I already had" and "money that went elsewhere" are different
     // claims. A tick made as a deposit must not silently become an external
@@ -121,8 +153,12 @@ void main() {
     await tester.tap(find.text('سحب'));
     await tester.pumpAndSettle();
 
-    expect(tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
-        isFalse);
+    // Withdraw mode has two switches now (external, planned). Both must start
+    // off: the external tick was cleared, and planned is never inherited.
+    final switches =
+        tester.widgetList<SwitchListTile>(find.byType(SwitchListTile));
+    expect(switches, hasLength(2));
+    expect(switches.every((s) => !s.value), isTrue);
 
     await teardownTree(tester);
   });

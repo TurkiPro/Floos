@@ -5,7 +5,12 @@ import 'package:floos/domain/balance_transfers.dart';
 SavingsContribution _c(double amount, DateTime date,
         {int goalId = 1, bool external = false}) =>
     SavingsContribution(
-        id: 1, goalId: goalId, amount: amount, date: date, external: external);
+        id: 1,
+        goalId: goalId,
+        amount: amount,
+        date: date,
+        external: external,
+        planned: false);
 
 Investment _i(String name, double amount, DateTime date,
         {bool external = false}) =>

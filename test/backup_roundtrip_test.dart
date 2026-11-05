@@ -208,6 +208,53 @@ void main() {
     expect(await target.budgetDao.getAll(), isNotEmpty);
   });
 
+  test('a planned withdrawal survives backup and restore', () async {
+    final source = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(source.close);
+    final seeded = await _seed(source);
+    await source.savingsDao.addContribution(
+      goalId: seeded.goalId,
+      amount: -50,
+      date: DateTime(2026, 9, 1),
+      external: true,
+      planned: true,
+    );
+
+    final target = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(target.close);
+    await restoreBackupJson(target, await buildBackupJson(source));
+
+    final back = (await target.select(target.savingsContributions).get())
+        .firstWhere((c) => c.amount == -50);
+    expect(back.planned, isTrue,
+        reason: 'losing it would re-score the withdrawal as a lapse');
+    expect(back.external, isTrue);
+  });
+
+  test('a pre-v14 backup restores every withdrawal as unplanned', () async {
+    final source = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(source.close);
+    final seeded = await _seed(source);
+    await source.savingsDao.addContribution(
+        goalId: seeded.goalId, amount: -50, date: DateTime(2026, 9, 1));
+
+    // Strip the field from every row, as an older backup file has it.
+    final map =
+        jsonDecode(await buildBackupJson(source)) as Map<String, dynamic>;
+    for (final c in map['savingsContributions'] as List) {
+      (c as Map<String, dynamic>).remove('planned');
+    }
+
+    final target = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(target.close);
+    await restoreBackupJson(target, jsonEncode(map)); // must not throw
+
+    final rows = await target.select(target.savingsContributions).get();
+    expect(rows, isNotEmpty);
+    expect(rows.every((c) => !c.planned), isTrue,
+        reason: 'old withdrawals counted as dipping; restoring keeps that');
+  });
+
   test('a corrupt row rolls the whole restore back, data intact', () async {
     final source = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(source.close);

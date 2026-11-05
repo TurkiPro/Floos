@@ -44,9 +44,14 @@ TxnRow _income(double amount, DateTime date) => TxnRow(
     );
 
 SavingsContribution _contrib(double amount, DateTime date,
-        {bool external = false}) =>
+        {bool external = false, bool planned = false}) =>
     SavingsContribution(
-        id: 1, goalId: 1, amount: amount, date: date, external: external);
+        id: 1,
+        goalId: 1,
+        amount: amount,
+        date: date,
+        external: external,
+        planned: planned);
 
 void main() {
   group('savingsBehavior', () {
@@ -131,6 +136,88 @@ void main() {
       expect(b.hasHistory, isFalse);
       expect(b.savedThisCycle, 300);
       expect(b.streak, 1); // saved this cycle
+    });
+  });
+
+  group('countsAsSavingHabit', () {
+    final d = DateTime(2026, 7, 5);
+
+    test('deposits count unless external', () {
+      expect(countsAsSavingHabit(_contrib(500, d)), isTrue);
+      expect(countsAsSavingHabit(_contrib(500, d, external: true)), isFalse,
+          reason: 'money that already existed is not a habit');
+    });
+
+    test('withdrawals count unless planned — in all four combinations', () {
+      // back to balance, unplanned: raided it to cover spending
+      expect(countsAsSavingHabit(_contrib(-500, d)), isTrue);
+      // back to balance, planned: moved it back on purpose
+      expect(countsAsSavingHabit(_contrib(-500, d, planned: true)), isFalse);
+      // elsewhere, unplanned: raided it for something untracked
+      expect(countsAsSavingHabit(_contrib(-500, d, external: true)), isTrue,
+          reason: 'leaving the balance out does not make it not a lapse');
+      // elsewhere, planned: the car fund paid for the car
+      expect(
+          countsAsSavingHabit(_contrib(-500, d, external: true, planned: true)),
+          isFalse);
+    });
+  });
+
+  group('a planned withdrawal is not scored as a lapse', () {
+    final rows = [
+      _income(10000, DateTime(2026, 6, 1)),
+      _income(10000, DateTime(2026, 7, 1)),
+    ];
+
+    SavingsBehavior behave(List<SavingsContribution> c) => savingsBehavior(
+          contributions: c,
+          rows: rows,
+          incomeRules: [_salary()],
+          now: now,
+        );
+
+    test('it is left out of "withdrawn recently"', () {
+      final planned = behave([
+        _contrib(3000, DateTime(2026, 6, 5)),
+        _contrib(-2000, DateTime(2026, 7, 5), planned: true),
+      ]);
+      final lapse = behave([
+        _contrib(3000, DateTime(2026, 6, 5)),
+        _contrib(-2000, DateTime(2026, 7, 5)),
+      ]);
+
+      expect(planned.withdrawnRecently, 0);
+      expect(lapse.withdrawnRecently, 2000);
+    });
+
+    test('it does not turn a cycle net-negative or break the streak', () {
+      // June: saved 3000. July: saved 500, then used 2000 of the goal as
+      // intended. Unplanned, July ends 1500 down and the streak breaks;
+      // planned, July is a 500 saving cycle like any other.
+      final planned = behave([
+        _contrib(3000, DateTime(2026, 6, 5)),
+        _contrib(500, DateTime(2026, 7, 3)),
+        _contrib(-2000, DateTime(2026, 7, 5), planned: true),
+      ]);
+      final lapse = behave([
+        _contrib(3000, DateTime(2026, 6, 5)),
+        _contrib(500, DateTime(2026, 7, 3)),
+        _contrib(-2000, DateTime(2026, 7, 5)),
+      ]);
+
+      expect(planned.savedThisCycle, 500);
+      expect(lapse.savedThisCycle, -1500);
+      expect(planned.streak, greaterThan(lapse.streak));
+    });
+
+    test('an UNPLANNED external withdrawal still counts as dipping', () {
+      // The money never came back to the balance, but it was still taken out
+      // of savings for something other than the goal.
+      final b = behave([
+        _contrib(3000, DateTime(2026, 6, 5)),
+        _contrib(-2000, DateTime(2026, 7, 5), external: true),
+      ]);
+      expect(b.withdrawnRecently, 2000);
     });
   });
 }

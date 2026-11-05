@@ -79,6 +79,24 @@ class SavingsBehavior {
   bool get hasHistory => consistencyTotal > 0;
 }
 
+/// Whether a contribution says something about the user's saving HABIT — and
+/// so belongs in the streak, consistency, net-saved and "withdrawn recently"
+/// figures.
+///
+/// Deposits and withdrawals are judged by different questions, which is why
+/// this is not simply `!external`:
+///
+/// - A deposit counts unless it is external. External means money that already
+///   existed (a gift, savings held elsewhere) — moving it in is not a habit.
+/// - A withdrawal counts unless it is planned. Planned means the goal was used
+///   as intended, like the car fund paying for the car; scoring that as a lapse
+///   would punish exactly the outcome saving was for. Raiding a goal for
+///   something else stays visible, and it stays visible whether or not the
+///   money came back to the balance — an unplanned external withdrawal is
+///   still dipping into savings.
+bool countsAsSavingHabit(SavingsContribution c) =>
+    c.amount < 0 ? !c.planned : !c.external;
+
 double _median(List<double> xs) {
   if (xs.isEmpty) return 0;
   final s = [...xs]..sort();
@@ -99,7 +117,7 @@ SavingsBehavior savingsBehavior({
   double savedIn(FinancialPeriod p) {
     var s = 0.0;
     for (final c in contributions) {
-      if (!c.external && p.contains(c.date)) s += c.amount;
+      if (countsAsSavingHabit(c) && p.contains(c.date)) s += c.amount;
     }
     return s;
   }
@@ -107,7 +125,9 @@ SavingsBehavior savingsBehavior({
   double withdrawnIn(FinancialPeriod p) {
     var s = 0.0;
     for (final c in contributions) {
-      if (!c.external && p.contains(c.date) && c.amount < 0) s += -c.amount;
+      if (countsAsSavingHabit(c) && p.contains(c.date) && c.amount < 0) {
+        s += -c.amount;
+      }
     }
     return s;
   }

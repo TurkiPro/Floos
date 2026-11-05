@@ -124,6 +124,7 @@ Future<String> buildBackupJson(AppDatabase db) async {
           'note': c.note,
           'external': c.external,
           'importBatchId': c.importBatchId,
+          'planned': c.planned,
         },
     ],
     'categoryBudgets': [
@@ -382,6 +383,10 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
             external: Value(c['external'] as bool? ?? false),
             // Lenient: pre-v13 files have no import batch.
             importBatchId: Value(c['importBatchId'] as int?),
+            // Lenient: pre-v14 files have no planned flag, and every
+            // withdrawal in them counted as dipping into savings — false
+            // restores exactly that.
+            planned: Value(c['planned'] as bool? ?? false),
           ));
     }
 

@@ -174,7 +174,13 @@ class _DepositRow extends StatelessWidget {
     } else {
       source = contribution.external ? 'خارجي' : 'من الرصيد';
     }
-    final sub = [source, if (note.isNotEmpty) note].join('  •  ');
+    // Marked so a planned withdrawal can be told apart from a lapse at a
+    // glance — it is the reason the behaviour stats leave it out.
+    final sub = [
+      source,
+      if (contribution.planned) 'مخطط',
+      if (note.isNotEmpty) note,
+    ].join('  •  ');
     // Swipe-to-delete with undo, same as the transaction list and the goal
     // detail screen — a deposit is removable wherever it's shown.
     return Padding(

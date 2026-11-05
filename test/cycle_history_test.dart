@@ -44,7 +44,12 @@ TxnRow _txn(TxnType t, double amount, DateTime date) => TxnRow(
 
 SavingsContribution _c(double amount, DateTime date, {bool external = false}) =>
     SavingsContribution(
-        id: 1, goalId: 1, amount: amount, date: date, external: external);
+        id: 1,
+        goalId: 1,
+        amount: amount,
+        date: date,
+        external: external,
+        planned: false);
 
 void main() {
   group('cyclesCovering', () {

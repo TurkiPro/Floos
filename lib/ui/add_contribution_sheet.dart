@@ -47,6 +47,15 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
   // A withdrawal is stored as a negative contribution: it lowers the goal's
   // balance and, unless external, flows back into the spendable balance.
   bool _withdraw = false;
+  // Withdrawals only, and independent of [_external]: was this the goal being
+  // used as intended, rather than dipping into savings? It decides whether the
+  // withdrawal counts against the saving-habit stats. The two flags answer
+  // different questions, so all four combinations are offered:
+  //   back to balance, planned   — moved it back on purpose
+  //   back to balance, unplanned — raided it to cover spending
+  //   elsewhere, planned         — the car fund paid for the car
+  //   elsewhere, unplanned       — raided it for something untracked
+  bool _planned = false;
 
   @override
   void initState() {
@@ -59,6 +68,7 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
       _date = e.date;
       _noteCtrl.text = e.note ?? '';
       _external = e.external;
+      _planned = e.planned;
     } else {
       _goalId = widget.goalId;
     }
@@ -113,6 +123,7 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
         date: _date,
         note: note,
         external: external,
+        planned: _withdraw && _planned,
       );
     } else {
       await widget.db.savingsDao.addContribution(
@@ -121,6 +132,7 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
         date: _date,
         note: note,
         external: external,
+        planned: _withdraw && _planned,
       );
     }
     if (mounted) Navigator.of(context).pop();
@@ -181,7 +193,11 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
               // "money that went elsewhere"), so a tick made for one must never
               // quietly carry over into the other.
               onSelectionChanged: (s) => setState(() {
-                if (s.first != _withdraw) _external = false;
+                if (s.first != _withdraw) {
+                  _external = false;
+                  // Meaningless on a deposit; never let it ride along.
+                  _planned = false;
+                }
                 _withdraw = s.first;
               }),
             ),
@@ -265,6 +281,19 @@ class _AddContributionSheetState extends State<AddContributionSheet> {
                   : 'مبلغ موجود مسبقًا أو هدية — يُضاف للهدف دون التأثير '
                       'على رصيدك.'),
             ),
+            // The second, independent question — withdrawals only. Where the
+            // money went is the toggle above; whether taking it was a lapse is
+            // this one.
+            if (_withdraw)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _planned,
+                onChanged: (v) => setState(() => _planned = v),
+                title: const Text('سحب مخطط له (لا يُحسب تراجعًا في الادخار)'),
+                subtitle: const Text(
+                    'استُخدم المال لهدفه، كأن يدفع صندوق السيارة ثمن السيارة — '
+                    'لا يُحتسب ضمن سلوك الادخار ولا يقطع سلسلة التزامك.'),
+              ),
             const SizedBox(height: AppSpacing.lg),
             FilledButton(onPressed: _save, child: const Text('حفظ')),
             if (widget.existing != null) ...[

@@ -92,7 +92,8 @@ void main() {
           goalId: 1,
           amount: 1000,
           date: DateTime(2026, 7, 1),
-          external: false),
+          external: false,
+          planned: false),
     ];
 
     final period = financialPeriod(incomeRules, now);
@@ -132,7 +133,8 @@ void main() {
           goalId: 1,
           amount: 1000,
           date: DateTime(2026, 7, 1),
-          external: false),
+          external: false,
+          planned: false),
     ];
 
     final period = financialPeriod(incomeRules, now);

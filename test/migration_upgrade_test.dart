@@ -115,6 +115,7 @@ void main() {
     // import_batch_id through the v5 table rebuild's `newColumns`, not through
     // addColumn, so a fresh-install test would not prove it.
     await expectImportCascadeWorks(db);
+    await expectPlannedColumnWorks(db);
   });
 
   // The exact path a store user on 1.0.1 (schema 7) takes to 1.1.0 (schema 12):
@@ -220,6 +221,7 @@ void main() {
 
     // v13, reached here through addColumn rather than the v5 rebuild.
     await expectImportCascadeWorks(db);
+    await expectPlannedColumnWorks(db);
   });
 }
 
@@ -263,4 +265,25 @@ Future<void> expectImportCascadeWorks(AppDatabase db) async {
       reason: 'CASCADE removed the imported row on a migrated database');
   expect(await db.partyRuleDao.getAll(), isEmpty,
       reason: 'CASCADE removed the rule the batch created');
+}
+
+/// v14's `planned` flag on a MIGRATED database: the column exists, a withdrawal
+/// that predates it reads as unplanned (so every old withdrawal keeps counting
+/// against the saving habit exactly as before), and a new one can be planned.
+Future<void> expectPlannedColumnWorks(AppDatabase db) async {
+  final goalId =
+      await db.savingsDao.addGoal(name: 'بعد الترقية', targetAmount: 1000);
+  final plain = await db.savingsDao
+      .addContribution(goalId: goalId, amount: -10, date: DateTime(2026, 9, 1));
+  final planned = await db.savingsDao.addContribution(
+      goalId: goalId, amount: -20, date: DateTime(2026, 9, 2), planned: true);
+
+  final rows = await db.select(db.savingsContributions).get();
+  expect(rows.firstWhere((c) => c.id == plain).planned, isFalse,
+      reason: 'the v14 default must be false on an upgraded database');
+  expect(rows.firstWhere((c) => c.id == planned).planned, isTrue);
+  // Everything that existed before the upgrade defaulted to unplanned.
+  for (final c in rows.where((c) => c.id != planned)) {
+    expect(c.planned, isFalse);
+  }
 }

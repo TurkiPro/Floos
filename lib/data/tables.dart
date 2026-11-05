@@ -195,6 +195,14 @@ class SavingsContributions extends Table {
   IntColumn get importBatchId => integer()
       .nullable()
       .references(ImportBatches, #id, onDelete: KeyAction.cascade)();
+  // Withdrawals only: this was the money being USED as intended — the car fund
+  // paying for the car — rather than dipping into savings. Planned withdrawals
+  // are left out of the saving-habit figures (streak, consistency, net saved,
+  // "withdrawn recently"), so spending a goal on its goal is never scored as a
+  // lapse. Independent of [external], which says only whether the money came
+  // back to the balance: the two answer different questions, and every
+  // combination is meaningful.
+  BoolColumn get planned => boolean().withDefault(const Constant(false))();
 }
 
 /// A single investment entry — money put into a stock, fund, portfolio, etc.,
