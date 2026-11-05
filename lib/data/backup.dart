@@ -219,8 +219,7 @@ Future<String> buildBackupJson(AppDatabase db) async {
 /// choice.
 Future<File> writeBackupFile(AppDatabase db, {String? password}) async {
   final plain = await buildBackupJson(db);
-  final json =
-      password == null ? plain : await encryptBackup(plain, password);
+  final json = password == null ? plain : await encryptBackup(plain, password);
   final dir = await getApplicationDocumentsDirectory();
   final stamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
   final file = File(p.join(dir.path, 'floos_backup_$stamp.json'));
@@ -399,9 +398,9 @@ Future<void> restoreBackupJson(AppDatabase db, String jsonString) async {
 
     // Purchases before the refunds that point at them, so the refund_of
     // foreign key always has its row to point at.
-    final txnRows = [...rowsOf('transactions')]
-      ..sort((a, b) => (a['refundOf'] == null ? 0 : 1)
-          .compareTo(b['refundOf'] == null ? 0 : 1));
+    final txnRows = [...rowsOf('transactions')]..sort((a, b) =>
+        (a['refundOf'] == null ? 0 : 1)
+            .compareTo(b['refundOf'] == null ? 0 : 1));
     for (final t in txnRows) {
       await db.into(db.transactions).insert(TransactionsCompanion.insert(
             id: Value(t['id'] as int),

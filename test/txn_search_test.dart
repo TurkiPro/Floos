@@ -99,8 +99,7 @@ void main() {
       expect(out.map((r) => r.txn.note), ['RED BOX']);
     });
 
-    test('matches the category, and a parent name finds its subcategories',
-        () {
+    test('matches the category, and a parent name finds its subcategories', () {
       final rows = [
         _row(_coffee, 18, DateTime(2026, 8, 2), note: 'بارنز'),
         _row(_groceries, 50, DateTime(2026, 8, 2)),

@@ -89,8 +89,7 @@ void main() {
     await teardownTree(tester);
   });
 
-  testWidgets('a result can be swiped away like anywhere else',
-      (tester) async {
+  testWidgets('a result can be swiped away like anywhere else', (tester) async {
     await seed();
     await pumpSearch(tester);
     await typeQuery(tester, 'red box');

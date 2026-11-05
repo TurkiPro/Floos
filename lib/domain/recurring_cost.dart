@@ -23,9 +23,8 @@ List<DateTime> occurrencesInNext12Months(RecurrenceRule rule, DateTime now) {
   final today = dateOnly(now);
   final windowEnd = addMonths(today, 12); // exclusive
   final yesterday = DateTime(today.year, today.month, today.day - 1);
-  final booked = rule.lastMaterialized == null
-      ? null
-      : dateOnly(rule.lastMaterialized!);
+  final booked =
+      rule.lastMaterialized == null ? null : dateOnly(rule.lastMaterialized!);
   final after =
       booked != null && booked.isAfter(yesterday) ? booked : yesterday;
 

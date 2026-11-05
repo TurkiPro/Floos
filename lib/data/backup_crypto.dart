@@ -150,8 +150,7 @@ String _header(KdfParams kdf) =>
 
 /// Argon2id is deliberately slow and memory-hard, so it runs on its own
 /// isolate: on the UI isolate it would freeze the app for the duration.
-Future<List<int>> _deriveKey(
-    String password, List<int> salt, KdfParams kdf) {
+Future<List<int>> _deriveKey(String password, List<int> salt, KdfParams kdf) {
   final memory = kdf.memoryKiB, iterations = kdf.iterations;
   final parallelism = kdf.parallelism;
   return Isolate.run(() async {

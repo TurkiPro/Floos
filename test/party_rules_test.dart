@@ -216,8 +216,8 @@ void main() {
       final rule = await learnedByImport();
       expect(rule.createdByBatchId, isNotNull);
 
-      await db.partyRuleDao.updateRule(rule.id,
-          disposition: PartyDisposition.ignore);
+      await db.partyRuleDao
+          .updateRule(rule.id, disposition: PartyDisposition.ignore);
       await db.importBatchDao.undo(rule.createdByBatchId!);
 
       final after = await db.partyRuleDao.lookup('RED BOX');

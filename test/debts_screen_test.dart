@@ -50,8 +50,8 @@ void main() {
     expect(find.text('فهد'), findsOneWidget);
     expect(find.text('500.00 ⃁'), findsNWidgets(2)); // the row and the section
 
-    final debts = (await tester.runAsync(
-        () => db.debtDao.watchAllMovements().first))!;
+    final debts =
+        (await tester.runAsync(() => db.debtDao.watchAllMovements().first))!;
     expect(debts.single.debt.direction, DebtDirection.lent);
     expect(debts.single.movement.amount, 500);
 
@@ -67,8 +67,8 @@ void main() {
 
     expect(find.text('مسدّد بالكامل'), findsOneWidget);
     expect(find.text('سدّد لك'), findsOneWidget);
-    final after = (await tester.runAsync(
-        () => db.debtDao.watchAllMovements().first))!;
+    final after =
+        (await tester.runAsync(() => db.debtDao.watchAllMovements().first))!;
     expect(debtOutstanding(after).values.single, 0);
 
     // Back on the list it has moved under «مسدّدة».

@@ -96,8 +96,7 @@ void main() {
     await teardownTree(tester);
   });
 
-  testWidgets('forgetting a party asks first, then removes it',
-      (tester) async {
+  testWidgets('forgetting a party asks first, then removes it', (tester) async {
     await seedTwo();
     await openSavedParties(tester);
 

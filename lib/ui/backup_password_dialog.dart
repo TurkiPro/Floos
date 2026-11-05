@@ -83,7 +83,8 @@ class _NewPasswordDialogState extends State<_NewPasswordDialog> {
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
                   tooltip: _obscure ? 'إظهار' : 'إخفاء',
-                  icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                  icon:
+                      Icon(_obscure ? Icons.visibility : Icons.visibility_off),
                   onPressed: () => setState(() => _obscure = !_obscure),
                 ),
               ),
@@ -103,16 +104,15 @@ class _NewPasswordDialogState extends State<_NewPasswordDialog> {
             Text(
               'إذا نسيت كلمة المرور فلا يمكن استرجاع هذه النسخة. '
               'لا تُحفظ كلمة المرور في أي مكان.',
-              style: TextStyle(
-                  fontSize: AppTextSizes.label, color: scheme.error),
+              style:
+                  TextStyle(fontSize: AppTextSizes.label, color: scheme.error),
             ),
           ],
         ),
       ),
       actions: [
         TextButton(
-          onPressed: () =>
-              Navigator.of(context).pop(const WithoutPassword()),
+          onPressed: () => Navigator.of(context).pop(const WithoutPassword()),
           child: const Text('بدون كلمة مرور'),
         ),
         TextButton(

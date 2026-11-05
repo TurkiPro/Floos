@@ -186,8 +186,8 @@ class _SearchScreenState extends State<SearchScreen> {
               onPressed: () => _pickCategory(db),
               onDeleted: selectedCategory == null
                   ? null
-                  : () => setState(() =>
-                      _query = _query.copyWith(categoryId: () => null)),
+                  : () => setState(
+                      () => _query = _query.copyWith(categoryId: () => null)),
             ),
           ],
         ),

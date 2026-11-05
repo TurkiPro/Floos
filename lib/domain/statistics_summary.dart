@@ -289,10 +289,10 @@ class StatisticsSummary {
     // so it overstated the daily allowance in exactly the case «المتبقي» was
     // fixed for. Reusing the one figure is what keeps them from drifting apart
     // again.
-    final remaining =
-        DashboardSummary.from(rows, contributions, investments, period,
-                debts: debts)
-            .monthRemaining;
+    final remaining = DashboardSummary.from(
+            rows, contributions, investments, period,
+            debts: debts)
+        .monthRemaining;
     final allowance = monthIncome > 0 ? remaining / daysLeft : null;
     final savingsRate = monthIncome > 0 ? monthSaved / monthIncome : null;
 

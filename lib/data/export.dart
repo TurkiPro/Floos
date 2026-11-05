@@ -107,8 +107,7 @@ Future<String> exportTransactionsCsvToFile(AppDatabase db) async {
 Future<String> buildStatsCsv(AppDatabase db, {DateTime? now}) async {
   final rows = await db.transactionDao.watchAllWithCategory().first;
   final contributions = await db.savingsDao.watchAllContributions().first;
-  final incomeRules =
-      await db.recurrenceDao.watchByType(TxnType.income).first;
+  final incomeRules = await db.recurrenceDao.watchByType(TxnType.income).first;
   return statsCsvFor(
       cycleSummaries(rows, contributions, incomeRules, now ?? DateTime.now()));
 }

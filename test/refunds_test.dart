@@ -53,16 +53,16 @@ void main() {
     return id;
   }
 
-  Future<List<Txn>> all() => (db.select(db.transactions)
-        ..orderBy([(t) => OrderingTerm.asc(t.id)]))
-      .get();
+  Future<List<Txn>> all() =>
+      (db.select(db.transactions)..orderBy([(t) => OrderingTerm.asc(t.id)]))
+          .get();
 
   group('recording a refund', () {
     test('is a negative expense in the purchase\'s category, linked to it',
         () async {
       final id = await purchase();
-      await db.transactionDao.addRefund(
-          purchaseId: id, amount: 50, date: DateTime(2026, 9, 20));
+      await db.transactionDao
+          .addRefund(purchaseId: id, amount: 50, date: DateTime(2026, 9, 20));
       final refund = (await all()).last;
       expect(refund.amount, -50);
       expect(refund.type, TxnType.expense);
@@ -75,14 +75,12 @@ void main() {
 
     test('partial refunds add up, and never past the purchase', () async {
       final id = await purchase();
-      await db.transactionDao
-          .addRefund(purchaseId: id, amount: 50, date: day);
+      await db.transactionDao.addRefund(purchaseId: id, amount: 50, date: day);
       expect(await db.transactionDao.unrefunded(id), 150);
       await expectLater(
           db.transactionDao.addRefund(purchaseId: id, amount: 151, date: day),
           throwsArgumentError);
-      await db.transactionDao
-          .addRefund(purchaseId: id, amount: 150, date: day);
+      await db.transactionDao.addRefund(purchaseId: id, amount: 150, date: day);
       expect(await db.transactionDao.unrefunded(id), 0);
     });
 
@@ -98,8 +96,8 @@ void main() {
           db.transactionDao
               .addRefund(purchaseId: refundId, amount: 5, date: day),
           throwsArgumentError);
-      final income = await db.transactionDao.add(
-          amount: 100, categoryId: 9, type: TxnType.income, date: day);
+      final income = await db.transactionDao
+          .add(amount: 100, categoryId: 9, type: TxnType.income, date: day);
       await expectLater(
           db.transactionDao.addRefund(purchaseId: income, amount: 5, date: day),
           throwsArgumentError);
@@ -124,8 +122,7 @@ void main() {
       await db.transactionDao.deleteById(id);
       final left = await all();
       expect(left.single.amount, -50);
-      expect(left.single.refundOf, isNull,
-          reason: 'the money still came back');
+      expect(left.single.refundOf, isNull, reason: 'the money still came back');
     });
 
     test('a standalone refund needs no purchase', () async {
@@ -135,8 +132,8 @@ void main() {
       expect(r.amount, -75);
       expect(r.refundOf, isNull);
       await expectLater(
-          db.transactionDao.addStandaloneRefund(
-              amount: 75, categoryId: 9, date: day),
+          db.transactionDao
+              .addStandaloneRefund(amount: 75, categoryId: 9, date: day),
           throwsArgumentError,
           reason: 'income categories do not take refunds');
     });
@@ -145,11 +142,10 @@ void main() {
       final id = await purchase();
       final r1 = await db.transactionDao
           .addRefund(purchaseId: id, amount: 50, date: day);
-      await db.transactionDao
-          .addRefund(purchaseId: id, amount: 100, date: day);
+      await db.transactionDao.addRefund(purchaseId: id, amount: 100, date: day);
       await expectLater(
-          db.transactionDao.updateRefund(
-              id: r1, amount: 101, date: day, categoryId: food),
+          db.transactionDao
+              .updateRefund(id: r1, amount: 101, date: day, categoryId: food),
           throwsArgumentError);
       await db.transactionDao
           .updateRefund(id: r1, amount: 100, date: day, categoryId: food);
@@ -183,8 +179,8 @@ void main() {
     test('in a cycle view, even when the refund lands in a later cycle',
         () async {
       final id = await purchase(); // 12 Sep
-      await db.transactionDao.addRefund(
-          purchaseId: id, amount: 200, date: DateTime(2026, 10, 3));
+      await db.transactionDao
+          .addRefund(purchaseId: id, amount: 200, date: DateTime(2026, 10, 3));
       final september = await db.transactionDao
           .watchForRange(DateTime(2026, 9, 1), DateTime(2026, 10, 1))
           .first;
@@ -244,8 +240,7 @@ void main() {
       expect(stat.average, 125);
     });
 
-    test('stats: counts skip refunds, and a refund-only day spent nothing',
-        () {
+    test('stats: counts skip refunds, and a refund-only day spent nothing', () {
       final now = DateTime(2026, 7, 20);
       final period = financialPeriod(const [], now); // 1 Jul – 1 Aug
       StatisticsSummary stats(List<TxnRow> rows) => StatisticsSummary.from(
@@ -264,7 +259,8 @@ void main() {
   });
 
   group('import', () {
-    test('a refund message is a refund, even when the party has an expense '
+    test(
+        'a refund message is a refund, even when the party has an expense '
         'rule (the live bug)', () async {
       // Before this, the parser classified the message but nothing read the
       // classification: the rule "RED BOX → food" turned the money coming
@@ -313,8 +309,7 @@ void main() {
         recurringCharges: const [],
         lookupRule: (_) => null,
       );
-      expect(reviewed.map((r) => r.status),
-          everyElement(DraftStatus.fresh));
+      expect(reviewed.map((r) => r.status), everyElement(DraftStatus.fresh));
     });
 
     test('an already-imported refund is a duplicate on re-paste', () async {
@@ -378,11 +373,10 @@ void main() {
     test('refunds survive, even when listed before their purchase', () async {
       final id = await purchase();
       await db.transactionDao.addRefund(purchaseId: id, amount: 50, date: day);
-      final map =
-          jsonDecode(await buildBackupJson(db)) as Map<String, dynamic>;
+      final map = jsonDecode(await buildBackupJson(db)) as Map<String, dynamic>;
       // Put the refund first: restore must still satisfy the foreign key.
-      (map['transactions'] as List).sort((a, b) => ((b as Map)['id'] as int)
-          .compareTo((a as Map)['id'] as int));
+      (map['transactions'] as List).sort((a, b) =>
+          ((b as Map)['id'] as int).compareTo((a as Map)['id'] as int));
 
       final target = AppDatabase.forTesting(NativeDatabase.memory());
       addTearDown(target.close);
@@ -392,10 +386,9 @@ void main() {
     });
 
     test('a pre-v17 backup restores with no links', () async {
-      await db.transactionDao.addStandaloneRefund(
-          amount: 20, categoryId: food, date: day);
-      final map =
-          jsonDecode(await buildBackupJson(db)) as Map<String, dynamic>;
+      await db.transactionDao
+          .addStandaloneRefund(amount: 20, categoryId: food, date: day);
+      final map = jsonDecode(await buildBackupJson(db)) as Map<String, dynamic>;
       for (final t in map['transactions'] as List) {
         (t as Map<String, dynamic>).remove('refundOf');
       }

@@ -27,8 +27,7 @@ Category _cat(TxnType type) => Category(
       sortOrder: 0,
     );
 
-TxnRow _txn(TxnType type, double amount, DateTime date,
-        {int? recurrenceId}) =>
+TxnRow _txn(TxnType type, double amount, DateTime date, {int? recurrenceId}) =>
     TxnRow(
       txn: Txn(
         id: 1,
@@ -89,8 +88,8 @@ void main() {
         _move(DebtDirection.borrowed, 2000, DateTime(2026, 7, 5)),
         _move(DebtDirection.borrowed, -500, DateTime(2026, 7, 9)),
       ];
-      expect(ledgerTotals(_ledger(income, borrowed)).balance,
-          10000 + 2000 - 500);
+      expect(
+          ledgerTotals(_ledger(income, borrowed)).balance, 10000 + 2000 - 500);
     });
 
     test('external movements never touch the balance', () {
@@ -119,8 +118,7 @@ void main() {
         _move(DebtDirection.borrowed, 9000, DateTime(2026, 7, 5),
             external: true, debtId: 2),
       ]);
-      expect(out, {1: 300, 2: 9000},
-          reason: 'an external loan is still owed');
+      expect(out, {1: 300, 2: 9000}, reason: 'an external loan is still owed');
     });
   });
 
@@ -135,10 +133,10 @@ void main() {
       final borrowed = [
         _move(DebtDirection.borrowed, 2000, DateTime(2026, 7, 3)),
       ];
-      final before =
-          DashboardSummary.from(rows, const [], const [], _july, debts: const []);
-      final after =
-          DashboardSummary.from(rows, const [], const [], _july, debts: borrowed);
+      final before = DashboardSummary.from(rows, const [], const [], _july,
+          debts: const []);
+      final after = DashboardSummary.from(rows, const [], const [], _july,
+          debts: borrowed);
 
       expect(after.balance, before.balance + 2000);
       expect(after.monthRemaining, before.monthRemaining,
@@ -152,8 +150,8 @@ void main() {
         _move(DebtDirection.lent, 400, DateTime(2026, 7, 2)),
         _move(DebtDirection.borrowed, 900, DateTime(2026, 7, 3), debtId: 2),
       ];
-      final d = DashboardSummary.from(rows, const [], const [], _july,
-          debts: debts);
+      final d =
+          DashboardSummary.from(rows, const [], const [], _july, debts: debts);
       expect(d.monthSpent, 0);
       expect(d.monthExpenses, isEmpty);
     });
@@ -272,8 +270,8 @@ void main() {
         amount: 500,
         date: DateTime(2026, 7, 5),
       );
-      await db.debtDao.addMovement(
-          debtId: id, amount: -200, date: DateTime(2026, 7, 9));
+      await db.debtDao
+          .addMovement(debtId: id, amount: -200, date: DateTime(2026, 7, 9));
       final rows = await db.debtDao.watchAllMovements().first;
       expect(debtOutstanding(rows), {id: 300});
 
@@ -368,8 +366,7 @@ void main() {
         amount: 500,
         date: DateTime(2026, 7, 5),
       );
-      final map =
-          jsonDecode(await buildBackupJson(db)) as Map<String, dynamic>;
+      final map = jsonDecode(await buildBackupJson(db)) as Map<String, dynamic>;
       map.remove('debts');
       map.remove('debtMovements');
 

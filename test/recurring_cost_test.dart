@@ -60,9 +60,7 @@ void main() {
 
   test('yearly due in three months: one charge', () {
     final r = _rule(
-        amount: 1200,
-        frequency: Frequency.yearly,
-        start: DateTime(2025, 2, 1));
+        amount: 1200, frequency: Frequency.yearly, start: DateTime(2025, 2, 1));
     expect(costNext12Months(r, _now), 1200);
   });
 

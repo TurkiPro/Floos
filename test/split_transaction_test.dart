@@ -44,9 +44,9 @@ void main() {
     return id;
   }
 
-  Future<List<Txn>> all() => (db.select(db.transactions)
-        ..orderBy([(t) => OrderingTerm.asc(t.id)]))
-      .get();
+  Future<List<Txn>> all() =>
+      (db.select(db.transactions)..orderBy([(t) => OrderingTerm.asc(t.id)]))
+          .get();
 
   test('a split becomes ordinary rows that add up to the purchase', () async {
     final id = await aPurchase();
@@ -110,11 +110,8 @@ void main() {
   });
 
   test('income and single-part splits are refused', () async {
-    final income = await db.transactionDao.add(
-        amount: 100,
-        categoryId: 9,
-        type: TxnType.income,
-        date: day);
+    final income = await db.transactionDao
+        .add(amount: 100, categoryId: 9, type: TxnType.income, date: day);
     await expectLater(
       db.transactionDao.saveSplit(income,
           parts: [
@@ -163,8 +160,7 @@ void main() {
 
   test('every part of an imported purchase goes when the import is undone',
       () async {
-    final batch =
-        await db.importBatchDao.create(rowCount: 1, totalAmount: 420);
+    final batch = await db.importBatchDao.create(rowCount: 1, totalAmount: 420);
     final id = await aPurchase(batch: batch);
     await db.transactionDao.saveSplit(id,
         parts: [
@@ -238,8 +234,8 @@ void main() {
     final prints = ledgerFingerprints(await all());
     expect(prints,
         contains(txnFingerprint(amount: 420, date: day, party: 'بنده')));
-    expect(prints,
-        contains(txnFingerprint(amount: 120, date: day, party: 'بنده')),
+    expect(
+        prints, contains(txnFingerprint(amount: 120, date: day, party: 'بنده')),
         reason: 'each part is still a row of its own');
   });
 }

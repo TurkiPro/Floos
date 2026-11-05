@@ -53,7 +53,8 @@ class _ObligationsScreenState extends State<ObligationsScreen> {
         title: const Text('الالتزامات الشهرية'),
         actions: [
           IconButton(
-            tooltip: _byYearlyCost ? 'الترتيب حسب الموعد' : 'الترتيب حسب التكلفة',
+            tooltip:
+                _byYearlyCost ? 'الترتيب حسب الموعد' : 'الترتيب حسب التكلفة',
             icon: Icon(_byYearlyCost ? Icons.event_outlined : Icons.sort),
             onPressed: () => setState(() => _byYearlyCost = !_byYearlyCost),
           ),

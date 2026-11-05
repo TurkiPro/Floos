@@ -27,9 +27,9 @@ void main() {
     settings = AppSettings(await SharedPreferences.getInstance());
   });
 
-  Future<List<Txn>> rows() => (db.select(db.transactions)
-        ..orderBy([(t) => OrderingTerm.asc(t.id)]))
-      .get();
+  Future<List<Txn>> rows() =>
+      (db.select(db.transactions)..orderBy([(t) => OrderingTerm.asc(t.id)]))
+          .get();
 
   testWidgets('split a purchase, then put it back together', (tester) async {
     await db.categoryDao.add(
@@ -70,11 +70,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('منزل').last);
     await tester.pumpAndSettle();
-    await tester.enterText(
-        find.widgetWithText(TextField, 'المبلغ'), '120');
+    await tester.enterText(find.widgetWithText(TextField, 'المبلغ'), '120');
     await tester.pumpAndSettle();
-    expect(find.text('300.00'), findsOneWidget, reason: 'the first part '
-        'takes whatever the others leave');
+    expect(find.text('300.00'), findsOneWidget,
+        reason: 'the first part '
+            'takes whatever the others leave');
 
     await tester.tap(find.text('حفظ التقسيم'));
     await tester.pumpAndSettle();

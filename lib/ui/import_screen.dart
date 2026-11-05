@@ -311,9 +311,8 @@ class _SavedPartiesTile extends StatelessWidget {
         return Card(
           child: ListTile(
             leading: const Icon(Icons.storefront_outlined),
-            title: Text(count == 0
-                ? 'الجهات المحفوظة'
-                : 'الجهات المحفوظة ($count)'),
+            title: Text(
+                count == 0 ? 'الجهات المحفوظة' : 'الجهات المحفوظة ($count)'),
             subtitle: const Text('ما يعنيه كل تاجر أو تحويل عند الاستيراد'),
             trailing: const Icon(Icons.chevron_left),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(

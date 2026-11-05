@@ -35,8 +35,8 @@ Set<String> ledgerFingerprints(List<Txn> txns) {
   }
   for (final entry in groups.entries) {
     final parts = entry.value;
-    final original = parts.firstWhere((t) => t.id == entry.key,
-        orElse: () => parts.first);
+    final original =
+        parts.firstWhere((t) => t.id == entry.key, orElse: () => parts.first);
     final total = parts.fold<double>(0, (s, t) => s + t.amount);
     out.add(txnFingerprint(
         amount: total, date: original.date, party: original.note));

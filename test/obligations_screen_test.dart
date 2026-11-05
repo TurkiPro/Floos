@@ -49,8 +49,8 @@ void main() {
           Provider<AppDatabase>.value(value: db),
           ChangeNotifierProvider<AppSettings>.value(value: settings),
         ],
-        child: const MaterialApp(
-            locale: Locale('ar'), home: ObligationsScreen()),
+        child:
+            const MaterialApp(locale: Locale('ar'), home: ObligationsScreen()),
       ),
     );
     await tester.pumpAndSettle();

@@ -36,10 +36,10 @@ void main() {
       frequency: Frequency.monthly,
       startDate: DateTime(now.year - 1, now.month, 1),
     );
-    await db.transactionDao.add(
-        amount: 10000, categoryId: 9, type: TxnType.income, date: payday);
-    await db.transactionDao.add(
-        amount: 2500, categoryId: 1, type: TxnType.expense, date: payday);
+    await db.transactionDao
+        .add(amount: 10000, categoryId: 9, type: TxnType.income, date: payday);
+    await db.transactionDao
+        .add(amount: 2500, categoryId: 1, type: TxnType.expense, date: payday);
 
     await tester.pumpWidget(
       MultiProvider(

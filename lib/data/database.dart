@@ -316,8 +316,8 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
     required int categoryId,
     String? note,
   }) async {
-    final row = await (select(transactions)..where((t) => t.id.equals(id)))
-        .getSingle();
+    final row =
+        await (select(transactions)..where((t) => t.id.equals(id))).getSingle();
     if (row.amount >= 0) throw ArgumentError('not a refund');
     if (amount <= 0) throw ArgumentError('a refund amount is positive');
     final of = row.refundOf;
@@ -1118,8 +1118,7 @@ class ImportBatchDao extends DatabaseAccessor<AppDatabase>
           rows.where((r) => r.disposition != PartyDisposition.ignore).toList();
       final batchId = await create(
         rowCount: booked.length,
-        totalAmount:
-            booked.fold<double>(0, (acc, r) => acc + r.signedAmount),
+        totalAmount: booked.fold<double>(0, (acc, r) => acc + r.signedAmount),
         ignoredCount: rows.length - booked.length,
       );
 

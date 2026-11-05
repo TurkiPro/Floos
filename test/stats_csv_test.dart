@@ -65,8 +65,8 @@ void main() {
           planned: false),
     ];
 
-    final csv = statsCsvFor(cycleSummaries(
-        rows, contributions, [_salary()], DateTime(2026, 8, 5)));
+    final csv = statsCsvFor(
+        cycleSummaries(rows, contributions, [_salary()], DateTime(2026, 8, 5)));
     final lines = csv.replaceFirst('\uFEFF', '').trim().split('\n');
 
     expect(csv.startsWith('\uFEFF'), isTrue, reason: 'Excel needs the BOM');
