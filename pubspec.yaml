@@ -55,6 +55,10 @@ dependencies:
   # Pure-Dart PDF generation for the "export as PDF" option (no native deps, so
   # it never touches the Windows/iOS build the way an audio/print plugin would).
   pdf: ^3.11.0
+  # Password-protected backups: AES-256-GCM with an Argon2id key. Pure Dart and
+  # offline (audited for network code when added), so it keeps both the
+  # no-native-surprises build and the zero-network promise.
+  cryptography: ^2.9.0
 
 dev_dependencies:
   flutter_test:

@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../app_settings.dart';
 import '../data/backup.dart';
+import '../data/backup_crypto.dart';
 import '../data/database.dart';
 import '../data/dev_seed.dart';
 import '../data/export.dart';
@@ -16,6 +17,7 @@ import '../data/pdf_export.dart';
 import '../services/alerts_coordinator.dart';
 import '../services/app_lock_service.dart';
 import '../services/notification_service.dart';
+import 'backup_password_dialog.dart';
 import 'budgets_screen.dart';
 import 'category_editor_screen.dart';
 import 'debts_screen.dart';
@@ -445,8 +447,21 @@ class SettingsScreen extends StatelessWidget {
   Future<void> _backup(BuildContext context, AppDatabase db) async {
     final messenger = ScaffoldMessenger.of(context);
     final origin = _shareOrigin(context);
+    // Encrypted unless the user explicitly chooses otherwise.
+    final protection = await askNewBackupPassword(context);
+    if (protection == null) return;
+    final password = switch (protection) {
+      WithPassword(:final password) => password,
+      WithoutPassword() => null,
+    };
+    if (password != null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('جارٍ تشفير النسخة…')),
+      );
+    }
     try {
-      final file = await writeBackupFile(db);
+      final file = await writeBackupFile(db, password: password);
+      messenger.hideCurrentSnackBar();
       await Share.shareXFiles([XFile(file.path)], sharePositionOrigin: origin);
     } catch (e) {
       // Surface the actual reason instead of a generic "couldn't" — this is
@@ -480,7 +495,7 @@ class SettingsScreen extends StatelessWidget {
     }
     // readAsString on a security-scoped iOS file can throw; it used to run
     // outside any try, so a failure here silently did nothing.
-    final String json;
+    String json;
     try {
       json = await picked.readAsString();
     } catch (e) {
@@ -489,13 +504,38 @@ class SettingsScreen extends StatelessWidget {
     }
     if (!context.mounted) return;
 
+    // An encrypted backup is opened first, before anything is replaced. A
+    // wrong password asks again; it never touches the data.
+    final encrypted = isEncryptedBackup(json);
+    if (encrypted) {
+      var wrong = false;
+      while (true) {
+        final password = await askBackupPassword(context, wrong: wrong);
+        if (password == null || !context.mounted) return;
+        try {
+          json = await decryptBackup(json, password);
+          break;
+        } on BackupPasswordException {
+          wrong = true;
+        } on FormatException catch (e) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('ملف نسخة احتياطية غير صالح: ${e.message}')),
+          );
+          return;
+        }
+        if (!context.mounted) return;
+      }
+      if (!context.mounted) return;
+    }
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('استعادة النسخة الاحتياطية؟'),
-        content: const Text(
+        content: Text(
             'سيتم حذف كل البيانات الحالية واستبدالها بمحتوى النسخة الاحتياطية. '
-            'لا يمكن التراجع. (الملف غير مشفّر — احتفظ به في مكان آمن.)'),
+            'لا يمكن التراجع.'
+            '${encrypted ? '' : ' (الملف غير مشفّر — احتفظ به في مكان آمن.)'}'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),

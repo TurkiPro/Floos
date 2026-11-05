@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../services/device_backup_exclusion.dart';
+import 'backup_crypto.dart';
 import 'database.dart';
 import 'enums.dart';
 
@@ -212,15 +213,21 @@ Future<String> buildBackupJson(AppDatabase db) async {
 /// The caller hands it to the OS share sheet — where it goes from there (Files,
 /// iCloud, Drive, AirDrop) is the user's choice and custody. Mirrors
 /// export.dart's exportTransactionsCsvToFile.
-Future<File> writeBackupFile(AppDatabase db) async {
-  final json = await buildBackupJson(db);
+///
+/// With a [password] the file is the encrypted envelope (backup_crypto.dart)
+/// around the same JSON; without one, the plain JSON, by the user's explicit
+/// choice.
+Future<File> writeBackupFile(AppDatabase db, {String? password}) async {
+  final plain = await buildBackupJson(db);
+  final json =
+      password == null ? plain : await encryptBackup(plain, password);
   final dir = await getApplicationDocumentsDirectory();
   final stamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
   final file = File(p.join(dir.path, 'floos_backup_$stamp.json'));
   await file.writeAsString(json);
-  // This file is the entire database in plain text. Mark it the moment it
-  // exists, so it is never picked up by an iCloud backup that runs between now
-  // and the next launch. No-op off iOS.
+  // This file is the entire database (in plain text, unless encrypted). Mark
+  // it the moment it exists, so it is never picked up by an iCloud backup that
+  // runs between now and the next launch. No-op off iOS.
   await DeviceBackupExclusion.excludeFile(file.path);
   return file;
 }

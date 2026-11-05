@@ -64,7 +64,7 @@ three times.
 | 028 | Split one transaction across categories (schema v15) | P2 | M | — | DONE (split parts count as separate rows in counts, e.g. search's "2 عملية"; recurring rows cannot be split) |
 | 029 | Debts and IOUs — money lent and borrowed (schema v16) | P1 | L | 027 | DONE (borrowed money left out of the spending caps entirely — equivalent to "balance − owed", and keeps the week frozen; not in the CSV export, is in the backup) |
 | 030 | Refunds as their own thing, linked to the purchase (schema v17) | P1 | M–L | — | DONE (live import bug fixed; a recurring charge is refunded as a standalone refund, not linked — committed/discretionary keys on recurrenceId; no real refund SMS sample yet, tests use the purchase format with «مرتجع»; no unlink button on an auto-linked import) |
-| 031 | Password-protect backup files | P1 | M | — | TODO (decided: encrypted by default) |
+| 031 | Password-protect backup files | P1 | M | — | DONE (encrypted by default; `cryptography` only, no `cryptography_flutter`; Argon2id 283 ms for encrypt+decrypt on the dev PC, not yet timed on a phone) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale)
 

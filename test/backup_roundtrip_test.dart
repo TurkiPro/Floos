@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:floos/data/backup.dart';
+import 'package:floos/data/backup_crypto.dart';
 import 'package:floos/data/database.dart';
 import 'package:floos/data/enums.dart';
 
@@ -108,6 +109,29 @@ void main() {
     final budgets = await target.budgetDao.getAll();
     expect(budgets.single.categoryId, 1);
     expect(budgets.single.amount, 2500);
+  });
+
+  test('an encrypted backup restores to the same database', () async {
+    final source = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(source.close);
+    final ids = await _seed(source);
+    final plain = await buildBackupJson(source);
+
+    // Cheap KDF parameters keep the test fast; backup_crypto_test covers the
+    // real ones.
+    final envelope = await encryptBackup(plain, 'كلمة-سر',
+        kdf: const KdfParams(memoryKiB: 256, iterations: 1, parallelism: 1));
+    expect(envelope, isNot(contains('اشتراك')),
+        reason: 'no field of the backup is readable in the file');
+
+    final target = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(target.close);
+    await restoreBackupJson(target, await decryptBackup(envelope, 'كلمة-سر'));
+
+    expect(await buildBackupJson(target), isNot(isEmpty));
+    final txns = await target.transactionDao.watchRecent().first;
+    expect(txns.single.txn.recurrenceId, ids.ruleId);
+    expect(await target.savingsDao.watchTotal(ids.goalId).first, 2500);
   });
 
   test('a pre-v6 file without a budgets section restores with zero budgets',
