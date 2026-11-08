@@ -322,7 +322,11 @@ class _WeekCard extends StatelessWidget {
               valueColor: AlwaysStoppedAnimation(color),
             ),
           ),
-          if (week.days.any((d) => d.total > 0)) ...[
+          // The week in progress always shows its seven days — empty ones
+          // included — so the shape of the week is there from its first
+          // morning. A finished week with no spending at all has nothing to
+          // chart.
+          if (week.current || week.days.any((d) => d.total > 0)) ...[
             const SizedBox(height: AppSpacing.md),
             _DailyBars(days: week.days, money: money),
           ],
