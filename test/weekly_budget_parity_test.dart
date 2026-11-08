@@ -172,11 +172,19 @@ void main() {
     final weeks = weeklyPerformance(
       rows: rows,
       byId: const {},
-      baseWeekly: baseWeekly,
       now: now,
       periodStart: period.start,
       periodEnd: period.end,
       currentWeekBudget: stats.recommendedWeekly,
+      pastWeekBudget: (ws, we) => weeklyBudgetInForce(
+        rows: rows,
+        incomeRules: incomeRules,
+        expenseRules: expenseRules,
+        contributions: contributions,
+        investments: const [],
+        debts: const [],
+        weekEnd: we,
+      ),
     );
     final current = weeks.firstWhere((w) => w.current);
 
@@ -270,10 +278,11 @@ void main() {
     expect(earlier.weeklyReducedBySavings, isTrue);
   });
 
-  test('past weeks stay frozen and uncapped', () {
-    // Only the week in progress takes the capped figure. A finished week is
-    // history; today's balance has no bearing on how it went, and capping it
-    // would rewrite the past every time the balance moved.
+  test('a past week is judged against the budget in force that week', () {
+    // This test used to assert the opposite — that past weeks stay UNCAPPED.
+    // That was the bug: with the cap binding, a week over the budget the user
+    // had been given was shown as under it. A finished week now takes the
+    // figure the home card showed for it (see weekly_budget_in_force_test).
     final now = DateTime(2026, 7, 16);
     final incomeRules = [_salary(DateTime(2026, 1, 25))];
     final rows = [
@@ -282,22 +291,28 @@ void main() {
       _txn(TxnType.expense, 120, DateTime(2026, 7, 16)),
     ];
     final period = financialPeriod(incomeRules, now);
+    final seen = <DateTime>[];
 
     final weeks = weeklyPerformance(
       rows: rows,
       byId: const {},
-      baseWeekly: 1000,
       now: now,
       periodStart: period.start,
       periodEnd: period.end,
-      currentWeekBudget: 1, // an absurd cap, to prove it reaches only one week
+      currentWeekBudget: 1,
+      pastWeekBudget: (ws, we) {
+        seen.add(ws);
+        return 1000 + seen.length.toDouble();
+      },
     );
 
     final current = weeks.firstWhere((w) => w.current);
-    expect(current.budget, 1);
-    for (final w in weeks.where((w) => !w.current)) {
-      expect(w.budget, greaterThan(1),
-          reason: 'a finished week keeps its own frozen budget');
-    }
+    expect(current.budget, 1, reason: 'the current week takes the home figure');
+    final past = weeks.where((w) => !w.current).toList();
+    expect(seen, [for (final w in past) w.weekStart],
+        reason: 'every finished week asks for its own in-force budget');
+    expect(past.map((w) => w.budget), [
+      for (var i = 1; i <= past.length; i++) 1000 + i.toDouble(),
+    ]);
   });
 }

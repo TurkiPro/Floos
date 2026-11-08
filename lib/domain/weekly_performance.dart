@@ -1,7 +1,6 @@
 import '../data/database.dart';
 import '../data/enums.dart';
 import 'recurrence_math.dart';
-import 'spending_window.dart';
 
 /// One day's discretionary spend in one top-level category, for the stacked
 /// day-bar chart (and its legend).
@@ -52,32 +51,30 @@ class WeekPerformance {
 /// budget for that week, and a per-day category breakdown. Recurring obligations
 /// are excluded, like the weekly-budget baseline itself.
 ///
-/// Each week's budget is [baseWeekly] adapted for the cycle *as it stood at the
-/// start of that week* — it depends only on spending in the weeks BEFORE it, so
-/// a past week's number is frozen and never shifts when a later week over- or
-/// under-spends.
+/// Every week is judged against the budget the user was actually given for
+/// it — never one re-derived here:
 ///
-/// [currentWeekBudget] is the authoritative figure for the week still in
-/// progress — the balance-capped number the home card and the statistics screen
-/// show (see `weeklyBudgetStatus`). Pass it, and the current week is judged
-/// against exactly that.
+/// - [currentWeekBudget], for the week in progress: the balance-capped figure
+///   the home card and the statistics screen show (see `weeklyBudgetStatus`).
+/// - [pastWeekBudget], for each finished week: the figure that was in force
+///   that week (see `weeklyBudgetInForce`), given the week's start and its
+///   exclusive end.
 ///
-/// It has to be passed in rather than derived here, because this function
-/// cannot compute it: the cap depends on the real account balance, which is not
-/// among its inputs. Deriving the current week locally is what let this screen
-/// and the home card reach OPPOSITE verdicts on the same week — one saying
-/// "over by 37", the other "on track by 19" — while the screen's own intro line
-/// quoted the home figure. Past weeks are deliberately left uncapped: they are
-/// finished history, and today's balance has no bearing on how a week that
-/// already ended went.
+/// Both are passed in because this function cannot compute them: the cap
+/// depends on the real balance, which is not among its inputs. Deriving them
+/// here is what went wrong twice. First the current week: this screen and the
+/// home card reached opposite verdicts on the same week. Then past weeks,
+/// judged against the UNCAPPED figure: a week that went over the budget the
+/// user had been given was shown as «أحسنت», and the next week's lower budget
+/// looked like it came from nowhere.
 List<WeekPerformance> weeklyPerformance({
   required List<TxnRow> rows,
   required Map<int, Category> byId,
-  required double baseWeekly,
   required DateTime now,
   required DateTime periodStart,
   required DateTime periodEnd,
-  double? currentWeekBudget,
+  required double currentWeekBudget,
+  required double Function(DateTime weekStart, DateTime weekEnd) pastWeekBudget,
 }) {
   final today = dateOnly(now);
   final tomorrow = DateTime(today.year, today.month, today.day + 1);
@@ -88,38 +85,21 @@ List<WeekPerformance> weeklyPerformance({
   final out = <WeekPerformance>[];
   var ws = cycleStart;
   var idx = 1;
-  // Discretionary spend in the weeks BEFORE the current one — drives each week's
-  // adaptation, and (being backward-looking only) keeps past weeks frozen.
-  var spentBeforeThisWeek = 0.0;
   while (ws.isBefore(upper)) {
     final we = DateTime(ws.year, ws.month, ws.day + 7);
     final fullWeekEnd = we.isBefore(cycleEnd) ? we : cycleEnd; // week's own end
     final windowEnd = we.isBefore(upper) ? we : upper; // clamped to today
     // The week's OWN length (7, or fewer when the cycle ends mid-week) — never
-    // the days elapsed so far. A week still in progress is judged against its
-    // whole allowance, so this screen and the home card can't reach opposite
-    // verdicts on the same week.
+    // the days elapsed so far.
     final weekLen = fullWeekEnd.difference(ws).inDays;
-    // This week's own budget, adapted as of its start (spending before it only),
-    // then pro-rated to the week's length. Frozen for weeks already past.
-    final adaptive = adaptiveWeeklyBudget(
-      recommended: baseWeekly,
-      spentBeforeThisWeek: spentBeforeThisWeek,
-      periodStart: periodStart,
-      periodEnd: periodEnd,
-      now: ws,
-    );
     final isCurrent = windowEnd == upper && upper == tomorrow;
-    // The authoritative figure for the week in progress, used as given: it is
-    // already this week's whole allowance, and the cap it carries has itself
-    // accounted for a cycle ending mid-week (see balanceCappedWeekly), so
-    // pro-rating it again would shrink it twice.
-    final budget = (isCurrent && currentWeekBudget != null)
-        ? currentWeekBudget
-        : adaptive * weekLen / 7;
+    // Each figure is used as given: it is already that week's whole
+    // allowance, and the cap it carries has itself accounted for a cycle
+    // ending mid-week (see balanceCappedWeekly).
+    final budget =
+        isCurrent ? currentWeekBudget : pastWeekBudget(ws, fullWeekEnd);
 
     var spent = 0.0; // discretionary spend up to today (the displayed figure)
-    var fullWeekSpent = 0.0; // the whole week, to carry into later weeks
     // dayKey -> top-category id -> amount, for the days of this week. Grouping by
     // top category (not raw colour) keeps each bar segment one distinct category
     // that the legend can name.
@@ -130,7 +110,6 @@ List<WeekPerformance> weeklyPerformance({
       final d = dateOnly(r.txn.date);
       if (d.isBefore(ws) || !d.isBefore(fullWeekEnd)) continue;
       final dayKey = d.difference(ws).inDays;
-      fullWeekSpent += r.txn.amount;
       if (d.isBefore(windowEnd)) spent += r.txn.amount;
       final topId = r.category.parentId ?? r.category.id;
       (byDay[dayKey] ??= <int, double>{})[topId] =
@@ -166,7 +145,6 @@ List<WeekPerformance> weeklyPerformance({
       current: isCurrent,
       days: daySpends,
     ));
-    spentBeforeThisWeek += fullWeekSpent;
     ws = we;
     idx++;
   }

@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:floos/data/database.dart';
 import 'package:floos/data/enums.dart';
-import 'package:floos/domain/spending_window.dart';
 import 'package:floos/domain/weekly_performance.dart';
 import 'package:floos/domain/weekly_series.dart';
 
@@ -38,15 +37,11 @@ void main() {
     final start = DateTime(2026, 7, 1);
     final end = DateTime(2026, 8, 1);
 
-    double adaptive(double spentBefore, DateTime ws) => adaptiveWeeklyBudget(
-          recommended: 700,
-          spentBeforeThisWeek: spentBefore,
-          periodStart: start,
-          periodEnd: end,
-          now: ws,
-        );
+    // The budgets come from outside (see weekly_budget_in_force_test for the
+    // real ones); here each past week gets a figure that names its start day.
+    double byStart(DateTime ws, DateTime we) => ws.day.toDouble();
 
-    test('each week gets its own budget, adapted as of that week', () {
+    test('each week gets its own budget; the current one the home figure', () {
       final weeks = weeklyPerformance(
         rows: [
           _exp(800, DateTime(2026, 7, 2)), // week 1
@@ -55,67 +50,57 @@ void main() {
               recurrenceId: 5), // recurring -> excluded
         ],
         byId: {1: _cat()},
-        baseWeekly: 700,
         now: now,
         periodStart: start,
         periodEnd: end,
+        currentWeekBudget: 700,
+        pastWeekBudget: byStart,
       );
       expect(weeks.length, 3);
-      // Week 1: no prior spend -> the base itself.
-      expect(weeks[0].budget, closeTo(700, 1e-9));
+      expect(weeks[0].budget, 1);
       expect(weeks[0].spent, 1200);
       expect(weeks[0].over, isTrue);
-      // Week 2: week 1's 1200 overspend lowers THIS week's budget below the base.
-      expect(
-          weeks[1].budget, closeTo(adaptive(1200, DateTime(2026, 7, 8)), 1e-9));
-      expect(weeks[1].budget, lessThan(700));
+      expect(weeks[1].budget, 8);
       expect(weeks[1].spent, 0); // the recurring 999 is excluded
       expect(weeks[2].current, isTrue);
+      expect(weeks[2].budget, 700);
     });
 
-    test("a past week's budget is frozen — later weeks don't change it", () {
-      List<WeekPerformance> run(List<TxnRow> rows) => weeklyPerformance(
-            rows: rows,
-            byId: {1: _cat()},
-            baseWeekly: 700,
-            now: DateTime(2026, 7, 20),
-            periodStart: start,
-            periodEnd: end,
-          );
-      final a = run([_exp(300, DateTime(2026, 7, 2))]); // week 1 only
-      final b = run([
-        _exp(300, DateTime(2026, 7, 2)), // same week 1
-        _exp(5000, DateTime(2026, 7, 17)), // a LATER week blows its budget
-      ]);
-      final w1a = a.firstWhere((w) => w.index == 1);
-      final w1b = b.firstWhere((w) => w.index == 1);
-      // The later week's overspend must not move week 1's already-passed budget.
-      expect(w1b.budget, closeTo(w1a.budget, 1e-9));
+    test('a past week asks for the budget up to its own end', () {
+      final ends = <DateTime>[];
+      weeklyPerformance(
+        rows: const [],
+        byId: {1: _cat()},
+        now: now,
+        periodStart: start,
+        periodEnd: end,
+        currentWeekBudget: 700,
+        pastWeekBudget: (ws, we) {
+          ends.add(we);
+          return 0;
+        },
+      );
+      expect(ends, [DateTime(2026, 7, 8), DateTime(2026, 7, 15)]);
     });
 
-    test('a short final week is pro-rated to its length', () {
+    test('a short final week ends at the cycle end', () {
       // Cycle 1–24 July: weeks 1–8, 8–15, 15–22, then a 2-day tail 22–24.
-      final s = DateTime(2026, 7, 1);
-      final e = DateTime(2026, 7, 24);
+      final ends = <DateTime, DateTime>{};
       final weeks = weeklyPerformance(
         rows: const [],
         byId: {1: _cat()},
-        baseWeekly: 700,
-        now: DateTime(2026, 7, 24),
-        periodStart: s,
-        periodEnd: e,
+        now: DateTime(2026, 7, 30),
+        periodStart: DateTime(2026, 7, 1),
+        periodEnd: DateTime(2026, 7, 24),
+        currentWeekBudget: 700,
+        pastWeekBudget: (ws, we) {
+          ends[ws] = we;
+          return 0;
+        },
       );
-      final last = weeks.last;
-      expect(last.weekStart, DateTime(2026, 7, 22));
-      // Its own adaptive budget (nothing spent all cycle), pro-rated by 2/7.
-      final adaptiveLast = adaptiveWeeklyBudget(
-        recommended: 700,
-        spentBeforeThisWeek: 0,
-        periodStart: s,
-        periodEnd: e,
-        now: DateTime(2026, 7, 22),
-      );
-      expect(last.budget, closeTo(adaptiveLast * 2 / 7, 1e-9));
+      expect(weeks.last.weekStart, DateTime(2026, 7, 22));
+      expect(weeks.last.days, hasLength(2));
+      expect(ends[DateTime(2026, 7, 22)], DateTime(2026, 7, 24));
     });
 
     test('per-day breakdown slots every day of the week', () {
@@ -125,10 +110,11 @@ void main() {
           _exp(400, DateTime(2026, 7, 7))
         ],
         byId: {1: _cat()},
-        baseWeekly: 700,
         now: now,
         periodStart: start,
         periodEnd: end,
+        currentWeekBudget: 700,
+        pastWeekBudget: byStart,
       );
       final w1 = weeks[0];
       expect(w1.days.length, 7); // full week has 7 day slots

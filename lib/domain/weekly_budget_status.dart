@@ -210,3 +210,51 @@ WeeklyBudgetStatus weeklyBudgetStatus({
     reducedBySavings: savedBeforeWeek > 0,
   );
 }
+
+/// The weekly budget that was actually in force during a week that has ended:
+/// [weeklyBudgetStatus] run on the data as it stood by the end of that week
+/// ([weekEnd], exclusive), as of that week's last day. It is the number the
+/// home card showed that week.
+///
+/// The weekly-performance screen used to judge past weeks against the
+/// UNCAPPED budget instead — the figure before the balance cap. When the cap
+/// bit (a deficit carried in, so the balance was below what the income base
+/// would hand out), the screen called a week "under budget" that was in fact
+/// over the budget the user had been given, and the next week's lower budget
+/// then looked unexplained.
+///
+/// Nothing dated on or after [weekEnd] is read, so a finished week's budget is
+/// frozen: later spending, income or savings never rewrite it.
+double weeklyBudgetInForce({
+  required List<TxnRow> rows,
+  required List<RecurrenceRule> incomeRules,
+  required List<RecurrenceRule> expenseRules,
+  required List<SavingsContribution> contributions,
+  required List<Investment> investments,
+  required List<DebtMovementRow> debts,
+  required DateTime weekEnd,
+}) {
+  bool before(DateTime d) => d.isBefore(weekEnd);
+  final lastDay = DateTime(weekEnd.year, weekEnd.month, weekEnd.day - 1);
+  return weeklyBudgetStatus(
+    rows: [
+      for (final r in rows)
+        if (before(r.txn.date)) r
+    ],
+    incomeRules: incomeRules,
+    expenseRules: expenseRules,
+    contributions: [
+      for (final c in contributions)
+        if (before(c.date)) c,
+    ],
+    investments: [
+      for (final i in investments)
+        if (before(i.date)) i
+    ],
+    debts: [
+      for (final d in debts)
+        if (before(d.movement.date)) d
+    ],
+    now: lastDay,
+  ).budget;
+}

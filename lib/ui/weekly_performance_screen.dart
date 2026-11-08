@@ -8,6 +8,7 @@ import '../domain/budget_envelope.dart';
 import '../domain/financial_period.dart';
 import '../domain/spending_window.dart';
 import '../domain/statistics_summary.dart';
+import '../domain/weekly_budget_status.dart';
 import '../domain/weekly_performance.dart';
 import 'theme/tokens.dart';
 
@@ -84,9 +85,8 @@ class WeeklyPerformanceScreen extends StatelessWidget {
                                   // budget below, so this screen cannot contradict the
                                   // home card, or itself.
                                   final weeklyBudget = s.recommendedWeekly;
-                                  // The uncapped income base each week adapts from — so
-                                  // every week gets ITS OWN budget (frozen once past),
-                                  // instead of today's single number stamped on them all.
+                                  // Only to know whether there is a budget at all yet:
+                                  // with no salary to build one from, the base is zero.
                                   final env = monthlyEnvelope(
                                     incomeRules: incomeRules,
                                     expenseRules: expenseRules,
@@ -100,14 +100,26 @@ class WeeklyPerformanceScreen extends StatelessWidget {
                                     periodStart: period.start,
                                     periodEnd: period.end,
                                   );
+                                  // Each finished week is judged against the budget the
+                                  // home card actually gave for it — its own figure,
+                                  // frozen once the week is over.
                                   final weeks = weeklyPerformance(
                                     rows: rows,
                                     byId: byId,
-                                    baseWeekly: baseWeekly,
                                     now: now,
                                     periodStart: period.start,
                                     periodEnd: period.end,
                                     currentWeekBudget: weeklyBudget,
+                                    pastWeekBudget: (ws, we) =>
+                                        weeklyBudgetInForce(
+                                      rows: rows,
+                                      incomeRules: incomeRules,
+                                      expenseRules: expenseRules,
+                                      contributions: contributions,
+                                      investments: investments,
+                                      debts: debts,
+                                      weekEnd: we,
+                                    ),
                                   ).reversed.toList(); // newest week first
 
                                   if (weeks.isEmpty || baseWeekly <= 0) {
@@ -253,7 +265,9 @@ class _WeekCard extends StatelessWidget {
                     ),
                     Text(
                       '${dfmt.format(week.weekStart)} – '
-                      '${dfmt.format(week.windowEnd.subtract(const Duration(days: 1)))}',
+                      // The whole week, not just the days so far: a week
+                      // that started today still runs to its seventh day.
+                      '${dfmt.format(week.days.last.date)}',
                       style: TextStyle(
                           fontSize: AppTextSizes.label,
                           color: scheme.onSurfaceVariant),
